@@ -5,34 +5,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #f5f5f5 0%, #ffffff 100%);
+  background-color: #f5f5f5;
   position: relative;
   overflow: hidden;
 }
 
-/* Decorative sports equipment background */
-.login-container::before {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 350px;
-  background-image: 
-    url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400"><g stroke="%23ff9900" stroke-width="2" fill="none"><circle cx="150" cy="300" r="80"/><circle cx="150" cy="300" r="60"/><ellipse cx="350" cy="320" rx="90" ry="70"/><ellipse cx="550" cy="280" rx="95" ry="75"/><circle cx="750" cy="300" r="75"/><path d="M 900 320 Q 950 280 1000 320 Q 950 360 900 320"/></g></svg>');
-  background-repeat: repeat-x;
-  background-position: bottom;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.4;
-}
-
 .login-card {
-  background-color: var(--bg-primary);
+  background-color: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(2px);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-xl);
-  padding: 48px 40px;
-  max-width: 450px;
+  padding: 36px 30px;
+  max-width: 400px;
   width: 100%;
   position: relative;
   z-index: 1;

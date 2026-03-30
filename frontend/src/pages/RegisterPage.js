@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import '../styles/pages/Register.css';
-import logo from '../assets/logo.png'; // Make sure to add your logo PNG
+import logo from '../assets/NILGUARD.png';
 
 function RegisterPage() {
   const [formData, setFormData] = useState({

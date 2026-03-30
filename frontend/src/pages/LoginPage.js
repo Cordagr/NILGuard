@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import '../styles/pages/Login.css';
-import logo from '../assets/logo.png'; // Make sure to add your logo PNG
+import logo from '../assets/NILGUARD.png';
 
 function LoginPage() {
   const [email, setEmail] = useState('');
