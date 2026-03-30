@@ -1,0 +1,144 @@
+/* Contract Analysis Page Styles */
+
+.analysis-container {
+  padding: var(--spacing-xl);
+  background-color: var(--bg-secondary);
+}
+
+.analysis-header {
+  margin-bottom: var(--spacing-xl);
+  background-color: var(--bg-primary);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  border-left: 4px solid var(--primary-color);
+}
+
+.analysis-header h1 {
+  margin-bottom: var(--spacing-md);
+  color: var(--dark-primary);
+}
+
+.analysis-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-xl);
+}
+
+.analysis-upload {
+  background-color: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  box-shadow: var(--shadow-sm);
+}
+
+.upload-area {
+  border: 2px dashed var(--primary-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  background-color: rgba(255, 153, 0, 0.05);
+}
+
+.upload-area:hover {
+  border-color: var(--secondary-color);
+  background-color: rgba(255, 153, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.upload-area.dragover {
+  border-color: var(--secondary-color);
+  background-color: rgba(255, 153, 0, 0.15);
+}
+
+.upload-icon {
+  font-size: 48px;
+  margin-bottom: var(--spacing-md);
+  color: var(--primary-color);
+}
+
+/* Analysis Results */
+.analysis-results {
+  background-color: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  box-shadow: var(--shadow-sm);
+}
+
+.analysis-result-item {
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  border-left: 4px solid var(--primary-color);
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.analysis-result-item.warning {
+  border-left-color: var(--warning-color);
+  background-color: rgba(255, 153, 0, 0.05);
+}
+
+.analysis-result-item.error {
+  border-left-color: var(--error-color);
+  background-color: rgba(239, 68, 68, 0.05);
+}
+
+.analysis-result-item.success {
+  border-left-color: var(--success-color);
+  background-color: rgba(34, 197, 94, 0.05);
+}
+
+.analysis-result-title {
+  font-weight: 600;
+  margin-bottom: var(--spacing-sm);
+  color: var(--dark-primary);
+}
+
+.analysis-result-description {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+/* Risk Flags */
+.risk-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  margin-right: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+}
+
+.risk-badge.high {
+  background-color: var(--error-color);
+  color: white;
+}
+
+.risk-badge.medium {
+  background-color: var(--warning-color);
+  color: white;
+}
+
+.risk-badge.low {
+  background-color: var(--success-color);
+  color: white;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .analysis-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .analysis-container {
+    padding: var(--spacing-lg);
+  }
+
+  .upload-area {
+    padding: var(--spacing-lg);
+  }
+}
