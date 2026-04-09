@@ -24,7 +24,7 @@
 }
 
 .student-dashboard-header-logo {
-  width: min(150px, 20vw);
+  width: min(280px, 30vw);
   height: auto;
 }
 
@@ -38,8 +38,12 @@
 
 .active-contracts-actions {
   display: flex;
-  justify-content: center;
-  margin-bottom: 14px;
+  justify-content: flex-start;
+  margin-bottom: 0;
+}
+
+.contract-upload-input {
+  display: none;
 }
 
 .upload-button {
@@ -63,6 +67,23 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 50px;
+  align-items: start;
+}
+
+.contracts-toolbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 8px;
+}
+
+.active-contracts-actions-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
 }
 
 .contracts-column h2 {
@@ -72,18 +93,121 @@
   text-align: center;
 }
 
+.contracts-column {
+  display: flex;
+  flex-direction: column;
+}
+
+.contracts-column-header {
+  display: flex;
+  align-items: end;
+  justify-content: flex-start;
+  gap: 18px;
+  margin-bottom: 16px;
+  min-height: 64px;
+}
+
+.contracts-column-header h2 {
+  margin-bottom: 0;
+  text-align: left;
+}
+
+.contracts-sort-label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.contracts-sort-toolbar {
+  align-items: flex-start;
+}
+
+.contracts-sort-select {
+  min-width: 220px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.contracts-feedback {
+  margin: 0;
+  font-size: 15px;
+  color: #475569;
+}
+
+.contracts-error {
+  color: #b91c1c;
+}
+
+.contracts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.contracts-list-compact {
+  gap: 14px;
+}
+
 .past-contracts-column {
-  padding-top: 78px;
+  padding-top: 0;
 }
 
 .contract-card {
-  background: rgba(255, 255, 255, 0.68);
+  background: #ffffff;
   border: 1px solid rgba(15, 23, 42, 0.1);
   border-radius: 14px;
   min-height: 140px;
   padding: 22px;
   font-size: 24px;
   color: #334155;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.contract-card-detailed {
+  min-height: 0;
+  font-size: 16px;
+}
+
+.contract-card-detailed h3 {
+  margin: 8px 0 14px;
+  font-size: 24px;
+  color: #0f172a;
+}
+
+.contract-card-detailed p {
+  margin: 0 0 8px;
+  line-height: 1.45;
+}
+
+.contract-card-meta {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #1d4ed8;
+}
+
+.contract-action-link {
+  margin-top: 14px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: #1d4ed8;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.contract-action-link:hover {
+  color: #1e40af;
 }
 
 .profile-menu {
@@ -158,13 +282,45 @@
   }
 
   .student-dashboard-header-logo {
-    width: min(120px, 24vw);
+    width: min(210px, 34vw);
   }
 
   .student-dashboard-content {
     grid-template-columns: 1fr;
     margin-top: 14px;
     gap: 30px;
+  }
+
+  .contracts-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+    margin-bottom: 0;
+  }
+
+  .active-contracts-actions-block {
+    align-items: center;
+  }
+
+  .active-contracts-actions {
+    justify-content: center;
+  }
+
+  .contracts-column-header {
+    min-height: 0;
+    margin-bottom: 14px;
+  }
+
+  .contracts-column-header h2 {
+    text-align: center;
+  }
+
+  .contracts-sort-toolbar {
+    align-items: stretch;
+  }
+
+  .contracts-sort-select {
+    min-width: 0;
   }
 
   .past-contracts-column {
@@ -197,11 +353,15 @@
   }
 
   .student-dashboard-header-logo {
-    width: min(98px, 22vw);
+    width: min(170px, 36vw);
   }
 
   .student-dashboard-header h1 {
     font-size: 26px;
+  }
+
+  .contract-card-detailed h3 {
+    font-size: 20px;
   }
 
   .student-dashboard-top-row {

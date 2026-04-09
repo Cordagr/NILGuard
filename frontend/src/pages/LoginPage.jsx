@@ -1,15 +1,37 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import '../styles/pages/Login.css';
 import logo from '../assets/NILGUARD.png';
+import { getDashboardRouteForRole, getNormalizedRole, ROLE_LABELS } from '../utils/roleRouting';
+import { loginUser } from '../services/authApi';
 
 function LoginPage() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const handleSubmit = (e) => {
+  const selectedRole = useMemo(
+    () => getNormalizedRole(searchParams.get('role')),
+    [searchParams]
+  );
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Handle login logic
-    console.log('Login:', { email, password });
+    setErrorMessage('');
+    setIsSubmitting(true);
+
+    try {
+      const response = await loginUser({ email, password, role: selectedRole });
+      localStorage.setItem('nilguard_user', JSON.stringify(response.user));
+      navigate(getDashboardRouteForRole(response.user.role));
+    } catch (error) {
+      setErrorMessage(error.message || 'Login failed. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -20,6 +42,18 @@ function LoginPage() {
         </div>
 
         <form className="login-form" onSubmit={handleSubmit}>
+          {selectedRole && (
+            <div className="form-group">
+              <label className="form-label">Role</label>
+              <input
+                type="text"
+                className="form-input"
+                value={ROLE_LABELS[selectedRole]}
+                disabled
+              />
+            </div>
+          )}
+
           <div className="form-group">
             <label className="form-label">Email or NCAA ID</label>
             <input
@@ -44,16 +78,22 @@ function LoginPage() {
             />
           </div>
 
+          {errorMessage && (
+            <p className="login-error" role="alert">
+              {errorMessage}
+            </p>
+          )}
+
           <button type="submit" className="btn btn-primary btn-block btn-lg">
-            Submit
+            {isSubmitting ? 'Signing in...' : 'Submit'}
           </button>
         </form>
 
         <div className="login-footer">
           <p>
-            <a href="/register">Register New User</a>
+            <Link to={`/register${selectedRole ? `?role=${selectedRole}` : ''}`}>Register New User</Link>
             <span className="footer-divider">•</span>
-            <a href="/forgot-password">Forgot Password?</a>
+            <Link to="/">Back to Role Selection</Link>
           </p>
         </div>
       </div>

@@ -18,7 +18,7 @@
 }
 
 .landing-logo {
-  width: min(360px, 75vw);
+  width: min(280px, 75vw);
   height: auto;
   margin-bottom: 20px;
 }

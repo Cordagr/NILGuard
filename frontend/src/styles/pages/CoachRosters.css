@@ -21,7 +21,7 @@
 }
 
 .coach-logo {
-  width: 150px;
+  width: 280px;
   height: auto;
 }
 
@@ -32,11 +32,12 @@
   min-width: 120px;
   height: 44px;
   border-radius: 10px;
+  border: none;
   background: #111827;
   color: #fff;
-  text-decoration: none;
   font-weight: 600;
   letter-spacing: 0.2px;
+  cursor: pointer;
 }
 
 .coach-layout {
@@ -59,6 +60,10 @@
   align-items: flex-start;
 }
 
+.roster-upload-input {
+  display: none;
+}
+
 .upload-roster-btn {
   width: 100%;
   max-width: 320px;
@@ -74,6 +79,11 @@
   margin-top: 8px;
 }
 
+.upload-roster-btn:disabled {
+  cursor: wait;
+  opacity: 0.75;
+}
+
 .coach-panel h2 {
   margin: 0;
   font-size: 34px;
@@ -85,6 +95,21 @@
   font-size: 18px;
   line-height: 1.45;
   color: #4b5563;
+}
+
+.roster-feedback {
+  margin: 14px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #4b5563;
+}
+
+.roster-error {
+  color: #b91c1c;
+}
+
+.roster-success {
+  color: #166534;
 }
 
 .sample-csv-card {
@@ -152,7 +177,7 @@
 .roster-list-header,
 .roster-item {
   display: grid;
-  grid-template-columns: minmax(180px, 1.5fr) minmax(70px, 0.6fr) minmax(120px, 1fr) minmax(70px, 0.5fr);
+  grid-template-columns: minmax(180px, 1.5fr) minmax(70px, 0.6fr) minmax(120px, 1fr) minmax(70px, 0.5fr) minmax(160px, 1fr);
   gap: 12px;
   padding: 12px 14px;
   align-items: center;
@@ -178,8 +203,89 @@
   color: #1d4ed8;
 }
 
+.roster-file-name {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #374151;
+  word-break: break-word;
+}
+
 .roster-sport {
   color: #0f172a;
+}
+
+.roster-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.roster-action-button {
+  min-width: 74px;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.roster-open-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.roster-open-lock {
+  display: inline-flex;
+  width: 14px;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  color: #475569;
+  transform: translateX(-4px) scale(0.7);
+  visibility: hidden;
+  transition: max-width 150ms ease, opacity 150ms ease, transform 150ms ease, visibility 150ms ease;
+}
+
+.roster-open-lock svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+}
+
+.roster-open-button:hover .roster-open-lock,
+.roster-open-button:focus-visible .roster-open-lock {
+  max-width: 14px;
+  opacity: 1;
+  transform: translateX(0) scale(1);
+  visibility: visible;
+}
+
+.roster-action-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.roster-delete-button {
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.roster-updated {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.roster-empty-state {
+  padding: 18px 14px;
+  border-top: 1px solid #e5e7eb;
+  color: #6b7280;
 }
 
 @media (max-width: 900px) {
@@ -198,7 +304,7 @@
   }
 
   .coach-logo {
-    width: 120px;
+    width: 210px;
   }
 
   .coach-panel h2 {
@@ -221,7 +327,7 @@
 
   .roster-list-header,
   .roster-item {
-    grid-template-columns: minmax(120px, 1.4fr) minmax(60px, 0.7fr) minmax(90px, 1fr) minmax(55px, 0.5fr);
+    grid-template-columns: minmax(120px, 1.4fr) minmax(60px, 0.7fr) minmax(90px, 1fr) minmax(55px, 0.5fr) minmax(120px, 1fr);
     gap: 8px;
     font-size: 13px;
   }

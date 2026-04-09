@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/pages/Landing.css';
 import logo from '../assets/NILGUARD.png';
+import { ROLE_LABELS } from '../utils/roleRouting';
 
 function LandingPage() {
   const navigate = useNavigate();
@@ -14,14 +15,14 @@ function LandingPage() {
         <div className="landing-divider" />
 
         <div className="landing-role-grid">
-          <button className="landing-role-card" onClick={() => navigate('/dashboard/student')}>
-            I'm a Student Athlete
+          <button className="landing-role-card" onClick={() => navigate('/login?role=student')}>
+            {ROLE_LABELS.student}
           </button>
-          <button className="landing-role-card" onClick={() => navigate('/dashboard/coach')}>
-            I'm a Coach
+          <button className="landing-role-card" onClick={() => navigate('/login?role=coach')}>
+            {ROLE_LABELS.coach}
           </button>
-          <button className="landing-role-card" onClick={() => navigate('/dashboard/student')}>
-            I'm a Compliance Officer
+          <button className="landing-role-card" onClick={() => navigate('/login?role=compliance')}>
+            {ROLE_LABELS.compliance}
           </button>
         </div>
       </div>

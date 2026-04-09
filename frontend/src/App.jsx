@@ -19,6 +19,7 @@ function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/dashboard/student" element={<StudentDashboardPage />} />
           <Route path="/dashboard/coach" element={<CoachRostersPage />} />
+          <Route path="/dashboard/school" element={<CoachRostersPage />} />
           <Route path="/contracts" element={<ContractsPage />} />
         </Routes>
       </div>

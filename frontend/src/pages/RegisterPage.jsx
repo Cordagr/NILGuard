@@ -1,13 +1,25 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import '../styles/pages/Register.css';
 import logo from '../assets/NILGUARD.png';
+import { getDashboardRouteForRole, getNormalizedRole, ROLE_LABELS } from '../utils/roleRouting';
+import { registerUser } from '../services/authApi';
 
 function RegisterPage() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     confirmPassword: ''
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const selectedRole = useMemo(
+    () => getNormalizedRole(searchParams.get('role')),
+    [searchParams]
+  );
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -17,10 +29,30 @@ function RegisterPage() {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Handle registration logic
-    console.log('Register:', formData);
+
+    if (formData.password !== formData.confirmPassword) {
+      setErrorMessage('Passwords do not match.');
+      return;
+    }
+
+    setErrorMessage('');
+    setIsSubmitting(true);
+
+    try {
+      const response = await registerUser({
+        email: formData.email,
+        password: formData.password,
+        role: selectedRole
+      });
+      localStorage.setItem('nilguard_user', JSON.stringify(response.user));
+      navigate(getDashboardRouteForRole(response.user.role));
+    } catch (error) {
+      setErrorMessage(error.message || 'Registration failed. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -31,6 +63,18 @@ function RegisterPage() {
         </div>
 
         <form className="register-form" onSubmit={handleSubmit}>
+          {selectedRole && (
+            <div className="form-group">
+              <label className="form-label">Role</label>
+              <input
+                type="text"
+                className="form-input"
+                value={ROLE_LABELS[selectedRole]}
+                disabled
+              />
+            </div>
+          )}
+
           <div className="form-group">
             <label className="form-label">Email</label>
             <input
@@ -70,15 +114,21 @@ function RegisterPage() {
             />
           </div>
 
+          {errorMessage && (
+            <p className="register-error" role="alert">
+              {errorMessage}
+            </p>
+          )}
+
           <button type="submit" className="btn btn-primary btn-block btn-lg">
-            Submit
+            {isSubmitting ? 'Creating account...' : 'Submit'}
           </button>
         </form>
 
         <div className="register-footer">
           <p>
             Already have an account?
-            <a href="/login">Login here</a>
+            <Link to={`/login${selectedRole ? `?role=${selectedRole}` : ''}`}>Login here</Link>
           </p>
         </div>
       </div>
