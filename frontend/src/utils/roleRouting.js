@@ -27,6 +27,9 @@ export function getDashboardRouteForRole(role) {
     return '/dashboard/school';
   }
 
-  // Compliance dashboard is not available yet, so route to student dashboard for now.
+  if (normalized === 'compliance') {
+    return '/dashboard/compliance';
+  }
+
   return '/dashboard/student';
 }

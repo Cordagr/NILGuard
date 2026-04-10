@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import '../styles/pages/StudentDashboard.css';
 import logo from '../assets/NILGUARD.png';
 import { getContractFileUrl, listContracts, uploadContract } from '../services/contractApi';
+import { listComplianceRequests, submitComplianceRequest } from '../services/complianceApi';
 
 const sortOptions = {
   lastAccessedAt: {
@@ -61,7 +62,10 @@ function StudentDashboardPage() {
   const [contracts, setContracts] = useState([]);
   const [isLoadingContracts, setIsLoadingContracts] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSubmittingRequestForContractId, setIsSubmittingRequestForContractId] = useState('');
+  const [complianceRequests, setComplianceRequests] = useState([]);
   const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [sortMode, setSortMode] = useState('lastAccessedAt');
   const menuRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -88,6 +92,20 @@ function StudentDashboardPage() {
     }
   };
 
+  const fetchComplianceRequests = async () => {
+    if (!currentUser?.id) {
+      navigate('/login');
+      return;
+    }
+
+    try {
+      const response = await listComplianceRequests(currentUser);
+      setComplianceRequests(response.requests || []);
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to load compliance requests.');
+    }
+  };
+
   useEffect(() => {
     if (!currentUser?.id) {
       navigate('/login');
@@ -102,6 +120,7 @@ function StudentDashboardPage() {
 
     document.addEventListener('mousedown', handleClickOutside);
     fetchContracts();
+    fetchComplianceRequests();
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
@@ -130,19 +149,23 @@ function StudentDashboardPage() {
 
     if (!isPdfFile) {
       setErrorMessage('Only PDF files can be uploaded.');
+      setSuccessMessage('');
       return;
     }
 
     if (selectedFile.size > 12 * 1024 * 1024) {
       setErrorMessage('PDF uploads are limited to 12 MB.');
+      setSuccessMessage('');
       return;
     }
 
     setErrorMessage('');
+    setSuccessMessage('');
     setIsUploading(true);
 
     try {
       await uploadContract(currentUser, selectedFile);
+      setSuccessMessage('Contract uploaded successfully.');
       await fetchContracts(sortMode);
     } catch (error) {
       setErrorMessage(error.message || 'Unable to upload the contract.');
@@ -153,11 +176,33 @@ function StudentDashboardPage() {
 
   const handleOpenContract = async (contractId) => {
     setErrorMessage('');
+    setSuccessMessage('');
     window.open(getContractFileUrl(currentUser, contractId), '_blank', 'noopener,noreferrer');
 
     window.setTimeout(() => {
       fetchContracts(sortMode);
     }, 700);
+  };
+
+  const complianceRequestByContractId = complianceRequests.reduce((accumulator, request) => {
+    accumulator[request.contractId] = request;
+    return accumulator;
+  }, {});
+
+  const handleSubmitToCompliance = async (contractId) => {
+    setErrorMessage('');
+    setSuccessMessage('');
+    setIsSubmittingRequestForContractId(contractId);
+
+    try {
+      const response = await submitComplianceRequest(currentUser, contractId);
+      setSuccessMessage(response.message || 'Document submitted to compliance.');
+      await fetchComplianceRequests();
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to submit the document to compliance.');
+    } finally {
+      setIsSubmittingRequestForContractId('');
+    }
   };
 
   return (
@@ -224,6 +269,8 @@ function StudentDashboardPage() {
 
             {errorMessage ? (
               <p className="contracts-feedback contracts-error">{errorMessage}</p>
+            ) : successMessage ? (
+              <p className="contracts-feedback contracts-success">{successMessage}</p>
             ) : (
               <p className="contracts-feedback">
                 PDF uploads only, up to 12 MB per file. NILGuard screens each PDF and rejects files that do not look like contracts.
@@ -256,18 +303,54 @@ function StudentDashboardPage() {
             ) : (
               contracts.map((contract) => (
                 <article key={contract.id} className="contract-card contract-card-detailed">
+                  {(() => {
+                    const complianceRequest = complianceRequestByContractId[contract.id];
+
+                    return (
+                      <>
                   <div className="contract-card-meta">Contract ID: {contract.id}</div>
                   <h3>{contract.fileName}</h3>
                   <p>Uploaded: {formatDateTime(contract.createdAt)}</p>
                   <p>Last accessed: {formatDateTime(contract.lastAccessedAt)}</p>
                   <p>File size: {formatFileSize(contract.fileSize)}</p>
-                  <button
-                    type="button"
-                    className="contract-action-link"
-                    onClick={() => handleOpenContract(contract.id)}
-                  >
-                    Open PDF
-                  </button>
+                  <p>
+                    Compliance review:{' '}
+                    {complianceRequest ? (
+                      <span
+                        className={`request-status-pill request-status-${complianceRequest.status}`}
+                      >
+                        {complianceRequest.status}
+                      </span>
+                    ) : (
+                      <span className="request-status-pill request-status-draft">not submitted</span>
+                    )}
+                  </p>
+                  <div className="contract-action-row">
+                    <button
+                      type="button"
+                      className="contract-action-link"
+                      onClick={() => handleOpenContract(contract.id)}
+                    >
+                      Open PDF
+                    </button>
+                    <button
+                      type="button"
+                      className="dashboard-secondary-button"
+                      onClick={() => handleSubmitToCompliance(contract.id)}
+                      disabled={isSubmittingRequestForContractId === contract.id || complianceRequest?.status === 'pending'}
+                    >
+                      {isSubmittingRequestForContractId === contract.id
+                        ? 'Submitting...'
+                        : complianceRequest?.status === 'pending'
+                          ? 'Pending Review'
+                          : complianceRequest
+                            ? 'Resubmit to Compliance'
+                            : 'Send to Compliance'}
+                    </button>
+                  </div>
+                      </>
+                    );
+                  })()}
                 </article>
               ))
             )}
@@ -276,10 +359,27 @@ function StudentDashboardPage() {
 
         <section className="contracts-column past-contracts-column">
           <div className="contracts-column-header">
-            <h2>Past Contracts</h2>
+            <h2>Compliance Requests</h2>
           </div>
           <div className="contracts-list contracts-list-compact">
-            <div className="contract-card">No past contracts yet.</div>
+            {complianceRequests.length === 0 ? (
+              <div className="contract-card">No compliance requests submitted yet.</div>
+            ) : (
+              complianceRequests.map((request) => (
+                <article key={request.id} className="contract-card contract-card-detailed">
+                  <div className="contract-card-meta">Request ID: {request.id}</div>
+                  <h3>{request.contractFileName}</h3>
+                  <p>Submitted: {formatDateTime(request.submittedAt)}</p>
+                  <p>
+                    Status:{' '}
+                    <span className={`request-status-pill request-status-${request.status}`}>{request.status}</span>
+                  </p>
+                  <p>
+                    Reviewed by: {request.reviewerEmail || 'Awaiting compliance review'}
+                  </p>
+                </article>
+              ))
+            )}
           </div>
         </section>
       </main>

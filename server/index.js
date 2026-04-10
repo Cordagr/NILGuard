@@ -74,6 +74,7 @@ const client = new MongoClient(MONGODB_URI);
 let usersCollection;
 let contractsCollection;
 let rostersCollection;
+let documentRequestsCollection;
 
 function normalizeRole(role) {
   const normalized = String(role || 'student').toLowerCase().trim();
@@ -154,6 +155,36 @@ function serializeContract(contract) {
     accessCount: contract.accessCount,
     uploadedBy: contract.userId
   };
+}
+
+function serializeDocumentRequest(documentRequest) {
+  return {
+    id: documentRequest.requestId,
+    contractId: documentRequest.contractId,
+    contractFileName: documentRequest.contractFileName,
+    contractFileSize: documentRequest.contractFileSize,
+    studentUserId: documentRequest.studentUserId,
+    studentEmail: documentRequest.studentEmail,
+    studentSchool: documentRequest.studentSchool,
+    studentDivision: documentRequest.studentDivision,
+    status: documentRequest.status,
+    submittedAt: documentRequest.submittedAt,
+    updatedAt: documentRequest.updatedAt,
+    reviewedAt: documentRequest.reviewedAt || null,
+    reviewedBy: documentRequest.reviewedBy || null,
+    reviewerEmail: documentRequest.reviewerEmail || null,
+    hasSourceFile: Boolean(documentRequest.storedFilePath)
+  };
+}
+
+function assertUserRole(user, ...roles) {
+  if (roles.includes(user.role)) {
+    return;
+  }
+
+  const error = new Error('This action is not permitted for the current user role.');
+  error.statusCode = 403;
+  throw error;
 }
 
 function normalizeCsvHeader(header) {
@@ -600,6 +631,170 @@ app.get('/api/contracts/:contractId/file', async (req, res, next) => {
   }
 });
 
+app.get('/api/compliance/requests', async (req, res, next) => {
+  try {
+    const { userId, user } = await getRequiredCurrentUser(req);
+
+    if (user.role === 'student') {
+      const requests = await documentRequestsCollection
+        .find({ studentUserId: userId })
+        .sort({ submittedAt: -1, updatedAt: -1 })
+        .toArray();
+
+      return res.json({
+        requests: requests.map(serializeDocumentRequest)
+      });
+    }
+
+    assertUserRole(user, 'compliance');
+
+    const requests = await documentRequestsCollection
+      .find({ studentSchool: user.school })
+      .sort({ status: 1, submittedAt: -1, updatedAt: -1 })
+      .toArray();
+
+    return res.json({
+      requests: requests.map(serializeDocumentRequest)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/compliance/requests', async (req, res, next) => {
+  try {
+    const { userId, user } = await getRequiredCurrentUser(req);
+    assertUserRole(user, 'student');
+
+    const contractId = String(req.body?.contractId || '').trim();
+
+    if (!contractId) {
+      return res.status(400).json({ message: 'A contract id is required.' });
+    }
+
+    const contract = await contractsCollection.findOne({ contractId, userId });
+
+    if (!contract) {
+      return res.status(404).json({ message: 'Contract not found for the current student.' });
+    }
+
+    const now = new Date();
+    const existingRequest = await documentRequestsCollection.findOne({ studentUserId: userId, contractId });
+    const requestId = existingRequest?.requestId || `REQ-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`;
+
+    await documentRequestsCollection.updateOne(
+      { studentUserId: userId, contractId },
+      {
+        $set: {
+          requestId,
+          contractId,
+          contractFileName: contract.fileName,
+          contractFileSize: contract.fileSize,
+          storedFilePath: contract.storedFilePath,
+          mimeType: contract.mimeType || 'application/pdf',
+          studentUserId: userId,
+          studentEmail: user.email,
+          studentSchool: user.school || null,
+          studentDivision: user.ncaaDivision || null,
+          status: 'pending',
+          reviewedAt: null,
+          reviewedBy: null,
+          reviewerEmail: null,
+          updatedAt: now,
+          submittedAt: now
+        },
+        $setOnInsert: {
+          createdAt: now
+        }
+      },
+      { upsert: true }
+    );
+
+    const savedRequest = await documentRequestsCollection.findOne({ studentUserId: userId, contractId });
+
+    return res.status(existingRequest ? 200 : 201).json({
+      message: 'Document submitted to compliance for review.',
+      request: serializeDocumentRequest(savedRequest)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/api/compliance/requests/:requestId', async (req, res, next) => {
+  try {
+    const { userId, user } = await getRequiredCurrentUser(req);
+    assertUserRole(user, 'compliance');
+
+    const { requestId } = req.params;
+    const nextStatus = String(req.body?.status || '').trim().toLowerCase();
+
+    if (!['accepted', 'rejected'].includes(nextStatus)) {
+      return res.status(400).json({ message: 'Status must be accepted or rejected.' });
+    }
+
+    const documentRequest = await documentRequestsCollection.findOne({ requestId, studentSchool: user.school });
+
+    if (!documentRequest) {
+      return res.status(404).json({ message: 'Compliance request not found for the current school.' });
+    }
+
+    const now = new Date();
+
+    await documentRequestsCollection.updateOne(
+      { requestId },
+      {
+        $set: {
+          status: nextStatus,
+          reviewedAt: now,
+          reviewedBy: userId,
+          reviewerEmail: user.email,
+          updatedAt: now
+        }
+      }
+    );
+
+    const updatedRequest = await documentRequestsCollection.findOne({ requestId });
+
+    return res.json({
+      message: `Document request ${nextStatus}.`,
+      request: serializeDocumentRequest(updatedRequest)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/compliance/requests/:requestId/file', async (req, res, next) => {
+  try {
+    const { userId, user } = await getRequiredCurrentUser(req);
+    const { requestId } = req.params;
+
+    let documentRequest;
+
+    if (user.role === 'student') {
+      documentRequest = await documentRequestsCollection.findOne({ requestId, studentUserId: userId });
+    } else {
+      assertUserRole(user, 'compliance');
+      documentRequest = await documentRequestsCollection.findOne({ requestId, studentSchool: user.school });
+    }
+
+    if (!documentRequest) {
+      return res.status(404).json({ message: 'Requested document could not be found.' });
+    }
+
+    if (!documentRequest.storedFilePath) {
+      return res.status(404).json({ message: 'No document file is stored for this request.' });
+    }
+
+    res.setHeader('Content-Type', documentRequest.mimeType || 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${documentRequest.contractFileName || 'document.pdf'}"`);
+    return res.sendFile(documentRequest.storedFilePath);
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post('/api/auth/register', async (req, res) => {
   const { email, password, role } = req.body || {};
 
@@ -721,6 +916,7 @@ async function start() {
   usersCollection = db.collection('users');
   contractsCollection = db.collection('contracts');
   rostersCollection = db.collection('rosters');
+  documentRequestsCollection = db.collection('documentRequests');
 
   await usersCollection.createIndex({ email: 1 }, { unique: true });
   await contractsCollection.createIndex({ userId: 1, createdAt: -1 });
@@ -728,6 +924,10 @@ async function start() {
   await contractsCollection.createIndex({ contractId: 1, userId: 1 }, { unique: true });
   await rostersCollection.createIndex({ userId: 1, updatedAt: -1 });
   await rostersCollection.createIndex({ userId: 1, school: 1, sport: 1, year: 1 }, { unique: true });
+  await documentRequestsCollection.createIndex({ requestId: 1 }, { unique: true });
+  await documentRequestsCollection.createIndex({ studentUserId: 1, submittedAt: -1 });
+  await documentRequestsCollection.createIndex({ studentSchool: 1, status: 1, submittedAt: -1 });
+  await documentRequestsCollection.createIndex({ studentUserId: 1, contractId: 1 }, { unique: true });
 
   app.listen(PORT, () => {
     console.log(`Auth API listening on http://localhost:${PORT}`);
