@@ -12,6 +12,29 @@
   margin-bottom: 20px;
 }
 
+.coach-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.coach-assigned-school {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  color: #0f172a;
+}
+
+.coach-assigned-school strong {
+  font-size: 15px;
+}
+
+.coach-assigned-school span {
+  font-size: 12px;
+  color: #475569;
+}
+
 .coach-logo-wrap {
   width: auto;
   height: auto;
@@ -95,6 +118,13 @@
   font-size: 18px;
   line-height: 1.45;
   color: #4b5563;
+}
+
+.coach-assignment-note {
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #1e3a8a;
 }
 
 .roster-feedback {
@@ -256,6 +286,23 @@
   width: 14px;
   height: 14px;
   flex: 0 0 14px;
+}
+
+@media (max-width: 900px) {
+  .coach-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .coach-header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .coach-assigned-school {
+    align-items: flex-start;
+  }
 }
 
 .roster-open-button:hover .roster-open-lock,

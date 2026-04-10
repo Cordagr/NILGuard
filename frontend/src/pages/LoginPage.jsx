@@ -54,12 +54,16 @@ function LoginPage() {
             </div>
           )}
 
+          <p className="login-hint">
+            Sign in with your official school email. Your school and NCAA division are inferred from the email domain.
+          </p>
+
           <div className="form-group">
-            <label className="form-label">Email or NCAA ID</label>
+            <label className="form-label">Email</label>
             <input
-              type="text"
+              type="email"
               className="form-input"
-              placeholder="Enter your email or NCAA ID"
+              placeholder="Enter your school email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required

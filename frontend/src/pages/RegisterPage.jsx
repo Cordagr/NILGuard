@@ -75,6 +75,10 @@ function RegisterPage() {
             </div>
           )}
 
+          <p className="register-hint">
+            Use your official school email. NILGuard assigns your school and NCAA division from the email domain.
+          </p>
+
           <div className="form-group">
             <label className="form-label">Email</label>
             <input

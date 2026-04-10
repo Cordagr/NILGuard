@@ -4,6 +4,103 @@ import '../styles/pages/CoachRosters.css';
 import logo from '../assets/NILGUARD.png';
 import { deleteRoster, getRosterFileUrl, listRosters, uploadRosterCsv } from '../services/rosterApi';
 
+function normalizeCsvHeader(header) {
+  return String(header || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_');
+}
+
+function parseCsvRows(text) {
+  const sanitizedText = String(text || '').replace(/^\uFEFF/, '');
+  const rows = [];
+  let currentField = '';
+  let currentRow = [];
+  let insideQuotes = false;
+
+  for (let index = 0; index < sanitizedText.length; index += 1) {
+    const character = sanitizedText[index];
+    const nextCharacter = sanitizedText[index + 1];
+
+    if (character === '"') {
+      if (insideQuotes && nextCharacter === '"') {
+        currentField += '"';
+        index += 1;
+      } else {
+        insideQuotes = !insideQuotes;
+      }
+
+      continue;
+    }
+
+    if (!insideQuotes && character === ',') {
+      currentRow.push(currentField);
+      currentField = '';
+      continue;
+    }
+
+    if (!insideQuotes && (character === '\n' || character === '\r')) {
+      if (character === '\r' && nextCharacter === '\n') {
+        index += 1;
+      }
+
+      currentRow.push(currentField);
+
+      if (currentRow.some((value) => String(value || '').trim() !== '')) {
+        rows.push(currentRow);
+      }
+
+      currentField = '';
+      currentRow = [];
+      continue;
+    }
+
+    currentField += character;
+  }
+
+  if (currentField !== '' || currentRow.length > 0) {
+    currentRow.push(currentField);
+
+    if (currentRow.some((value) => String(value || '').trim() !== '')) {
+      rows.push(currentRow);
+    }
+  }
+
+  return rows;
+}
+
+function validateRosterCsvForAssignedSchool(csvText, assignedSchool) {
+  if (!assignedSchool) {
+    return null;
+  }
+
+  const rows = parseCsvRows(csvText);
+
+  if (rows.length < 2) {
+    return 'The CSV must include a header row and at least one player row.';
+  }
+
+  const headerRow = rows[0].map(normalizeCsvHeader);
+  const schoolColumnIndex = headerRow.indexOf('school');
+
+  if (schoolColumnIndex === -1) {
+    return 'The CSV must include a school column.';
+  }
+
+  const normalizedAssignedSchool = assignedSchool.toLowerCase().trim();
+  const mismatchedSchool = rows.slice(1).find((row) => {
+    const schoolValue = String(row[schoolColumnIndex] || '').trim();
+    return schoolValue !== '' && schoolValue.toLowerCase() !== normalizedAssignedSchool;
+  });
+
+  if (!mismatchedSchool) {
+    return null;
+  }
+
+  const csvSchool = String(mismatchedSchool[schoolColumnIndex] || '').trim();
+  return `This account is assigned to ${assignedSchool}. Every CSV row must use that school in the school column. Found: ${csvSchool || 'blank value'}.`;
+}
+
 function getCurrentUser() {
   const storedUser = localStorage.getItem('nilguard_user');
 
@@ -94,6 +191,23 @@ function CoachRostersPage() {
       return;
     }
 
+    if (currentUser?.school) {
+      try {
+        const csvText = await selectedFile.text();
+        const csvValidationError = validateRosterCsvForAssignedSchool(csvText, currentUser.school);
+
+        if (csvValidationError) {
+          setSuccessMessage('');
+          setErrorMessage(csvValidationError);
+          return;
+        }
+      } catch (_error) {
+        setSuccessMessage('');
+        setErrorMessage('Unable to read this CSV file for validation.');
+        return;
+      }
+    }
+
     setErrorMessage('');
     setSuccessMessage('');
     setIsUploading(true);
@@ -149,9 +263,18 @@ function CoachRostersPage() {
           <img src={logo} alt="NILGuard Logo" className="coach-logo" />
         </div>
 
-        <button type="button" className="coach-logout-link" onClick={handleLogout}>
-          Logout
-        </button>
+        <div className="coach-header-actions">
+          {currentUser?.school ? (
+            <div className="coach-assigned-school">
+              <strong>{currentUser.school}</strong>
+              <span>{currentUser.ncaaDivision || 'NCAA school account'}</span>
+            </div>
+          ) : null}
+
+          <button type="button" className="coach-logout-link" onClick={handleLogout}>
+            Logout
+          </button>
+        </div>
       </header>
 
       <main className="coach-layout">
@@ -160,6 +283,11 @@ function CoachRostersPage() {
           <p className="coach-panel-subtext">
             Select a CSV file. NILGuard validates the required columns and groups players into rosters by school, sport, and year.
           </p>
+          {currentUser?.school ? (
+            <p className="coach-assignment-note">
+              Assigned school: <strong>{currentUser.school}</strong>. The CSV must still include the school column, and every row must use that exact school value.
+            </p>
+          ) : null}
 
           <input
             ref={fileInputRef}
@@ -176,17 +304,20 @@ function CoachRostersPage() {
           {errorMessage ? <p className="roster-feedback roster-error">{errorMessage}</p> : null}
           {!errorMessage && successMessage ? <p className="roster-feedback roster-success">{successMessage}</p> : null}
           {!errorMessage && !successMessage ? (
-            <p className="roster-feedback">Required columns: student_id, first_name, last_name, school, sport, year.</p>
+            <p className="roster-feedback">
+              Required columns: student_id, first_name, last_name, school, sport, year.
+              {currentUser?.school ? ` School values must be ${currentUser.school}.` : ''}
+            </p>
           ) : null}
 
           <div className="sample-csv-card" aria-label="Sample CSV format">
             <div className="sample-csv-head">Sample CSV Format</div>
             <div className="sample-csv-row">student_id,first_name,last_name,school,sport,year</div>
-            <div className="sample-csv-row">1042,Jordan,Reed,State University,Basketball,2026</div>
-            <div className="sample-csv-row">1043,Talia,Nguyen,State University,Basketball,2026</div>
-            <div className="sample-csv-row">1044,Marcus,Brown,State University,Basketball,2026</div>
-            <div className="sample-csv-row">1045,Ava,Patel,Lakeside College,Tennis,2026</div>
-            <div className="sample-csv-row">1046,Noah,Davis,Lakeside College,Tennis,2026</div>
+            <div className="sample-csv-row">1042,Jordan,Reed,{currentUser?.school || 'State University'},Basketball,2026</div>
+            <div className="sample-csv-row">1043,Talia,Nguyen,{currentUser?.school || 'State University'},Basketball,2026</div>
+            <div className="sample-csv-row">1044,Marcus,Brown,{currentUser?.school || 'State University'},Basketball,2026</div>
+            <div className="sample-csv-row">1045,Ava,Patel,{currentUser?.school || 'State University'},Tennis,2026</div>
+            <div className="sample-csv-row">1046,Noah,Davis,{currentUser?.school || 'State University'},Tennis,2026</div>
           </div>
 
           <div className="sample-csv-links" aria-label="Sample CSV links">

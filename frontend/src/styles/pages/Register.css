@@ -75,6 +75,13 @@
   font-size: var(--font-size-sm);
 }
 
+.register-hint {
+  margin: -4px 0 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
 .register-form .btn-primary {
   background-color: var(--dark-primary);
   color: white;

@@ -167,7 +167,12 @@ function StudentDashboardPage() {
           <img src={logo} alt="NILGuard Logo" className="student-dashboard-header-logo" />
         </div>
 
-        <h1>Student-Athlete Dashboard</h1>
+        <div className="student-dashboard-title-block">
+          <h1>Student-Athlete Dashboard</h1>
+          {currentUser?.school ? (
+            <p className="student-dashboard-identity">{currentUser.school} · {currentUser.ncaaDivision}</p>
+          ) : null}
+        </div>
 
         <div className="profile-menu" ref={menuRef}>
           <button

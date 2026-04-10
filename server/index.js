@@ -2,13 +2,14 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
-import { MongoClient } from 'mongodb';
+import { MongoClient, ObjectId } from 'mongodb';
 import multer from 'multer';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
 import { analyzeContractPdf } from './contractClassifier.js';
+import { getSupportedSchoolCounts, resolveSchoolFromEmail } from './ncaaSchoolDirectory.js';
 
 dotenv.config();
 
@@ -89,6 +90,49 @@ function getRequiredUserId(req) {
   }
 
   return userId;
+}
+
+async function getRequiredCurrentUser(req) {
+  const userId = getRequiredUserId(req);
+
+  if (!ObjectId.isValid(userId)) {
+    const error = new Error('The current user id is invalid.');
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const user = await usersCollection.findOne({ _id: new ObjectId(userId) });
+
+  if (!user) {
+    const error = new Error('The current user could not be found.');
+    error.statusCode = 401;
+    throw error;
+  }
+
+  return {
+    userId,
+    user
+  };
+}
+
+function buildUnsupportedSchoolEmailMessage() {
+  const divisionSummary = getSupportedSchoolCounts()
+    .map(({ division, schoolCount }) => `${schoolCount} schools in ${division}`)
+    .join(', ');
+
+  return `Use a supported school email address. NILGuard currently supports ${divisionSummary}.`;
+}
+
+function serializeUser(user, resolvedSchool) {
+  const matchedSchool = resolvedSchool || resolveSchoolFromEmail(user.email);
+
+  return {
+    id: String(user._id || user.id || ''),
+    email: user.email,
+    role: user.role,
+    school: user.school || matchedSchool?.school || null,
+    ncaaDivision: user.ncaaDivision || matchedSchool?.division || null
+  };
 }
 
 function buildStoredFileName(contractId, originalName) {
@@ -321,7 +365,7 @@ app.get('/api/rosters', async (req, res, next) => {
 
 app.post('/api/rosters', rosterUpload.single('file'), async (req, res, next) => {
   try {
-    const userId = getRequiredUserId(req);
+    const { userId, user } = await getRequiredCurrentUser(req);
     const file = req.file;
 
     if (!file) {
@@ -329,6 +373,20 @@ app.post('/api/rosters', rosterUpload.single('file'), async (req, res, next) => 
     }
 
     const rosterGroups = buildRosterGroups(file.buffer.toString('utf8'));
+
+    if (user.school) {
+      const normalizedAssignedSchool = user.school.toLowerCase().trim();
+      const hasMismatchedSchool = rosterGroups.some(
+        (rosterGroup) => rosterGroup.school.toLowerCase().trim() !== normalizedAssignedSchool
+      );
+
+      if (hasMismatchedSchool) {
+        return res.status(403).json({
+          message: `Roster uploads for this account must match the assigned school: ${user.school}.`
+        });
+      }
+    }
+
     const now = new Date();
     const savedRosters = [];
     const staleFilePaths = new Set();
@@ -555,6 +613,11 @@ app.post('/api/auth/register', async (req, res) => {
 
   const normalizedEmail = String(email).toLowerCase().trim();
   const normalizedRole = normalizeRole(role);
+  const resolvedSchool = resolveSchoolFromEmail(normalizedEmail);
+
+  if (!resolvedSchool) {
+    return res.status(400).json({ message: buildUnsupportedSchoolEmailMessage() });
+  }
 
   const existingUser = await usersCollection.findOne({ email: normalizedEmail });
   if (existingUser) {
@@ -567,16 +630,25 @@ app.post('/api/auth/register', async (req, res) => {
     email: normalizedEmail,
     passwordHash,
     role: normalizedRole,
-    createdAt: new Date()
+    school: resolvedSchool.school,
+    ncaaDivision: resolvedSchool.division,
+    schoolEmailDomain: resolvedSchool.primaryDomain,
+    createdAt: new Date(),
+    updatedAt: new Date()
   });
 
   return res.status(201).json({
     message: 'Registration successful.',
-    user: {
-      id: insertResult.insertedId.toString(),
-      email: normalizedEmail,
-      role: normalizedRole
-    }
+    user: serializeUser(
+      {
+        _id: insertResult.insertedId,
+        email: normalizedEmail,
+        role: normalizedRole,
+        school: resolvedSchool.school,
+        ncaaDivision: resolvedSchool.division
+      },
+      resolvedSchool
+    )
   });
 });
 
@@ -589,6 +661,12 @@ app.post('/api/auth/login', async (req, res) => {
 
   const normalizedEmail = String(email).toLowerCase().trim();
   const expectedRole = normalizeRole(role);
+  const resolvedSchool = resolveSchoolFromEmail(normalizedEmail);
+
+  if (!resolvedSchool) {
+    return res.status(403).json({ message: buildUnsupportedSchoolEmailMessage() });
+  }
+
   const user = await usersCollection.findOne({ email: normalizedEmail });
 
   if (!user) {
@@ -604,13 +682,34 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(403).json({ message: `This account is registered as ${user.role}, not ${expectedRole}.` });
   }
 
+  if (
+    user.school !== resolvedSchool.school ||
+    user.ncaaDivision !== resolvedSchool.division ||
+    user.schoolEmailDomain !== resolvedSchool.primaryDomain
+  ) {
+    await usersCollection.updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          school: resolvedSchool.school,
+          ncaaDivision: resolvedSchool.division,
+          schoolEmailDomain: resolvedSchool.primaryDomain,
+          updatedAt: new Date()
+        }
+      }
+    );
+  }
+
   return res.json({
     message: 'Login successful.',
-    user: {
-      id: user._id.toString(),
-      email: user.email,
-      role: user.role
-    }
+    user: serializeUser(
+      {
+        ...user,
+        school: resolvedSchool.school,
+        ncaaDivision: resolvedSchool.division
+      },
+      resolvedSchool
+    )
   });
 });
 
