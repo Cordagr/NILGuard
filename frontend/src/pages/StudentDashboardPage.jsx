@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import '../styles/pages/StudentDashboard.css';
 import logo from '../assets/NILGUARD.png';
 import { getContractFileUrl, listContracts, uploadContract } from '../services/contractApi';
-import { listComplianceRequests, submitComplianceRequest } from '../services/complianceApi';
+import { submitComplianceRequest } from '../services/complianceApi';
 
 const sortOptions = {
   lastAccessedAt: {
@@ -63,7 +63,8 @@ function StudentDashboardPage() {
   const [isLoadingContracts, setIsLoadingContracts] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmittingRequestForContractId, setIsSubmittingRequestForContractId] = useState('');
-  const [complianceRequests, setComplianceRequests] = useState([]);
+  const [sendDialogContractId, setSendDialogContractId] = useState('');
+  const [complianceEmail, setComplianceEmail] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [sortMode, setSortMode] = useState('lastAccessedAt');
@@ -92,20 +93,6 @@ function StudentDashboardPage() {
     }
   };
 
-  const fetchComplianceRequests = async () => {
-    if (!currentUser?.id) {
-      navigate('/login');
-      return;
-    }
-
-    try {
-      const response = await listComplianceRequests(currentUser);
-      setComplianceRequests(response.requests || []);
-    } catch (error) {
-      setErrorMessage(error.message || 'Unable to load compliance requests.');
-    }
-  };
-
   useEffect(() => {
     if (!currentUser?.id) {
       navigate('/login');
@@ -120,7 +107,6 @@ function StudentDashboardPage() {
 
     document.addEventListener('mousedown', handleClickOutside);
     fetchContracts();
-    fetchComplianceRequests();
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
@@ -184,20 +170,36 @@ function StudentDashboardPage() {
     }, 700);
   };
 
-  const complianceRequestByContractId = complianceRequests.reduce((accumulator, request) => {
-    accumulator[request.contractId] = request;
-    return accumulator;
-  }, {});
-
-  const handleSubmitToCompliance = async (contractId) => {
+  const openSendDialog = (contractId) => {
     setErrorMessage('');
     setSuccessMessage('');
-    setIsSubmittingRequestForContractId(contractId);
+    setComplianceEmail('');
+    setSendDialogContractId(contractId);
+  };
+
+  const closeSendDialog = () => {
+    setSendDialogContractId('');
+    setComplianceEmail('');
+  };
+
+  const handleSubmitToCompliance = async () => {
+    if (!sendDialogContractId) {
+      return;
+    }
+
+    if (!complianceEmail.trim()) {
+      setErrorMessage('Enter a compliance officer email before sending the contract.');
+      return;
+    }
+
+    setErrorMessage('');
+    setSuccessMessage('');
+    setIsSubmittingRequestForContractId(sendDialogContractId);
 
     try {
-      const response = await submitComplianceRequest(currentUser, contractId);
+      const response = await submitComplianceRequest(currentUser, sendDialogContractId, complianceEmail.trim());
       setSuccessMessage(response.message || 'Document submitted to compliance.');
-      await fetchComplianceRequests();
+      closeSendDialog();
     } catch (error) {
       setErrorMessage(error.message || 'Unable to submit the document to compliance.');
     } finally {
@@ -292,7 +294,7 @@ function StudentDashboardPage() {
 
         <section className="contracts-column">
           <div className="contracts-column-header">
-            <h2>My Contracts</h2>
+            <h2>Active Contracts</h2>
           </div>
 
           <div className="contracts-list">
@@ -303,28 +305,11 @@ function StudentDashboardPage() {
             ) : (
               contracts.map((contract) => (
                 <article key={contract.id} className="contract-card contract-card-detailed">
-                  {(() => {
-                    const complianceRequest = complianceRequestByContractId[contract.id];
-
-                    return (
-                      <>
                   <div className="contract-card-meta">Contract ID: {contract.id}</div>
                   <h3>{contract.fileName}</h3>
                   <p>Uploaded: {formatDateTime(contract.createdAt)}</p>
                   <p>Last accessed: {formatDateTime(contract.lastAccessedAt)}</p>
                   <p>File size: {formatFileSize(contract.fileSize)}</p>
-                  <p>
-                    Compliance review:{' '}
-                    {complianceRequest ? (
-                      <span
-                        className={`request-status-pill request-status-${complianceRequest.status}`}
-                      >
-                        {complianceRequest.status}
-                      </span>
-                    ) : (
-                      <span className="request-status-pill request-status-draft">not submitted</span>
-                    )}
-                  </p>
                   <div className="contract-action-row">
                     <button
                       type="button"
@@ -336,21 +321,14 @@ function StudentDashboardPage() {
                     <button
                       type="button"
                       className="dashboard-secondary-button"
-                      onClick={() => handleSubmitToCompliance(contract.id)}
-                      disabled={isSubmittingRequestForContractId === contract.id || complianceRequest?.status === 'pending'}
+                      onClick={() => openSendDialog(contract.id)}
+                      disabled={isSubmittingRequestForContractId === contract.id}
                     >
                       {isSubmittingRequestForContractId === contract.id
-                        ? 'Submitting...'
-                        : complianceRequest?.status === 'pending'
-                          ? 'Pending Review'
-                          : complianceRequest
-                            ? 'Resubmit to Compliance'
-                            : 'Send to Compliance'}
+                        ? 'Sending...'
+                        : 'Send to Compliance'}
                     </button>
                   </div>
-                      </>
-                    );
-                  })()}
                 </article>
               ))
             )}
@@ -359,30 +337,47 @@ function StudentDashboardPage() {
 
         <section className="contracts-column past-contracts-column">
           <div className="contracts-column-header">
-            <h2>Compliance Requests</h2>
+            <h2>Past Contracts</h2>
           </div>
           <div className="contracts-list contracts-list-compact">
-            {complianceRequests.length === 0 ? (
-              <div className="contract-card">No compliance requests submitted yet.</div>
-            ) : (
-              complianceRequests.map((request) => (
-                <article key={request.id} className="contract-card contract-card-detailed">
-                  <div className="contract-card-meta">Request ID: {request.id}</div>
-                  <h3>{request.contractFileName}</h3>
-                  <p>Submitted: {formatDateTime(request.submittedAt)}</p>
-                  <p>
-                    Status:{' '}
-                    <span className={`request-status-pill request-status-${request.status}`}>{request.status}</span>
-                  </p>
-                  <p>
-                    Reviewed by: {request.reviewerEmail || 'Awaiting compliance review'}
-                  </p>
-                </article>
-              ))
-            )}
+            <div className="contract-card">No past contracts yet.</div>
           </div>
         </section>
       </main>
+
+      {sendDialogContractId ? (
+        <div className="dashboard-dialog-backdrop" role="presentation">
+          <div className="dashboard-dialog" role="dialog" aria-modal="true" aria-labelledby="send-compliance-title">
+            <h2 id="send-compliance-title">Send Contract To Compliance</h2>
+            <p className="dashboard-dialog-copy">
+              Enter the compliance officer email for your school. NILGuard will only send if that compliance account already exists.
+            </p>
+            <label className="contracts-sort-label">
+              Compliance Officer Email
+              <input
+                type="email"
+                className="dashboard-dialog-input"
+                value={complianceEmail}
+                onChange={(event) => setComplianceEmail(event.target.value)}
+                placeholder="compliance@school.edu"
+              />
+            </label>
+            <div className="contract-action-row">
+              <button type="button" className="dashboard-secondary-button" onClick={closeSendDialog}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="dashboard-secondary-button dashboard-accept-button"
+                onClick={handleSubmitToCompliance}
+                disabled={isSubmittingRequestForContractId === sendDialogContractId}
+              >
+                {isSubmittingRequestForContractId === sendDialogContractId ? 'Sending...' : 'Send Contract'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

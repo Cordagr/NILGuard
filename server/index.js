@@ -167,6 +167,8 @@ function serializeDocumentRequest(documentRequest) {
     studentEmail: documentRequest.studentEmail,
     studentSchool: documentRequest.studentSchool,
     studentDivision: documentRequest.studentDivision,
+    assignedComplianceUserId: documentRequest.assignedComplianceUserId || null,
+    assignedComplianceEmail: documentRequest.assignedComplianceEmail || null,
     status: documentRequest.status,
     submittedAt: documentRequest.submittedAt,
     updatedAt: documentRequest.updatedAt,
@@ -649,7 +651,7 @@ app.get('/api/compliance/requests', async (req, res, next) => {
     assertUserRole(user, 'compliance');
 
     const requests = await documentRequestsCollection
-      .find({ studentSchool: user.school })
+      .find({ assignedComplianceUserId: userId })
       .sort({ status: 1, submittedAt: -1, updatedAt: -1 })
       .toArray();
 
@@ -667,15 +669,32 @@ app.post('/api/compliance/requests', async (req, res, next) => {
     assertUserRole(user, 'student');
 
     const contractId = String(req.body?.contractId || '').trim();
+    const complianceEmail = String(req.body?.complianceEmail || '').toLowerCase().trim();
 
     if (!contractId) {
       return res.status(400).json({ message: 'A contract id is required.' });
+    }
+
+    if (!complianceEmail) {
+      return res.status(400).json({ message: 'A compliance officer email is required.' });
     }
 
     const contract = await contractsCollection.findOne({ contractId, userId });
 
     if (!contract) {
       return res.status(404).json({ message: 'Contract not found for the current student.' });
+    }
+
+    const complianceOfficer = await usersCollection.findOne({
+      email: complianceEmail,
+      role: 'compliance',
+      school: user.school
+    });
+
+    if (!complianceOfficer) {
+      return res.status(404).json({
+        message: 'No compliance officer account with that email was found for your school.'
+      });
     }
 
     const now = new Date();
@@ -696,6 +715,8 @@ app.post('/api/compliance/requests', async (req, res, next) => {
           studentEmail: user.email,
           studentSchool: user.school || null,
           studentDivision: user.ncaaDivision || null,
+          assignedComplianceUserId: complianceOfficer._id.toString(),
+          assignedComplianceEmail: complianceOfficer.email,
           status: 'pending',
           reviewedAt: null,
           reviewedBy: null,
@@ -713,7 +734,7 @@ app.post('/api/compliance/requests', async (req, res, next) => {
     const savedRequest = await documentRequestsCollection.findOne({ studentUserId: userId, contractId });
 
     return res.status(existingRequest ? 200 : 201).json({
-      message: 'Document submitted to compliance for review.',
+      message: `Document submitted to ${complianceOfficer.email} for review.`,
       request: serializeDocumentRequest(savedRequest)
     });
   } catch (error) {
@@ -733,10 +754,10 @@ app.patch('/api/compliance/requests/:requestId', async (req, res, next) => {
       return res.status(400).json({ message: 'Status must be accepted or rejected.' });
     }
 
-    const documentRequest = await documentRequestsCollection.findOne({ requestId, studentSchool: user.school });
+    const documentRequest = await documentRequestsCollection.findOne({ requestId, assignedComplianceUserId: userId });
 
     if (!documentRequest) {
-      return res.status(404).json({ message: 'Compliance request not found for the current school.' });
+      return res.status(404).json({ message: 'Compliance request not found for the current officer.' });
     }
 
     const now = new Date();
@@ -776,7 +797,7 @@ app.get('/api/compliance/requests/:requestId/file', async (req, res, next) => {
       documentRequest = await documentRequestsCollection.findOne({ requestId, studentUserId: userId });
     } else {
       assertUserRole(user, 'compliance');
-      documentRequest = await documentRequestsCollection.findOne({ requestId, studentSchool: user.school });
+      documentRequest = await documentRequestsCollection.findOne({ requestId, assignedComplianceUserId: userId });
     }
 
     if (!documentRequest) {

@@ -311,9 +311,50 @@
   color: #b91c1c;
 }
 
-.request-status-draft {
-  background: #e2e8f0;
-  color: #334155;
+
+.dashboard-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 30;
+}
+
+.dashboard-dialog {
+  width: min(100%, 460px);
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.2);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dashboard-dialog h2 {
+  margin: 0;
+  font-size: 28px;
+  color: #0f172a;
+}
+
+.dashboard-dialog-copy {
+  margin: 0;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.dashboard-dialog-input {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 15px;
+  color: #0f172a;
+  background: #ffffff;
 }
 
 .profile-menu {

@@ -32,7 +32,7 @@ export async function listComplianceRequests(user) {
   return parseJsonResponse(response);
 }
 
-export async function submitComplianceRequest(user, contractId) {
+export async function submitComplianceRequest(user, contractId, complianceEmail) {
   const userId = getUserId(user);
   const response = await fetch(`${API_BASE_URL}/compliance/requests`, {
     method: 'POST',
@@ -40,7 +40,7 @@ export async function submitComplianceRequest(user, contractId) {
       'Content-Type': 'application/json',
       'x-user-id': userId
     },
-    body: JSON.stringify({ userId, contractId })
+    body: JSON.stringify({ userId, contractId, complianceEmail })
   });
 
   return parseJsonResponse(response);
