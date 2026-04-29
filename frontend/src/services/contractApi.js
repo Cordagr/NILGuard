@@ -1,3 +1,14 @@
+export async function deleteContract(user, contractId) {
+  const userId = getUserId(user);
+  const searchParams = new URLSearchParams({ userId });
+  const response = await fetch(`${API_BASE_URL}/contracts/${contractId}?${searchParams.toString()}`, {
+    method: 'DELETE',
+    headers: {
+      'x-user-id': userId
+    }
+  });
+  return parseJsonResponse(response);
+}
 // Fetch contract analysis for a given contractId
 export async function getContractAnalysis(user, contractId) {
   const userId = getUserId(user);

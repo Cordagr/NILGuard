@@ -1,3 +1,5 @@
+// ...existing code...
+// Place this after all imports and after 'const app = express();'
 
 import express from 'express';
 import cors from 'cors';
@@ -928,6 +930,34 @@ app.post('/api/auth/login', async (req, res) => {
       resolvedSchool
     )
   });
+});
+
+// Delete a contract (student-owned)
+app.delete('/api/contracts/:contractId', async (req, res, next) => {
+  try {
+    const userId = getRequiredUserId(req);
+    const { contractId } = req.params;
+    const contract = await contractsCollection.findOne({ contractId, userId });
+    if (!contract) {
+      return res.status(404).json({ message: 'Contract not found for the current user.' });
+    }
+    // Remove contract record
+    await contractsCollection.deleteOne({ contractId, userId });
+    // Remove file if unused
+    if (contract.storedFilePath) {
+      const remaining = await contractsCollection.countDocuments({ storedFilePath: contract.storedFilePath });
+      if (remaining === 0) {
+        try {
+          await fs.unlink(contract.storedFilePath);
+        } catch (err) {
+          if (err?.code !== 'ENOENT') throw err;
+        }
+      }
+    }
+    return res.json({ message: 'Contract deleted successfully.' });
+  } catch (error) {
+    next(error);
+  }
 });
 
 async function start() {

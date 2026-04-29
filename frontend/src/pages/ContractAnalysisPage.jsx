@@ -177,10 +177,16 @@ function ContractAnalysisPage() {
         const nextAnalysis = response.analysis || null;
         setAnalysis(nextAnalysis);
         setContract(response.contract || null);
-        setFindings(Array.isArray(response.findings) ? response.findings : []);
 
-        if (response.findings && response.findings.length) {
-          setSelectedFindingId((currentSelectedFindingId) => currentSelectedFindingId || response.findings[0].id);
+        // FIX: Try response.findings first, then fall back to analysis.findings.
+        // This handles APIs that nest findings inside the analysis object.
+        const responsefindings = Array.isArray(response.findings) ? response.findings : [];
+        const analysisFingings = Array.isArray(nextAnalysis?.findings) ? nextAnalysis.findings : [];
+        const resolvedFindings = responsefindings.length > 0 ? responsefindings : analysisFingings;
+        setFindings(resolvedFindings);
+
+        if (resolvedFindings.length > 0) {
+          setSelectedFindingId((currentSelectedFindingId) => currentSelectedFindingId || resolvedFindings[0].id);
         }
       } catch (error) {
         if (isMounted) {
@@ -215,25 +221,33 @@ function ContractAnalysisPage() {
   }, [mode]);
 
   const selectedFinding = useMemo(() => {
-    if (!analysis?.findings?.length) {
+    // Read from the findings state (same array used to render the list)
+    if (!findings.length) {
       return null;
     }
 
-    return analysis.findings.find((finding) => finding.id === selectedFindingId) || analysis.findings[0];
-  }, [analysis, selectedFindingId]);
+    return findings.find((finding) => finding.id === selectedFindingId) || findings[0];
+  }, [findings, selectedFindingId]);
 
   const summary = analysis?.summary || {};
+
+  // Derive metrics: prefer summary fields, fall back to computed values from the findings state
+  // so the numbers always match what is actually rendered in the list.
+  const flaggedCount = findings.filter((f) => f.status === 'flagged').length;
+  const passedCount  = findings.filter((f) => f.status === 'pass').length;
+
   const metrics = {
-    riskScore: summary.riskScore ?? analysis?.score ?? 0,
-    flaggedFindingCount: summary.flaggedFindingCount ?? (Array.isArray(analysis?.positiveSignals) ? analysis.positiveSignals.length : 0),
-    passedCheckpointCount: summary.passedCheckpointCount ?? analysis?.legalCategoryCount ?? 0,
-    topSeverity: summary.topSeverity ?? (typeof analysis?.isContract === 'boolean' ? (analysis.isContract ? 'low' : 'high') : 'low'),
+    riskScore:            summary.riskScore            ?? analysis?.score ?? 0,
+    flaggedFindingCount:  summary.flaggedFindingCount  ?? flaggedCount,
+    passedCheckpointCount: summary.passedCheckpointCount ?? passedCount,
+    topSeverity:          summary.topSeverity          ?? (typeof analysis?.isContract === 'boolean' ? (analysis.isContract ? 'low' : 'high') : 'low'),
     contractScreeningPassed: typeof summary.contractScreeningPassed === 'boolean' ? summary.contractScreeningPassed : analysis?.isContract,
     generatedAt: summary.generatedAt ?? analysis?.generatedAt,
-    school: summary.school,
-    division: summary.division,
-    stateName: summary.stateName
+    school:      summary.school,
+    division:    summary.division,
+    stateName:   summary.stateName
   };
+
   const rules = analysis?.applicableRules || [];
   const highlightTokens = useMemo(() => getHighlightTokens(selectedFinding), [selectedFinding]);
   const contractFileUrl = currentUser?.id && contractId ? getContractFileUrl(currentUser, contractId) : '';
@@ -304,10 +318,9 @@ function ContractAnalysisPage() {
           <section className="analysis-results analysis-results-column" style={{ flex: '0 0 50%', maxWidth: '50%', minWidth: 0, marginTop: PANEL_MARGIN_TOP }}>
             <div className="analysis-panel" style={{ padding: PANEL_PADDING, borderRadius: 8 }}>
 
-              {/* FIX: h2 is alone here — no flex row, nothing beside it */}
               <h2 style={TITLE_STYLE}>Compliance Checks</h2>
 
-              {/* Metrics sit BELOW the title as a horizontal row */}
+              {/* Metrics strip — below title */}
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', background: '#fff', borderRadius: 8, boxShadow: '0 2px 8px #0001', padding: '0.5rem 1rem', marginBottom: 12 }}>
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Risk Score</div>
@@ -329,6 +342,11 @@ function ContractAnalysisPage() {
                   <div style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Created</div>
                   <div style={{ fontWeight: 600, fontSize: 12 }}>{contract?.createdAt ? formatDateTime(contract.createdAt) : 'N/A'}</div>
                 </div>
+              </div>
+
+              {/* Debug line — remove once confirmed working */}
+              <div style={{ fontSize: 11, color: '#aaa', marginBottom: 8 }}>
+                Showing {sortedFindings.length} finding{sortedFindings.length !== 1 ? 's' : ''} ({flaggedCount} flagged, {passedCount} passed)
               </div>
 
               <div className="analysis-findings-list">
@@ -363,7 +381,6 @@ function ContractAnalysisPage() {
           {/* RIGHT — Contract PDF */}
           <section className="analysis-pdf-viewer" style={{ flex: '0 0 50%', maxWidth: '50%', minWidth: 0, background: '#fff', borderRadius: 8, boxShadow: '0 2px 8px #0001', padding: PANEL_PADDING, marginTop: PANEL_MARGIN_TOP, marginBottom: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '90vh', overflow: 'auto' }}>
 
-            {}
             <h2 style={{ ...TITLE_STYLE, alignSelf: 'flex-start' }}>Contract PDF</h2>
 
             {pdfFile ? (

@@ -1,3 +1,4 @@
+import { deleteContract } from '../services/contractApi';
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/pages/StudentDashboard.css';
@@ -58,6 +59,24 @@ function formatFileSize(bytes) {
 }
 
 function StudentDashboardPage() {
+    const [deletingContractId, setDeletingContractId] = useState('');
+
+    const handleDeleteContract = async (contract) => {
+      const confirmed = window.confirm(`Delete contract "${contract.fileName}"? This cannot be undone.`);
+      if (!confirmed) return;
+      setDeletingContractId(contract.id);
+      setErrorMessage('');
+      setSuccessMessage('');
+      try {
+        await deleteContract(currentUser, contract.id);
+        setSuccessMessage('Contract deleted successfully.');
+        await fetchContracts(sortMode);
+      } catch (error) {
+        setErrorMessage(error.message || 'Unable to delete the contract.');
+      } finally {
+        setDeletingContractId('');
+      }
+    };
   const [menuOpen, setMenuOpen] = useState(false);
   const [contracts, setContracts] = useState([]);
   const [isLoadingContracts, setIsLoadingContracts] = useState(true);
@@ -334,6 +353,15 @@ function StudentDashboardPage() {
                       {isSubmittingRequestForContractId === contract.id
                         ? 'Sending...'
                         : 'Send to Compliance'}
+                    </button>
+                    <button
+                      type="button"
+                      className="dashboard-secondary-button dashboard-delete-button"
+                      style={{ color: '#b00020', borderColor: '#b00020', marginLeft: 8 }}
+                      onClick={() => handleDeleteContract(contract)}
+                      disabled={deletingContractId === contract.id}
+                    >
+                      {deletingContractId === contract.id ? 'Deleting...' : 'Delete'}
                     </button>
                   </div>
                 </article>
