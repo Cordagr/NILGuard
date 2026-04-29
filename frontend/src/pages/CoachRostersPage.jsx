@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/pages/CoachRosters.css';
 import logo from '../assets/NILGUARD.png';
+import ProfileIcon from '../assets/ProfileIcon.png';
 import { deleteRoster, getRosterFileUrl, listRosters, uploadRosterCsv } from '../services/rosterApi';
 
 function normalizeCsvHeader(header) {
@@ -137,6 +138,7 @@ function CoachRostersPage() {
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
   const currentUser = getCurrentUser();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const fetchRosters = async () => {
     if (!currentUser?.id) {
@@ -271,9 +273,32 @@ function CoachRostersPage() {
         </div>
 
         <div className="coach-header-actions">
-          <button type="button" className="coach-logout-link" onClick={handleLogout}>
-            Logout
-          </button>
+          <div className="profile-menu" style={{ position: 'relative' }}>
+            <button
+              type="button"
+              className="profile-menu-trigger"
+              onClick={() => setMenuOpen((prev) => !prev)}
+              aria-label="Open menu"
+              style={{ background: 'none', border: 'none', padding: 0 }}
+            >
+              <img src={ProfileIcon} alt="Profile" className="profile-icon-img" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', border: '2px solid #222', background: '#fff' }} />
+            </button>
+            {menuOpen && (
+              <div className="profile-menu-dropdown" style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', background: '#fff', border: '2px solid #F0E6D8', borderRadius: '1em', boxShadow: '0 8px 32px rgba(24,24,24,0.12)', minWidth: 140, zIndex: 100 }}>
+                <button
+                  type="button"
+                  style={{ width: '100%', background: 'transparent', border: 'none', padding: '0.9em 1.4em', textAlign: 'left', fontFamily: 'Barlow Condensed, sans-serif', fontSize: '1rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#181818', cursor: 'pointer', borderRadius: 0 }}
+                  onClick={() => {
+                    localStorage.removeItem('nilguard_user');
+                    setMenuOpen(false);
+                    navigate('/login');
+                  }}
+                >
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
