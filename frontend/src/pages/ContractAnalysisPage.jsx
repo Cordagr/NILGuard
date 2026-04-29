@@ -140,6 +140,8 @@ function ContractAnalysisPage() {
   const fileName = searchParams.get('fileName') || 'Selected Contract';
   const mode = searchParams.get('mode') || 'analyze';
   const [analysis, setAnalysis] = useState(null);
+  const [contract, setContract] = useState(null);
+  const [findings, setFindings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [selectedFindingId, setSelectedFindingId] = useState('');
@@ -174,9 +176,11 @@ function ContractAnalysisPage() {
 
         const nextAnalysis = response.analysis || null;
         setAnalysis(nextAnalysis);
+        setContract(response.contract || null);
+        setFindings(Array.isArray(response.findings) ? response.findings : []);
 
-        if (nextAnalysis?.findings?.length) {
-          setSelectedFindingId((currentSelectedFindingId) => currentSelectedFindingId || nextAnalysis.findings[0].id);
+        if (response.findings && response.findings.length) {
+          setSelectedFindingId((currentSelectedFindingId) => currentSelectedFindingId || response.findings[0].id);
         }
       } catch (error) {
         if (isMounted) {
@@ -218,9 +222,19 @@ function ContractAnalysisPage() {
     return analysis.findings.find((finding) => finding.id === selectedFindingId) || analysis.findings[0];
   }, [analysis, selectedFindingId]);
 
-  const summary = analysis?.summary;
+  const summary = analysis?.summary || {};
+  const metrics = {
+    riskScore: summary.riskScore ?? analysis?.score ?? 0,
+    flaggedFindingCount: summary.flaggedFindingCount ?? (Array.isArray(analysis?.positiveSignals) ? analysis.positiveSignals.length : 0),
+    passedCheckpointCount: summary.passedCheckpointCount ?? analysis?.legalCategoryCount ?? 0,
+    topSeverity: summary.topSeverity ?? (typeof analysis?.isContract === 'boolean' ? (analysis.isContract ? 'low' : 'high') : 'low'),
+    contractScreeningPassed: typeof summary.contractScreeningPassed === 'boolean' ? summary.contractScreeningPassed : analysis?.isContract,
+    generatedAt: summary.generatedAt ?? analysis?.generatedAt,
+    school: summary.school,
+    division: summary.division,
+    stateName: summary.stateName
+  };
   const rules = analysis?.applicableRules || [];
-  const findings = analysis?.findings || [];
   const highlightTokens = useMemo(() => getHighlightTokens(selectedFinding), [selectedFinding]);
   const contractFileUrl = currentUser?.id && contractId ? getContractFileUrl(currentUser, contractId) : '';
   const pdfDevicePixelRatio = typeof window !== 'undefined' ? Math.max(window.devicePixelRatio || 1, 2) : 2;
@@ -244,40 +258,29 @@ function ContractAnalysisPage() {
     setPdfLoadError('');
   }, [contractFileUrl, selectedFindingId]);
 
+  const sortedFindings = [...findings].sort((a, b) => {
+    if (a.status === b.status) return 0;
+    if (a.status === 'flagged') return -1;
+    if (b.status === 'flagged') return 1;
+    return 0;
+  });
+
+  // Shared values so both panels are pixel-identical in vertical start position
+  const PANEL_MARGIN_TOP = 4;
+  const PANEL_PADDING = '1.2rem';
+  const TITLE_STYLE = { margin: 0, marginBottom: 10, fontSize: 22 };
+
   return (
-    <div className="analysis-container">
-      <div className="analysis-back-row">
+    <div className="analysis-container" style={{ padding: '0.5em 0.2em', minHeight: '100vh' }}>
+      <div className="analysis-back-row" style={{ marginBottom: 0 }}>
         <Link to="/dashboard/student" className="analysis-exit-link">
           Exit To Student Dashboard
         </Link>
       </div>
 
-      <header className="analysis-header">
-        <div>
-          <p className="analysis-eyebrow">Contract ID</p>
-          <h1>{pageCopy.title}</h1>
-          <p>{pageCopy.description}</p>
-        </div>
-
-        <div className="analysis-header-meta">
-          <div className="analysis-meta-card">
-            <span>Contract</span>
-            <strong>{contractId || 'Unknown contract'}</strong>
-            <small>{fileName}</small>
-          </div>
-          <div className="analysis-meta-card">
-            <span>School Context</span>
-            <strong>{summary?.school || currentUser?.school || 'No school assigned'}</strong>
-            <small>
-              {[summary?.division || currentUser?.ncaaDivision, summary?.stateName || currentUser?.schoolStateName].filter(Boolean).join(' · ') || 'School context unavailable'}
-            </small>
-          </div>
-          <div className="analysis-meta-card">
-            <span>Generated</span>
-            <strong>{formatDateTime(analysis?.generatedAt)}</strong>
-            <small>{mode === 'view' ? 'Latest saved report' : 'Current live analysis'}</small>
-          </div>
-        </div>
+      <header className="analysis-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginBottom: 8, marginTop: 8 }}>
+        <h1 style={{ textAlign: 'center', fontSize: 32, margin: 0 }}>{pageCopy.title}</h1>
+        <p style={{ textAlign: 'center', fontSize: 16, margin: '8px 0 0 0', maxWidth: 700 }}>{pageCopy.description}</p>
       </header>
 
       {isLoading ? (
@@ -295,229 +298,106 @@ function ContractAnalysisPage() {
           </div>
         </section>
       ) : (
-        <main className="analysis-grid analysis-report-grid">
-          <section className="analysis-results analysis-results-column">
-            <div className="analysis-scoreboard">
-              <div className={`analysis-score-card ${summary?.topSeverity || 'low'}`}>
-                <span>Risk Score</span>
-                <strong>{summary?.riskScore ?? 0}</strong>
-              </div>
-              <div className="analysis-score-card neutral" title="Flagged issues are potential compliance risks or missing required elements detected in the contract.">
-                <span>Flagged Issues</span>
-                <strong>{summary?.flaggedFindingCount ?? 0}</strong>
-                <div className="flagged-issues-info">Potential compliance risks or missing required elements detected in the contract.</div>
-              </div>
-              <div className="analysis-score-card neutral">
-                <span>Passed Checks</span>
-                <strong>{summary?.passedCheckpointCount ?? 0}</strong>
-              </div>
-            </div>
+        <main className="analysis-grid analysis-report-grid" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', minHeight: '80vh', width: '100%' }}>
 
-            <div className="analysis-panel">
-              <div className="analysis-panel-header">
-                <h2>Applicable Rules</h2>
-                <p>School, division, and state review profiles used for this report.</p>
-              </div>
-              <div className="analysis-rule-list">
-                {rules.map((rule) => (
-                  <article key={rule.id} className="analysis-rule-card">
-                    <h3>{rule.title}</h3>
-                    <p>{rule.description}</p>
-                  </article>
-                ))}
-              </div>
-            </div>
+          {/* LEFT — Compliance Checks */}
+          <section className="analysis-results analysis-results-column" style={{ flex: '0 0 50%', maxWidth: '50%', minWidth: 0, marginTop: PANEL_MARGIN_TOP }}>
+            <div className="analysis-panel" style={{ padding: PANEL_PADDING, borderRadius: 8 }}>
 
-            <div className="analysis-panel">
-              <div className="analysis-panel-header">
-                <h2>Findings</h2>
-                <p>Select a finding to inspect the explanation and evidence trail.</p>
+              {/* FIX: h2 is alone here — no flex row, nothing beside it */}
+              <h2 style={TITLE_STYLE}>Compliance Checks</h2>
+
+              {/* Metrics sit BELOW the title as a horizontal row */}
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', background: '#fff', borderRadius: 8, boxShadow: '0 2px 8px #0001', padding: '0.5rem 1rem', marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Risk Score</div>
+                  <div style={{ fontWeight: 700, color: '#b85c00', fontSize: 16 }}>{metrics.riskScore}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Flagged</div>
+                  <div style={{ fontWeight: 700, fontSize: 16 }}>{metrics.flaggedFindingCount}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Passed</div>
+                  <div style={{ fontWeight: 700, fontSize: 16 }}>{metrics.passedCheckpointCount}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Last</div>
+                  <div style={{ fontWeight: 600, fontSize: 12 }}>{contract?.lastAccessedAt ? formatDateTime(contract.lastAccessedAt) : 'N/A'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Created</div>
+                  <div style={{ fontWeight: 600, fontSize: 12 }}>{contract?.createdAt ? formatDateTime(contract.createdAt) : 'N/A'}</div>
+                </div>
               </div>
+
               <div className="analysis-findings-list">
-                {findings.map((finding) => (
-                  <button
-                    key={finding.id}
-                    type="button"
-                    className={`analysis-finding-card ${finding.severity} ${selectedFinding?.id === finding.id ? 'active' : ''}`}
-                    onClick={() => setSelectedFindingId(finding.id)}
-                  >
-                    <div className="analysis-finding-header">
-                      <span className={`risk-badge ${finding.severity}`}>{getSeverityLabel(finding.severity)}</span>
-                      <span className={`analysis-status-pill ${finding.status}`}>{finding.status === 'pass' ? 'Pass' : 'Flagged'}</span>
+                {sortedFindings.length === 0 && (
+                  <div style={{ padding: '0.5rem', color: '#888' }}>No compliance checks found.</div>
+                )}
+                {sortedFindings.map((finding) => (
+                  <div key={finding.id} className={`analysis-finding-card ${finding.severity}`} style={{ marginBottom: 10, background: finding.status === 'pass' ? '#f6fff6' : '#fff', padding: '0.75rem', borderRadius: 6 }}>
+                    <div className="analysis-finding-header" style={{ marginBottom: 2 }}>
+                      <span className={`risk-badge ${finding.severity}`} style={{ fontSize: 12 }}>{getSeverityLabel(finding.severity)}</span>
+                      <span className={`analysis-status-pill ${finding.status}`} style={{ fontSize: 12 }}>{finding.status === 'pass' ? 'Pass' : 'Flagged'}</span>
                     </div>
-                    <strong>{finding.title}</strong>
-                    <p>{finding.summary}</p>
-                  </button>
+                    <strong style={{ fontSize: 15 }}>{finding.title}</strong>
+                    <p style={{ fontSize: 13, margin: '2px 0 0 0' }}>{finding.summary}</p>
+                    {finding.references && finding.references.length > 0 && (
+                      <div style={{ marginTop: 8, background: '#f8f8f8', borderRadius: 6, padding: '0.5rem 0.75rem' }}>
+                        <div style={{ fontWeight: 600, marginBottom: 2, fontSize: 13 }}>Reference Trail</div>
+                        {finding.references.map((reference) => (
+                          <div key={reference.id} style={{ marginBottom: 6 }}>
+                            <strong>{reference.label}</strong>
+                            <div>{renderHighlightedText(reference.excerpt, getHighlightTokens({ matchedTerms: finding.matchedTerms, references: [reference] }), 'No reference excerpt available.')}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
           </section>
 
-          <section className="analysis-results analysis-results-detail">
-            <div className="analysis-review-workspace">
-              {/* PDF Viewer */}
-              <div className="analysis-result-item analysis-pdf-viewer-card">
-                <div className="analysis-detail-heading-row">
-                  <div>
-                    <div className="analysis-result-title">Contract Viewer</div>
-                    <h2>{analysis?.contract?.fileName || fileName}</h2>
-                  </div>
-                  <div className="analysis-pdf-toolbar compact-toolbar" aria-label="PDF zoom controls">
-                    <button
-                      type="button"
-                      title="Zoom out"
-                      className="analysis-pdf-zoom-button small"
-                      onClick={() => setPdfZoom((currentZoom) => Math.max(0.75, Number((currentZoom - 0.1).toFixed(2))))}
-                    >
-                      -
-                    </button>
-                    <span className="analysis-pdf-zoom-label small">{Math.round(pdfZoom * 100)}%</span>
-                    <button
-                      type="button"
-                      title="Zoom in"
-                      className="analysis-pdf-zoom-button small"
-                      onClick={() => setPdfZoom((currentZoom) => Math.min(2, Number((currentZoom + 0.1).toFixed(2))))}
-                    >
-                      +
-                    </button>
-                    <button
-                      type="button"
-                      title="Reset zoom"
-                      className="analysis-pdf-reset-button small"
-                      onClick={() => setPdfZoom(1)}
-                    >
-                      Reset
-                    </button>
-                  </div>
-                </div>
-                {pdfFile ? (
-                  <div className="analysis-pdf-scroll">
-                    <Document
-                      file={pdfFile}
-                      loading={<div className="analysis-result-description">Loading PDF document...</div>}
-                      onLoadSuccess={({ numPages }) => {
-                        setPdfPageCount(numPages);
-                        setPdfLoadError('');
-                      }}
-                      onLoadError={(error) => {
-                        setPdfLoadError(error?.message || 'The PDF could not be rendered in the embedded viewer.');
-                      }}
-                      onSourceError={(error) => {
-                        setPdfLoadError(error?.message || 'The PDF source could not be loaded.');
-                      }}
-                    >
-                      {pdfLoadError ? (
-                        <div className="analysis-result-description">{pdfLoadError}</div>
-                      ) : null}
-                      {Array.from({ length: pdfPageCount }, (_, index) => (
-                        <div key={`${selectedFinding?.id || 'finding'}-${index + 1}`} className="analysis-pdf-page-shell">
-                          <Page
-                            pageNumber={index + 1}
-                            width={pdfPageWidth}
-                            devicePixelRatio={pdfDevicePixelRatio}
-                            renderAnnotationLayer
-                            renderTextLayer
-                            customTextRenderer={({ str }) => renderPdfHighlightedText(str, highlightTokens)}
-                          />
-                        </div>
-                      ))}
-                    </Document>
-                  </div>
-                ) : (
-                  <div className="analysis-result-description">The PDF viewer is unavailable for this contract.</div>
-                )}
-              </div>
-              {/* Sidebar */}
-              <div className="analysis-review-sidebar">
-                <div className={`analysis-result-item ${selectedFinding?.severity || 'low'}`}>
-                  <div className="analysis-detail-heading-row">
-                    <div>
-                      <div className="analysis-result-title">Explanation</div>
-                      <h2>{selectedFinding?.title || 'No finding selected'}</h2>
-                    </div>
-                    {selectedFinding ? (
-                      <span className={`risk-badge ${selectedFinding.severity}`}>{getSeverityLabel(selectedFinding.severity)}</span>
-                    ) : null}
-                  </div>
-                  <div className="analysis-explanation-block">
-                    {renderHighlightedText(
-                      selectedFinding?.explanation,
-                      highlightTokens,
-                      'Select a finding to review NILGuard guidance and evidence.'
-                    )}
-                  </div>
-                  {selectedFinding?.matchedTerms?.length ? (
-                    <div className="analysis-term-list">
-                      {selectedFinding.matchedTerms.map((term) => (
-                        <span key={term} className="analysis-term-pill">{term}</span>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-                <div className="analysis-result-item">
-                  <div className="analysis-result-title">Reference Trail</div>
-                  <div className="analysis-reference-list">
-                    {(selectedFinding?.references || []).length ? (
-                      (selectedFinding?.references || []).map((reference) => (
-                        <article key={reference.id} className="analysis-reference-card">
-                          <strong>{reference.label}</strong>
-                          {renderHighlightedText(
-                            reference.excerpt,
-                            getHighlightTokens({
-                              matchedTerms: selectedFinding?.matchedTerms,
-                              references: [reference]
-                            }),
-                            'No reference excerpt available.'
-                          )}
-                        </article>
-                      ))
-                    ) : (
-                      <article className="analysis-reference-card">
-                        <strong>Review note</strong>
-                        <p>No matching clause language was detected for this selected finding.</p>
-                      </article>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
+          {/* RIGHT — Contract PDF */}
+          <section className="analysis-pdf-viewer" style={{ flex: '0 0 50%', maxWidth: '50%', minWidth: 0, background: '#fff', borderRadius: 8, boxShadow: '0 2px 8px #0001', padding: PANEL_PADDING, marginTop: PANEL_MARGIN_TOP, marginBottom: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '90vh', overflow: 'auto' }}>
 
-            <div className="analysis-result-item">
-              <div className="analysis-result-title">Contract Details</div>
-              <div className="analysis-contract-details-grid">
-                <div>
-                  <span>File Name</span>
-                  <strong>{analysis?.contract?.fileName || fileName || 'Not available'}</strong>
-                </div>
-                <div>
-                  <span>Created</span>
-                  <strong>{analysis?.contract?.createdAt ? formatDateTime(analysis?.contract?.createdAt) : 'Not available'}</strong>
-                </div>
-                <div>
-                  <span>Last Accessed</span>
-                  <strong>{analysis?.contract?.lastAccessedAt ? formatDateTime(analysis?.contract?.lastAccessedAt) : 'Not available'}</strong>
-                </div>
-                <div>
-                  <span>Screening</span>
-                  <strong>{typeof summary?.contractScreeningPassed === 'boolean' ? (summary.contractScreeningPassed ? 'Passed initial contract screen' : 'Parsing issue detected') : 'Not available'}</strong>
-                </div>
-              </div>
+            {}
+            <h2 style={{ ...TITLE_STYLE, alignSelf: 'flex-start' }}>Contract PDF</h2>
 
-              <div className="contract-action-row">
-                <Link to="/dashboard/student" className="dashboard-secondary-button">
-                  Back To Dashboard
-                </Link>
-                {contractFileUrl ? (
-                  <button
-                    type="button"
-                    className="dashboard-secondary-button dashboard-accept-button"
-                    onClick={() => window.open(contractFileUrl, '_blank', 'noopener,noreferrer')}
+            {pdfFile ? (
+              <div style={{ width: '100%', textAlign: 'center' }}>
+                <div className="compact-toolbar" style={{ marginBottom: 8 }}>
+                  <button className="analysis-pdf-zoom-button small" onClick={() => setPdfZoom(z => Math.max(0.5, z - 0.1))} title="Zoom Out">-</button>
+                  <span className="analysis-pdf-zoom-label small">{Math.round(pdfZoom * 100)}%</span>
+                  <button className="analysis-pdf-zoom-button small" onClick={() => setPdfZoom(z => Math.min(2, z + 0.1))} title="Zoom In">+</button>
+                  <button className="analysis-pdf-reset-button small" onClick={() => setPdfZoom(1)} title="Reset Zoom">Reset</button>
+                </div>
+                <div style={{ border: '1px solid #eee', borderRadius: 8, overflow: 'auto', background: '#fafafa', padding: 6, maxHeight: '80vh' }}>
+                  <Document
+                    file={pdfFile}
+                    onLoadSuccess={({ numPages }) => setPdfPageCount(numPages)}
+                    onLoadError={err => setPdfLoadError(err.message || 'Failed to load PDF')}
+                    loading={<div style={{ padding: 24 }}>Loading PDF...</div>}
                   >
-                    Open Original PDF
-                  </button>
-                ) : null}
+                    {Array.from(new Array(pdfPageCount), (el, idx) => (
+                      <Page
+                        key={`page_${idx + 1}`}
+                        pageNumber={idx + 1}
+                        width={pdfPageWidth + 200}
+                        scale={pdfZoom}
+                        renderAnnotationLayer={true}
+                        renderTextLayer={true}
+                      />
+                    ))}
+                  </Document>
+                  {pdfLoadError && <div style={{ color: 'red', marginTop: 8 }}>{pdfLoadError}</div>}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div style={{ color: '#888', padding: 16 }}>No contract PDF available.</div>
+            )}
           </section>
         </main>
       )}

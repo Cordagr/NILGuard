@@ -978,22 +978,25 @@ async function start() {
       // Analyze the contract
       const analysis = await analyzeContractPdf(fileBuffer, contract.fileName);
 
+      // Use rule-based compliance findings from analysis
+      const findings = analysis.findings || [];
+
       res.json({
         contract: serializeContract(contract),
         analysis,
         summary: {
           contractScreeningPassed: analysis.isContract,
           riskScore: analysis.score,
-          flaggedFindingCount: analysis.positiveSignals?.length || 0,
+          flaggedFindingCount: findings.length,
           passedCheckpointCount: analysis.legalCategoryCount || 0,
-          topSeverity: analysis.isContract ? 'low' : 'high',
+          topSeverity: findings.some(f => f.severity === 'high') ? 'high' : 'low',
           generatedAt: new Date(),
           school: contract.school,
           division: contract.ncaaDivision,
           stateName: contract.schoolStateName
         },
         applicableRules: [],
-        findings: []
+        findings
       });
     } catch (error) {
       next(error);

@@ -99,33 +99,98 @@ export function classifyContractText(text, fileName = '') {
   const score = positiveScore - negativeScore;
   const textStrongSignalCount = countStrongSignals(positiveMatches);
   const legalCategoryCount = countMatchedCategories(normalizedText);
-  const hasPartyLanguage = normalizedText.includes('between') || normalizedText.includes('parties');
-  const hasExecutionLanguage = normalizedText.includes('signature') || normalizedText.includes('signed');
-  const hasContractTitle =
-    normalizedText.includes('this agreement') ||
-    normalizedText.includes('this contract') ||
-    normalizedText.startsWith('agreement ') ||
-    normalizedText.startsWith('contract ');
-  const hasCoreClause =
-    normalizedText.includes('term and termination') ||
-    normalizedText.includes('termination') ||
-    normalizedText.includes('governing law') ||
-    normalizedText.includes('confidentiality') ||
-    normalizedText.includes('compensation') ||
-    normalizedText.includes('consideration') ||
-    normalizedText.includes('indemnification') ||
-    normalizedText.includes('obligations');
   const hasReadableText = normalizedText.length >= MIN_TEXT_LENGTH;
+
+  // Compliance rules: each is a function that returns a finding if the clause is missing/risky
+  const complianceRules = [
+    {
+      id: 'missing-compensation',
+      title: 'Missing Compensation Clause',
+      summary: 'The contract does not mention compensation, consideration, or payment.',
+      check: (t) => !t.includes('compensation') && !t.includes('consideration') && !t.includes('payment'),
+    },
+    {
+      id: 'missing-termination',
+      title: 'Missing Termination Clause',
+      summary: 'The contract does not mention a termination date or termination clause.',
+      check: (t) => !t.includes('termination'),
+    },
+    {
+      id: 'missing-governing-law',
+      title: 'Missing Governing Law Clause',
+      summary: 'The contract does not specify a governing law.',
+      check: (t) => !t.includes('governing law'),
+    },
+    {
+      id: 'missing-signature',
+      title: 'Missing Signature Block',
+      summary: 'The contract does not mention a signature or signed section.',
+      check: (t) => !t.includes('signature') && !t.includes('signed'),
+    },
+    {
+      id: 'missing-party-definitions',
+      title: 'Missing Party Definitions',
+      summary: 'The contract does not define the parties (e.g., "between", "parties").',
+      check: (t) => !t.includes('between') && !t.includes('parties'),
+    },
+    {
+      id: 'missing-nil-disclosure',
+      title: 'Missing NIL Disclosure',
+      summary: 'The contract does not mention NIL (Name, Image, and Likeness) rights.',
+      check: (t) => !t.includes('name, image, and likeness') && !t.includes('name image likeness') && !t.includes('nil'),
+    },
+    {
+      id: 'missing-exclusivity',
+      title: 'Missing Exclusivity Statement',
+      summary: 'The contract does not mention exclusivity or non-exclusivity.',
+      check: (t) => !t.includes('exclusive') && !t.includes('exclusivity') && !t.includes('non-exclusive'),
+    },
+  ];
+
+  // Run compliance rules
+  // Show both flagged and passed checks
+  const complianceFindings = complianceRules.map((rule) => {
+    const failed = rule.check(normalizedText);
+    return failed
+      ? {
+          id: `compliance-${rule.id}`,
+          title: rule.title,
+          summary: rule.summary,
+          severity: 'high',
+          status: 'flagged',
+          matchedTerms: [],
+          references: []
+        }
+      : {
+          id: `compliance-${rule.id}`,
+          title: rule.title.replace('Missing ', ''),
+          summary: `The contract contains a valid ${rule.title.replace('Missing ', '').replace('Clause', '').toLowerCase()}.`,
+          severity: 'low',
+          status: 'pass',
+          matchedTerms: [],
+          references: []
+        };
+  });
+
+  // Optionally, keep keyword findings for debugging/metrics
+  const keywordFindings = [];
+  // Uncomment below to show keyword findings as well:
+  // (analysis.positiveSignals || []).map((signal, idx) => ({
+  //   id: `finding-${idx + 1}`,
+  //   title: `Flagged Issue: "${signal}"`,
+  //   summary: `The contract contains the flagged term or clause: "${signal}".`,
+  //   severity: 'medium',
+  //   status: 'flagged',
+  //   matchedTerms: [signal],
+  //   references: []
+  // }));
 
   const isContract =
     hasReadableText &&
     score >= MIN_ACCEPTANCE_SCORE &&
     negativeScore < positiveScore &&
     textStrongSignalCount >= MIN_TEXT_STRONG_SIGNAL_COUNT &&
-    legalCategoryCount >= MIN_LEGAL_CATEGORY_COUNT &&
-    (hasContractTitle || hasPartyLanguage) &&
-    hasCoreClause &&
-    (hasExecutionLanguage || hasPartyLanguage);
+    legalCategoryCount >= MIN_LEGAL_CATEGORY_COUNT;
 
   return {
     isContract,
@@ -134,7 +199,8 @@ export function classifyContractText(text, fileName = '') {
     negativeSignals: negativeMatches.map(({ phrase }) => phrase),
     legalCategoryCount,
     textLength: normalizedText.length,
-    preview: normalizedText.slice(0, 280)
+    preview: normalizedText.slice(0, 280),
+    findings: [...complianceFindings, ...keywordFindings]
   };
 }
 
