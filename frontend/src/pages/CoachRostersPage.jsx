@@ -263,14 +263,14 @@ function CoachRostersPage() {
           <img src={logo} alt="NILGuard Logo" className="coach-logo" />
         </div>
 
-        <div className="coach-header-actions">
+        <div className="coach-header-title-block">
+          <h1 className="coach-header-title">Coach Dashboard</h1>
           {currentUser?.school ? (
-            <div className="coach-assigned-school">
-              <strong>{currentUser.school}</strong>
-              <span>{currentUser.ncaaDivision || 'NCAA school account'}</span>
-            </div>
+            <p className="coach-header-identity">{currentUser.school} · {currentUser.ncaaDivision || 'NCAA'}</p>
           ) : null}
+        </div>
 
+        <div className="coach-header-actions">
           <button type="button" className="coach-logout-link" onClick={handleLogout}>
             Logout
           </button>

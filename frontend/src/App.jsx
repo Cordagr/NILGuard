@@ -8,6 +8,7 @@ import ContractsPage from './pages/ContractsPage.jsx';
 import ContractAnalysisPage from './pages/ContractAnalysisPage.jsx';
 import CoachRostersPage from './pages/CoachRostersPage.jsx';
 import ComplianceDashboardPage from './pages/ComplianceDashboardPage.jsx';
+import ComplianceOfficerDashboardPage from './pages/ComplianceOfficerDashboardPage.jsx';
 import './styles/global.css';
 import './App.css';
 
@@ -22,7 +23,7 @@ function App() {
           <Route path="/dashboard/student" element={<StudentDashboardPage />} />
           <Route path="/dashboard/coach" element={<CoachRostersPage />} />
           <Route path="/dashboard/school" element={<CoachRostersPage />} />
-          <Route path="/dashboard/compliance" element={<ComplianceDashboardPage />} />
+          <Route path="/dashboard/compliance" element={<ComplianceOfficerDashboardPage />} />
           <Route path="/contracts" element={<ContractsPage />} />
           <Route path="/contracts/analyze" element={<ContractAnalysisPage />} />
         </Routes>
