@@ -302,9 +302,10 @@ function ContractAnalysisPage() {
                 <span>Risk Score</span>
                 <strong>{summary?.riskScore ?? 0}</strong>
               </div>
-              <div className="analysis-score-card neutral">
+              <div className="analysis-score-card neutral" title="Flagged issues are potential compliance risks or missing required elements detected in the contract.">
                 <span>Flagged Issues</span>
                 <strong>{summary?.flaggedFindingCount ?? 0}</strong>
+                <div className="flagged-issues-info">Potential compliance risks or missing required elements detected in the contract.</div>
               </div>
               <div className="analysis-score-card neutral">
                 <span>Passed Checks</span>
@@ -354,31 +355,35 @@ function ContractAnalysisPage() {
 
           <section className="analysis-results analysis-results-detail">
             <div className="analysis-review-workspace">
+              {/* PDF Viewer */}
               <div className="analysis-result-item analysis-pdf-viewer-card">
                 <div className="analysis-detail-heading-row">
                   <div>
                     <div className="analysis-result-title">Contract Viewer</div>
                     <h2>{analysis?.contract?.fileName || fileName}</h2>
                   </div>
-                  <div className="analysis-pdf-toolbar" aria-label="PDF zoom controls">
+                  <div className="analysis-pdf-toolbar compact-toolbar" aria-label="PDF zoom controls">
                     <button
                       type="button"
-                      className="analysis-pdf-zoom-button"
+                      title="Zoom out"
+                      className="analysis-pdf-zoom-button small"
                       onClick={() => setPdfZoom((currentZoom) => Math.max(0.75, Number((currentZoom - 0.1).toFixed(2))))}
                     >
                       -
                     </button>
-                    <span className="analysis-pdf-zoom-label">{Math.round(pdfZoom * 100)}%</span>
+                    <span className="analysis-pdf-zoom-label small">{Math.round(pdfZoom * 100)}%</span>
                     <button
                       type="button"
-                      className="analysis-pdf-zoom-button"
+                      title="Zoom in"
+                      className="analysis-pdf-zoom-button small"
                       onClick={() => setPdfZoom((currentZoom) => Math.min(2, Number((currentZoom + 0.1).toFixed(2))))}
                     >
                       +
                     </button>
                     <button
                       type="button"
-                      className="analysis-pdf-reset-button"
+                      title="Reset zoom"
+                      className="analysis-pdf-reset-button small"
                       onClick={() => setPdfZoom(1)}
                     >
                       Reset
@@ -422,7 +427,7 @@ function ContractAnalysisPage() {
                   <div className="analysis-result-description">The PDF viewer is unavailable for this contract.</div>
                 )}
               </div>
-
+              {/* Sidebar */}
               <div className="analysis-review-sidebar">
                 <div className={`analysis-result-item ${selectedFinding?.severity || 'low'}`}>
                   <div className="analysis-detail-heading-row">
@@ -449,7 +454,6 @@ function ContractAnalysisPage() {
                     </div>
                   ) : null}
                 </div>
-
                 <div className="analysis-result-item">
                   <div className="analysis-result-title">Reference Trail</div>
                   <div className="analysis-reference-list">
@@ -483,19 +487,19 @@ function ContractAnalysisPage() {
               <div className="analysis-contract-details-grid">
                 <div>
                   <span>File Name</span>
-                  <strong>{analysis?.contract?.fileName || fileName}</strong>
+                  <strong>{analysis?.contract?.fileName || fileName || 'Not available'}</strong>
                 </div>
                 <div>
                   <span>Created</span>
-                  <strong>{formatDateTime(analysis?.contract?.createdAt)}</strong>
+                  <strong>{analysis?.contract?.createdAt ? formatDateTime(analysis?.contract?.createdAt) : 'Not available'}</strong>
                 </div>
                 <div>
                   <span>Last Accessed</span>
-                  <strong>{formatDateTime(analysis?.contract?.lastAccessedAt)}</strong>
+                  <strong>{analysis?.contract?.lastAccessedAt ? formatDateTime(analysis?.contract?.lastAccessedAt) : 'Not available'}</strong>
                 </div>
                 <div>
                   <span>Screening</span>
-                  <strong>{summary?.contractScreeningPassed ? 'Passed initial contract screen' : 'Parsing issue detected'}</strong>
+                  <strong>{typeof summary?.contractScreeningPassed === 'boolean' ? (summary.contractScreeningPassed ? 'Passed initial contract screen' : 'Parsing issue detected') : 'Not available'}</strong>
                 </div>
               </div>
 

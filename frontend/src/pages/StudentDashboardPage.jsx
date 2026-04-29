@@ -321,6 +321,13 @@ function StudentDashboardPage() {
                     <button
                       type="button"
                       className="dashboard-secondary-button"
+                      onClick={() => navigate(`/contracts/analyze?contractId=${contract.id}&fileName=${encodeURIComponent(contract.fileName)}`)}
+                    >
+                      Analyze Contract
+                    </button>
+                    <button
+                      type="button"
+                      className="dashboard-secondary-button"
                       onClick={() => openSendDialog(contract.id)}
                       disabled={isSubmittingRequestForContractId === contract.id}
                     >

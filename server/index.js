@@ -1,3 +1,4 @@
+
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -949,6 +950,55 @@ async function start() {
   await documentRequestsCollection.createIndex({ studentUserId: 1, submittedAt: -1 });
   await documentRequestsCollection.createIndex({ studentSchool: 1, status: 1, submittedAt: -1 });
   await documentRequestsCollection.createIndex({ studentUserId: 1, contractId: 1 }, { unique: true });
+
+  // Contract analysis endpoint (must be after collections are initialized)
+  app.get('/api/contracts/:contractId/analysis', async (req, res, next) => {
+    try {
+      const userId = getRequiredUserId(req);
+      const contractId = req.params.contractId;
+      console.log('Contract analysis request:', { contractId, userId });
+      if (!contractId) {
+        return res.status(400).json({ message: 'Missing contractId.' });
+      }
+
+      // Find the contract in the database
+      const contract = await contractsCollection.findOne({ contractId, userId });
+      if (!contract) {
+        console.log('Contract not found for analysis:', { contractId, userId });
+        return res.status(404).json({ message: 'Contract not found.' });
+      }
+
+      // Read the contract PDF file
+      if (!contract.storedFilePath) {
+        console.log('Contract file not found for analysis:', { contractId, userId });
+        return res.status(404).json({ message: 'Contract file not found.' });
+      }
+      const fileBuffer = await fs.readFile(contract.storedFilePath);
+
+      // Analyze the contract
+      const analysis = await analyzeContractPdf(fileBuffer, contract.fileName);
+
+      res.json({
+        contract: serializeContract(contract),
+        analysis,
+        summary: {
+          contractScreeningPassed: analysis.isContract,
+          riskScore: analysis.score,
+          flaggedFindingCount: analysis.positiveSignals?.length || 0,
+          passedCheckpointCount: analysis.legalCategoryCount || 0,
+          topSeverity: analysis.isContract ? 'low' : 'high',
+          generatedAt: new Date(),
+          school: contract.school,
+          division: contract.ncaaDivision,
+          stateName: contract.schoolStateName
+        },
+        applicableRules: [],
+        findings: []
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
 
   app.listen(PORT, () => {
     console.log(`Auth API listening on http://localhost:${PORT}`);

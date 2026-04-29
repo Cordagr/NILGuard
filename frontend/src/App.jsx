@@ -5,6 +5,7 @@ import RegisterPage from './pages/RegisterPage.jsx';
 import LandingPage from './pages/LandingPage.jsx';
 import StudentDashboardPage from './pages/StudentDashboardPage.jsx';
 import ContractsPage from './pages/ContractsPage.jsx';
+import ContractAnalysisPage from './pages/ContractAnalysisPage.jsx';
 import CoachRostersPage from './pages/CoachRostersPage.jsx';
 import ComplianceDashboardPage from './pages/ComplianceDashboardPage.jsx';
 import './styles/global.css';
@@ -23,6 +24,7 @@ function App() {
           <Route path="/dashboard/school" element={<CoachRostersPage />} />
           <Route path="/dashboard/compliance" element={<ComplianceDashboardPage />} />
           <Route path="/contracts" element={<ContractsPage />} />
+          <Route path="/contracts/analyze" element={<ContractAnalysisPage />} />
         </Routes>
       </div>
     </Router>

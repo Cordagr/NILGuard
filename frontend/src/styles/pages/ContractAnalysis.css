@@ -1,3 +1,39 @@
+.compact-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+}
+.analysis-pdf-zoom-button.small,
+.analysis-pdf-reset-button.small {
+  font-size: 0.95em;
+  padding: 0.15em 0.6em;
+  min-width: 1.8em;
+  min-height: 1.8em;
+  border-radius: 0.5em;
+  margin: 0 0.1em;
+  background: #222;
+  color: #fff;
+  border: none;
+  transition: background 0.15s;
+}
+.analysis-pdf-zoom-button.small:hover,
+.analysis-pdf-reset-button.small:hover {
+  background: #FF4D00;
+  color: #fff;
+}
+.analysis-pdf-zoom-label.small {
+  font-size: 0.95em;
+  margin: 0 0.2em;
+  min-width: 2.5em;
+  text-align: center;
+}
+.flagged-issues-info {
+  font-size: 0.85em;
+  color: #b94a00;
+  margin-top: 0.2em;
+  font-style: italic;
+  max-width: 180px;
+}
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Barlow:wght@400;500&display=swap');
 
 /* Contract Analysis Page Styles */
@@ -56,12 +92,14 @@
   transition: all 0.18s;
   background-color: rgba(255, 77, 0, 0.05);
   font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
-  font-size: 1.15rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+	font-size: 1.15rem;
+	font-weight: 900;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
 }
 
+.upload-area:active,
+.upload-area:focus {
   border-color: #181818;
   background-color: rgba(24,24,24,0.08);
   transform: translateY(-2px);
