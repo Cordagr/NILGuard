@@ -1,4 +1,3 @@
-
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Barlow:wght@400;500&display=swap');
 
 .student-dashboard-container {
@@ -12,7 +11,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding:  0.25rem 1.25rem;
+  padding: 0.75rem 1.25rem;
   background: transparent;
   border-bottom: none;
   box-shadow: none;
@@ -22,12 +21,17 @@
 
 .student-dashboard-header-logo-wrap {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  overflow: visible;
 }
 
 .student-dashboard-header-logo {
-  height: 200px;  
+  height: 190px;
   width: auto;
+  margin-top: -90px;
+  margin-bottom: -150px;
+  position: relative;
+  z-index: 5;
 }
 
 /* ── Title block (center of header) ── */
@@ -120,63 +124,7 @@
   color: #fff;
 }
 
-/* ── Main content — flex column ── */
-.student-dashboard-content {
-  padding: 0 2.5rem 4rem 2.5rem;
-  display: flex;
-  flex-direction: column;
-}
-
-
-.student-dashboard-content > .contracts-column:not(:first-child) {
-  margin-top: 0;
-}
-
-
-.student-dashboard-content {
-  display: grid;
-  grid-template-rows: auto;
-  grid-template-columns: 1fr;
-}
-
-.student-dashboard-content > .contracts-toolbar {
-  grid-column: 1 / -1;
-}
-
-
-.student-dashboard-content > .contracts-column ~ .contracts-column {
-  margin-top: 0;
-}
-
-
-.contracts-columns-wrapper {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 2rem;
-}
-
-
-.student-dashboard-content {
-  padding: 0 2.5rem 4rem 2.5rem;
-}
-
-/* Grid layout for the whole content area */
-.student-dashboard-content > main,
-main.student-dashboard-content {
-  display: grid;
-  grid-template-columns: 1fr;
-}
-
-
-.contracts-column {
-  width: 100%;
-}
-
-.past-contracts-column {
-  margin-top: 0;
-}
-
-
+/* ── Main content grid ── */
 main.student-dashboard-content,
 .student-dashboard-content {
   display: grid !important;
@@ -184,7 +132,7 @@ main.student-dashboard-content,
   grid-template-rows: auto 1fr !important;
   column-gap: 2rem !important;
   row-gap: 0 !important;
-  padding: 0 2.5rem 4rem 2.5rem !important;
+  padding: 1rem 2.5rem 4rem 2.5rem !important;
   align-items: start;
 }
 
@@ -207,17 +155,15 @@ main.student-dashboard-content,
   main.student-dashboard-content,
   .student-dashboard-content {
     grid-template-columns: 1fr !important;
+    padding: 1rem 1rem 3rem 1rem !important;
   }
   .contracts-column:not(.past-contracts-column),
   .past-contracts-column {
     grid-column: 1 !important;
     grid-row: auto !important;
   }
-  .student-dashboard-content {
-    padding: 0 1rem 3rem 1rem !important;
-  }
   .student-dashboard-header {
-    padding: 1rem;
+    padding: 0.75rem 1rem;
   }
 }
 
@@ -227,7 +173,7 @@ main.student-dashboard-content,
   align-items: flex-start;
   justify-content: space-between;
   gap: 1.5rem;
-  margin-bottom: 2.5rem;
+  margin-bottom: 2rem;
   flex-wrap: wrap;
 }
 
@@ -298,40 +244,16 @@ main.student-dashboard-content,
   border-color: #FF4D00;
 }
 
-
-.contracts-toolbar {
-  margin-bottom: 2rem;
-}
-
 .active-contracts-actions-block {
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
 }
 
-.dashboard-summary-panel {
-  display: inline-flex;
+.active-contracts-actions {
+  display: flex;
   align-items: center;
   gap: 1rem;
-  background: #FF4D00;
-  color: #fff;
-  border-radius: 2em;
-  padding: 0.9em 2em;
-  font-family: 'Barlow Condensed', sans-serif;
-}
-
-.dashboard-summary-panel strong {
-  font-size: 2.2rem;
-  font-weight: 900;
-  line-height: 1;
-}
-
-.dashboard-summary-panel span {
-  font-size: 0.95rem;
-  font-weight: 500;
-  opacity: 0.9;
-  max-width: 260px;
-  line-height: 1.3;
 }
 
 /* ── Feedback messages ── */
@@ -350,47 +272,6 @@ main.student-dashboard-content,
 .contracts-success {
   color: #27ae60;
   font-weight: 500;
-}
-
-/* ── Two-column layout ── */
-.student-dashboard-content {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0;
-}
-
-/* Contracts columns sit side by side */
-.contracts-column {
-  width: 100%;
-}
-
-/* Make the two sections sit in a row */
-.student-dashboard-content {
-  display: flex;
-  flex-direction: column;
-}
-
-.student-dashboard-content > .contracts-column {
-  width: 100%;
-}
-
-/* Grid for the two contract columns */
-.contracts-columns-row {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 2rem;
-}
-
-@media (max-width: 900px) {
-  .contracts-columns-row {
-    grid-template-columns: 1fr;
-  }
-  .student-dashboard-content {
-    padding: 0 1rem 3rem 1rem;
-  }
-  .student-dashboard-header {
-    padding: 1rem;
-  }
 }
 
 /* ── Section headers ── */
@@ -552,6 +433,15 @@ main.student-dashboard-content,
   cursor: not-allowed;
 }
 
+.dashboard-secondary-button:not(.dashboard-accept-button):not(.dashboard-reject-button) {
+  background: #F0E6D8;
+  color: #181818;
+}
+
+.dashboard-secondary-button:not(.dashboard-accept-button):not(.dashboard-reject-button):hover:not(:disabled) {
+  background: #e0d4c4;
+}
+
 .dashboard-accept-button {
   background: #181818;
   color: #fff;
@@ -570,7 +460,7 @@ main.student-dashboard-content,
   background: #c0392b;
 }
 
-
+/* ── Dialog ── */
 .dashboard-dialog-backdrop {
   position: fixed;
   inset: 0;
@@ -634,6 +524,7 @@ main.student-dashboard-content,
   margin-top: 0.3rem;
   display: block;
   transition: border-color 0.15s;
+  box-sizing: border-box;
 }
 
 .dashboard-dialog-input:focus {
@@ -641,12 +532,28 @@ main.student-dashboard-content,
   border-color: #FF4D00;
 }
 
-
-.dashboard-secondary-button:not(.dashboard-accept-button):not(.dashboard-reject-button) {
-  background: #F0E6D8;
-  color: #181818;
+/* ── Summary panel ── */
+.dashboard-summary-panel {
+  display: inline-flex;
+  align-items: center;
+  gap: 1rem;
+  background: #FF4D00;
+  color: #fff;
+  border-radius: 2em;
+  padding: 0.9em 2em;
+  font-family: 'Barlow Condensed', sans-serif;
 }
 
-.dashboard-secondary-button:not(.dashboard-accept-button):not(.dashboard-reject-button):hover:not(:disabled) {
-  background: #e0d4c4;
+.dashboard-summary-panel strong {
+  font-size: 2.2rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.dashboard-summary-panel span {
+  font-size: 0.95rem;
+  font-weight: 500;
+  opacity: 0.9;
+  max-width: 260px;
+  line-height: 1.3;
 }
