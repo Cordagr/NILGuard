@@ -1,7 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Barlow:wght@400;500&display=swap');
+
 .student-profile-page {
   min-height: 100vh;
   padding: 0 30px 80px;
-  background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+  background: #F5F0E8;
+  font-family: 'Barlow', sans-serif;
 }
 
 .student-profile-header {
@@ -30,10 +33,16 @@
   text-align: center;
 }
 
+/* Title font */
 .student-profile-heading h1 {
+  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-size: clamp(2rem, 5vw, 3.8rem);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #181818;
   margin: 0;
-  font-size: clamp(32px, 3.2vw, 54px);
-  color: #0f172a;
+  line-height: 1;
 }
 
 .student-profile-content {
@@ -44,11 +53,11 @@
 
 .student-profile-card {
   width: min(100%, 720px);
-  padding: 32px;
-  border-radius: 24px;
-  background: #ffffff;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+  padding: 2.5em 2em;
+  border-radius: 1.5em;
+  background: #fff;
+  border: 1px solid #F0E6D8;
+  box-shadow: 0 4px 20px rgba(255,77,0,0.10);
 }
 
 .student-profile-row {
@@ -64,16 +73,17 @@
 }
 
 .student-profile-label {
-  font-size: 13px;
+  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-size: 0.78rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #64748b;
+  letter-spacing: 0.12em;
+  color: #FF4D00;
 }
 
 .student-profile-value {
   font-size: 26px;
-  color: #0f172a;
+  color: #181818;
   word-break: break-word;
 }
 
@@ -87,21 +97,30 @@
 
 .student-profile-button {
   border: none;
-  border-radius: 999px;
+  border-radius: 2em;
   padding: 14px 20px;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 1rem;
+  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   cursor: pointer;
+  background: #FF4D00;
+  color: #fff;
+  transition: background 0.18s;
 }
 
 .student-profile-button-primary {
-  background: #0f172a;
-  color: #ffffff;
+  background: #FF4D00;
+  color: #fff;
+}
+.student-profile-button-primary:hover {
+  background: #181818;
 }
 
 .student-profile-button-secondary {
   background: #e2e8f0;
-  color: #0f172a;
+  color: #181818;
 }
 
 @media (max-width: 720px) {

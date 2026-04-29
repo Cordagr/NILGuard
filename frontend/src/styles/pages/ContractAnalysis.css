@@ -1,21 +1,36 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Barlow:wght@400;500&display=swap');
+
 /* Contract Analysis Page Styles */
-
 .analysis-container {
-  padding: var(--spacing-xl);
-  background-color: var(--bg-secondary);
+  padding: 2.5em 2em;
+  background: #F5F0E8;
+  font-family: 'Barlow', sans-serif;
 }
 
+/* ── Header ── */
 .analysis-header {
-  margin-bottom: var(--spacing-xl);
-  background-color: var(--bg-primary);
-  padding: var(--spacing-lg);
-  border-radius: var(--radius-lg);
-  border-left: 4px solid var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.25rem 1.25rem;
+  background: transparent;
+  border-bottom: none;
+  box-shadow: none;
+  position: relative;
+  z-index: 10;
+  margin-bottom: 2.5em;
 }
 
+/* Title font */
 .analysis-header h1 {
-  margin-bottom: var(--spacing-md);
-  color: var(--dark-primary);
+  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-size: clamp(2rem, 5vw, 3.8rem);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #181818;
+  margin: 0 0 1em 0;
+  line-height: 1;
 }
 
 .analysis-grid {
@@ -31,19 +46,24 @@
   box-shadow: var(--shadow-sm);
 }
 
+/* ── Upload area/button ── */
 .upload-area {
-  border: 2px dashed var(--primary-color);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-xl);
+  border: 2px dashed #FF4D00;
+  border-radius: 2em;
+  padding: 2em 1.5em;
   text-align: center;
   cursor: pointer;
-  transition: all var(--transition-base);
-  background-color: rgba(255, 153, 0, 0.05);
+  transition: all 0.18s;
+  background-color: rgba(255, 77, 0, 0.05);
+  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-size: 1.15rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-.upload-area:hover {
-  border-color: var(--secondary-color);
-  background-color: rgba(255, 153, 0, 0.1);
+  border-color: #181818;
+  background-color: rgba(24,24,24,0.08);
   transform: translateY(-2px);
 }
 

@@ -1,15 +1,18 @@
 /* Role Selection Page Styles */
 
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Barlow:wght@400;500&display=swap');
+
 .role-selection-container {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #fff8f0 0%, #ffffff 100%);
-  padding: var(--spacing-lg);
+  background: #F5F0E8;
+  padding: 2.5em 2em;
   position: relative;
   overflow: hidden;
+  font-family: 'Barlow', sans-serif;
 }
 
 /* Decorative background elements */
@@ -47,12 +50,16 @@
 }
 
 /* Title and Subtitle */
+/* Title font */
 .role-selection-title {
-  font-size: var(--font-size-2xl);
-  font-weight: 600;
-  color: var(--dark-primary);
-  margin-bottom: var(--spacing-md);
-  letter-spacing: -0.5px;
+  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-size: clamp(2rem, 5vw, 3.8rem);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #181818;
+  margin-bottom: 1em;
+  line-height: 1;
 }
 
 .role-selection-subtitle {
@@ -80,16 +87,20 @@
 }
 
 /* Role Card Button */
+/* ── Button style ── */
 .role-card {
-  background-color: var(--dark-primary);
-  color: white;
+  background: #FF4D00;
+  color: #fff;
   border: none;
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-xl) var(--spacing-lg);
-  font-size: var(--font-size-lg);
-  font-weight: 500;
+  border-radius: 2em;
+  padding: 1.5em 1.2em;
+  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-size: 1.15rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   cursor: pointer;
-  transition: all var(--transition-base);
+  transition: background 0.18s, transform 0.14s, box-shadow 0.18s;
   text-decoration: none;
   display: flex;
   align-items: center;
@@ -97,6 +108,7 @@
   min-height: 120px;
   position: relative;
   overflow: hidden;
+  box-shadow: 0 4px 20px rgba(255,77,0,0.25);
 }
 
 .role-card::before {
@@ -111,10 +123,9 @@
   transition: opacity var(--transition-base);
 }
 
-.role-card:hover {
-  background-color: var(--dark-secondary);
-  transform: translateY(-8px);
-  box-shadow: var(--shadow-xl);
+  background: #181818;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(24,24,24,0.2);
 }
 
 .role-card:hover::before {

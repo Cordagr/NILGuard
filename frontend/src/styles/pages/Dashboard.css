@@ -1,10 +1,13 @@
 /* Dashboard Page Styles */
 
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Barlow:wght@400;500&display=swap');
+
 .dashboard-container {
   display: grid;
   grid-template-columns: 250px 1fr;
   min-height: 100vh;
-  background-color: var(--bg-secondary);
+  background: #F5F0E8;
+  font-family: 'Barlow', sans-serif;
 }
 
 .dashboard-sidebar {
@@ -30,18 +33,29 @@
   flex-direction: column;
 }
 
+/* ── Header ── */
 .dashboard-header {
-  background-color: var(--bg-primary);
-  border-bottom: 2px solid var(--primary-color);
-  padding: var(--spacing-lg);
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  padding: 0.25rem 1.25rem;
+  background: transparent;
+  border-bottom: none;
+  box-shadow: none;
+  position: relative;
+  z-index: 10;
 }
 
+/* Title font */
 .dashboard-header h1 {
-  color: var(--dark-primary);
+  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-size: clamp(2rem, 5vw, 3.8rem);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #181818;
   margin: 0;
+  line-height: 1;
 }
 
 .dashboard-content {
@@ -51,12 +65,13 @@
 }
 
 .dashboard-card {
-  background-color: var(--bg-primary);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
-  box-shadow: var(--shadow-sm);
-  margin-bottom: var(--spacing-lg);
-  border-top: 4px solid var(--primary-color);
+  background: #fff;
+  border-radius: 1.5em;
+  padding: 2.5em 2em;
+  box-shadow: 0 4px 20px rgba(255,77,0,0.10);
+  margin-bottom: 2em;
+  border-top: 4px solid #FF4D00;
+}
 }
 
 .dashboard-card h2 {

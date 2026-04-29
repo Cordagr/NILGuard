@@ -1,14 +1,24 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Barlow:wght@400;500&display=swap');
+
 .coach-page {
   min-height: 100vh;
   padding: 24px 32px 40px;
-  background: #f5f5f5;
-  color: #1f2937;
+  background: #F5F0E8;
+  color: #181818;
+  font-family: 'Barlow', sans-serif;
 }
 
+/* ── Header ── */
 .coach-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 0.25rem 1.25rem;
+  background: transparent;
+  border-bottom: none;
+  box-shadow: none;
+  position: relative;
+  z-index: 10;
   margin-bottom: 20px;
 }
 
@@ -18,21 +28,34 @@
   gap: 14px;
 }
 
+/* ── Title block (center of header) ── */
 .coach-assigned-school {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 2px;
-  color: #0f172a;
+  color: #FF4D00;
+}
+
+/* Title font */
+.coach-header-title {
+  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-size: clamp(2rem, 5vw, 3.8rem);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #181818;
+  margin: 0;
+  line-height: 1;
 }
 
 .coach-assigned-school strong {
-  font-size: 15px;
-}
-
-.coach-assigned-school span {
-  font-size: 12px;
-  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #FF4D00;
+  margin: 0.3rem 0 0 0;
 }
 
 .coach-logo-wrap {
@@ -44,23 +67,31 @@
 }
 
 .coach-logo {
-  width: 280px;
-  height: auto;
+  height: 200px;
+  width: auto;
 }
 
+/* ── Button style ── */
 .coach-logout-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 120px;
   height: 44px;
-  border-radius: 10px;
+  border-radius: 2em;
   border: none;
-  background: #111827;
+  background: #FF4D00;
   color: #fff;
-  font-weight: 600;
-  letter-spacing: 0.2px;
+  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-size: 1rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   cursor: pointer;
+  transition: background 0.18s;
+}
+.coach-logout-link:hover {
+  background: #181818;
 }
 
 .coach-layout {
@@ -87,19 +118,34 @@
   display: none;
 }
 
+/* ── Upload button ── */
 .upload-roster-btn {
   width: 100%;
   max-width: 320px;
   height: 56px;
-  border-radius: 12px;
+  border-radius: 2em;
   border: none;
-  background: linear-gradient(90deg, #232323, #404040);
+  background: #FF4D00;
   color: #fff;
-  font-size: 20px;
-  font-weight: 600;
+  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-size: 1.15rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   line-height: 1;
   cursor: pointer;
   margin-top: 8px;
+  transition: background 0.18s, transform 0.14s, box-shadow 0.18s;
+  box-shadow: 0 4px 20px rgba(255,77,0,0.25);
+}
+.upload-roster-btn:hover:not(:disabled) {
+  background: #181818;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(24,24,24,0.2);
+}
+.upload-roster-btn:disabled {
+  cursor: wait;
+  opacity: 0.75;
 }
 
 .upload-roster-btn:disabled {
