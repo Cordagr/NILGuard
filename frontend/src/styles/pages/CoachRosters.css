@@ -1,0 +1,444 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Barlow:wght@400;500&display=swap');
+
+.coach-page {
+  min-height: 100vh;
+  padding: 0 32px 40px;
+  background: #F5F0E8;
+  color: #181818;
+  font-family: 'Barlow', sans-serif;
+}
+
+/* ── Header ── */
+.coach-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  background: transparent;
+  border-bottom: none;
+  box-shadow: none;
+  position: relative;
+  z-index: 10;
+  overflow: visible;
+  margin-bottom: 0;
+}
+
+.coach-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-top: 0.5rem;
+}
+
+/* ── Logo ── */
+.coach-logo-wrap {
+  display: flex;
+  align-items: flex-start;
+  overflow: visible;
+}
+
+.coach-logo {
+  height: 190px;
+  width: auto;
+  margin-top: -50px;
+  margin-bottom: -120px;
+  position: relative;
+  z-index: 5;
+}
+
+/* ── Title block (center of header) ── */
+.coach-header-title-block {
+  text-align: center;
+  flex: 1;
+}
+
+.coach-header-title {
+  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-size: clamp(2rem, 5vw, 3.8rem);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #181818;
+  margin: 0;
+  line-height: 1;
+}
+
+.coach-header-identity {
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #FF4D00;
+  margin: 0.3rem 0 0 0;
+}
+
+/* ── Assigned school block ── */
+.coach-assigned-school {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  color: #FF4D00;
+}
+
+.coach-assigned-school strong {
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #FF4D00;
+  margin: 0.3rem 0 0 0;
+}
+
+/* ── Logout button ── */
+.coach-logout-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 120px;
+  height: 44px;
+  border-radius: 2em;
+  border: none;
+  background: #FF4D00;
+  color: #fff;
+  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-size: 1rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.18s;
+}
+
+.coach-logout-link:hover {
+  background: #181818;
+}
+
+/* ── Main layout ── */
+.coach-layout {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 26px;
+  padding-top: 1rem;
+}
+
+.coach-panel {
+  background: #ffffff;
+  border-radius: 18px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.05);
+  padding: 24px;
+}
+
+.coach-left-column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.roster-upload-input {
+  display: none;
+}
+
+/* ── Upload button ── */
+.upload-roster-btn {
+  width: 100%;
+  max-width: 320px;
+  height: 56px;
+  border-radius: 2em;
+  border: none;
+  background: #FF4D00;
+  color: #fff;
+  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-size: 1.15rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: background 0.18s, transform 0.14s, box-shadow 0.18s;
+  box-shadow: 0 4px 20px rgba(255,77,0,0.25);
+}
+
+.upload-roster-btn:hover:not(:disabled) {
+  background: #181818;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(24,24,24,0.2);
+}
+
+.upload-roster-btn:disabled {
+  cursor: wait;
+  opacity: 0.75;
+}
+
+.coach-panel h2 {
+  margin: 0;
+  font-size: 34px;
+  color: #0f172a;
+}
+
+.coach-panel-subtext {
+  margin: 10px 0 0;
+  font-size: 18px;
+  line-height: 1.45;
+  color: #4b5563;
+}
+
+.coach-assignment-note {
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #1e3a8a;
+}
+
+.roster-feedback {
+  margin: 14px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #4b5563;
+}
+
+.roster-error {
+  color: #b91c1c;
+}
+
+.roster-success {
+  color: #166534;
+}
+
+/* ── Sample CSV card ── */
+.sample-csv-card {
+  width: 100%;
+  margin-top: 18px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #ffffff;
+  min-height: 330px;
+}
+
+.sample-csv-head {
+  padding: 16px 18px;
+  font-size: 22px;
+  font-weight: 700;
+  color: #111827;
+  background: #ffffff;
+  border-bottom: 1px solid #d1d5db;
+}
+
+.sample-csv-row {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 19px;
+  color: #374151;
+  line-height: 1.4;
+  padding: 14px 18px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.sample-csv-row:last-child {
+  border-bottom: none;
+}
+
+.sample-csv-links {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.interactive-link {
+  color: #1d4ed8;
+  text-decoration: none;
+  font-weight: 600;
+  border-bottom: 2px solid transparent;
+  transition: border-color 150ms ease, color 150ms ease;
+  cursor: pointer;
+}
+
+.interactive-link:hover {
+  border-bottom-color: #1d4ed8;
+  color: #1e40af;
+}
+
+/* ── Roster list ── */
+.roster-list-card {
+  margin-top: 18px;
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.roster-list-header,
+.roster-item {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.5fr) minmax(70px, 0.6fr) minmax(120px, 1fr) minmax(70px, 0.5fr) minmax(160px, 1fr);
+  gap: 12px;
+  padding: 12px 14px;
+  align-items: center;
+}
+
+.roster-list-header {
+  background: #f3f4f6;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.roster-item {
+  border-top: 1px solid #e5e7eb;
+  color: #374151;
+  font-size: 15px;
+}
+
+.roster-school {
+  font-weight: 600;
+  color: #1d4ed8;
+}
+
+.roster-file-name {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #374151;
+  word-break: break-word;
+}
+
+.roster-sport {
+  color: #0f172a;
+}
+
+.roster-updated {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.roster-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.roster-action-button {
+  min-width: 74px;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.roster-open-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.roster-open-lock {
+  display: inline-flex;
+  width: 14px;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  color: #475569;
+  transform: translateX(-4px) scale(0.7);
+  visibility: hidden;
+  transition: max-width 150ms ease, opacity 150ms ease, transform 150ms ease, visibility 150ms ease;
+}
+
+.roster-open-lock svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+}
+
+.roster-open-button:hover .roster-open-lock,
+.roster-open-button:focus-visible .roster-open-lock {
+  max-width: 14px;
+  opacity: 1;
+  transform: translateX(0) scale(1);
+  visibility: visible;
+}
+
+.roster-action-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.roster-delete-button {
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.roster-empty-state {
+  padding: 18px 14px;
+  border-top: 1px solid #e5e7eb;
+  color: #6b7280;
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .coach-page {
+    padding: 0 16px 30px;
+  }
+
+  .coach-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .coach-header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .coach-assigned-school {
+    align-items: flex-start;
+  }
+
+  .coach-logo {
+    height: 120px;
+    margin-bottom: -40px;
+  }
+
+  .coach-layout {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .coach-panel h2 {
+    font-size: 28px;
+  }
+
+  .coach-panel-subtext {
+    font-size: 16px;
+  }
+
+  .sample-csv-head {
+    font-size: 18px;
+    padding: 12px 14px;
+  }
+
+  .sample-csv-row {
+    font-size: 14px;
+    padding: 10px 12px;
+  }
+
+  .roster-list-header,
+  .roster-item {
+    grid-template-columns: minmax(120px, 1.4fr) minmax(60px, 0.7fr) minmax(90px, 1fr) minmax(55px, 0.5fr) minmax(120px, 1fr);
+    gap: 8px;
+    font-size: 13px;
+  }
+}

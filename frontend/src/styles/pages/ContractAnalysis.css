@@ -1,0 +1,336 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Barlow:wght@400;500&display=swap');
+
+/* ── Toolbar ── */
+.compact-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+}
+
+.analysis-pdf-zoom-button.small,
+.analysis-pdf-reset-button.small {
+  font-size: 0.95em;
+  padding: 0.15em 0.6em;
+  min-width: 1.8em;
+  min-height: 1.8em;
+  border-radius: 0.5em;
+  margin: 0 0.1em;
+  background: #222;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.analysis-pdf-zoom-button.small:hover,
+.analysis-pdf-reset-button.small:hover {
+  background: #FF4D00;
+  color: #fff;
+}
+
+.analysis-pdf-zoom-label.small {
+  font-size: 0.95em;
+  margin: 0 0.2em;
+  min-width: 2.5em;
+  text-align: center;
+}
+
+/* ── Page container ── */
+.analysis-container {
+  padding: 2.5em 2em;
+  background: #F5F0E8;
+  font-family: 'Barlow', sans-serif;
+}
+
+/* ── Back row ── */
+.analysis-back-row {
+  margin-bottom: 0.5em;
+}
+
+.analysis-exit-link {
+  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #181818;
+  text-decoration: none;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.analysis-exit-link:hover {
+  opacity: 1;
+  color: #FF4D00;
+}
+
+/* ── Page header ── */
+.analysis-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem 1.25rem;
+  background: transparent;
+  margin-bottom: 1em;
+  margin-top: 0.5em;
+}
+
+.analysis-header h1 {
+  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-size: clamp(2rem, 5vw, 3.8rem);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #181818;
+  margin: 0;
+  line-height: 1;
+  text-align: center;
+}
+
+.analysis-header p {
+  text-align: center;
+  font-size: 1rem;
+  margin: 8px 0 0 0;
+  max-width: 700px;
+  color: #444;
+}
+
+/* ── Two-column grid ── */
+.analysis-report-grid {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  width: 100%;
+}
+
+/* ── Shared panel title ──
+   Both panels: h2 is the FIRST child, nothing alongside it.
+   Identical padding, identical font — guaranteed same vertical position. */
+.analysis-panel-title {
+  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-size: 28px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1.1;
+  /* Zero out all margin/padding so position is purely from the parent's padding */
+  margin: 0 0 14px 0;
+  padding: 0;
+  color: #181818;
+}
+
+/* ── LEFT panel ── */
+.analysis-left-panel {
+  flex: 0 0 50%;
+  max-width: 50%;
+  min-width: 0;
+  /* Exactly the same padding as the right panel */
+  padding: 1.7rem 1.2rem 1.2rem 1.2rem;
+  box-sizing: border-box;
+  background: #F5F0E8;
+  border-radius: 8px;
+}
+
+/* ── RIGHT panel ── */
+.analysis-right-panel {
+  flex: 0 0 50%;
+  max-width: 50%;
+  min-width: 0;
+  /* Exactly the same padding as the left panel */
+  padding: 1.7rem 1.2rem 1.2rem 1.2rem;
+  box-sizing: border-box;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 90vh;
+  overflow: auto;
+}
+
+/* ── Metrics strip (below Compliance Checks title) ── */
+.analysis-metrics-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  padding: 0.65rem 1rem;
+}
+
+.analysis-metric-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding-right: 16px;
+  border-right: 1px solid #e5e5e5;
+}
+
+.analysis-metric-item:last-child {
+  border-right: none;
+  padding-right: 0;
+}
+
+.analysis-metric-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #888;
+}
+
+.analysis-metric-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #181818;
+  line-height: 1.2;
+}
+
+.analysis-metric-value.risk {
+  color: #b85c00;
+  font-size: 22px;
+}
+
+.analysis-metric-value.small {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ── Findings list ── */
+.analysis-findings-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Finding card ── */
+.analysis-finding-card {
+  margin-bottom: 16px;
+  padding: 1.1rem;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  border-left: 4px solid transparent;
+  transition: box-shadow 0.15s;
+}
+
+.analysis-finding-card.high  { border-left-color: #ef4444; }
+.analysis-finding-card.medium { border-left-color: #f59e0b; }
+.analysis-finding-card.low   { border-left-color: #22c55e; }
+
+.analysis-finding-card:hover {
+  box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+}
+
+.analysis-finding-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+/* ── Risk badge ── */
+.risk-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.risk-badge.high   { background-color: #ef4444; color: #fff; }
+.risk-badge.medium { background-color: #f59e0b; color: #fff; }
+.risk-badge.low    { background-color: #22c55e; color: #fff; }
+.risk-badge.info   { background-color: #6b7280; color: #fff; }
+
+/* ── Status pill ── */
+.analysis-status-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.analysis-status-pill.pass    { background-color: #dcfce7; color: #166534; }
+.analysis-status-pill.flagged { background-color: #fee2e2; color: #991b1b; }
+
+/* ── Highlighted text ── */
+.analysis-highlighted-copy {
+  font-size: 0.95rem;
+  color: #333;
+  margin: 4px 0 0 0;
+  line-height: 1.5;
+}
+
+.analysis-inline-highlight {
+  background-color: #fef08a;
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+.analysis-pdf-highlight {
+  background-color: #fef08a;
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+/* ── Error / loading states ── */
+.analysis-results {
+  background-color: #fff;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+.analysis-result-item {
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-left: 4px solid #FF4D00;
+  background-color: #fafafa;
+  border-radius: 6px;
+}
+
+.analysis-result-item.error {
+  border-left-color: #ef4444;
+  background-color: rgba(239,68,68,0.05);
+}
+
+.analysis-result-title {
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+  color: #181818;
+  font-size: 1rem;
+}
+
+.analysis-result-description {
+  color: #555;
+  font-size: 0.9rem;
+}
+
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+  .analysis-report-grid {
+    flex-direction: column;
+  }
+
+  .analysis-left-panel,
+  .analysis-right-panel {
+    flex: 0 0 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .analysis-container { padding: 1rem; }
+
+  .analysis-panel-title { font-size: 22px; }
+}

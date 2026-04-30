@@ -1,0 +1,160 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Barlow:wght@400;500&display=swap');
+
+.student-profile-page {
+  min-height: 100vh;
+  padding: 0 30px 80px;
+  background: #F5F0E8;
+  font-family: 'Barlow', sans-serif;
+}
+
+.student-profile-header {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 96px;
+}
+
+.student-profile-logo-wrap {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: flex-start;
+  margin-top: -24px;
+}
+
+.student-profile-logo {
+  width: min(280px, 30vw);
+  height: auto;
+}
+
+.student-profile-heading {
+  text-align: center;
+}
+
+/* Title font */
+.student-profile-heading h1 {
+  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-size: clamp(2rem, 5vw, 3.8rem);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #181818;
+  margin: 0;
+  line-height: 1;
+}
+
+.student-profile-content {
+  display: flex;
+  justify-content: center;
+  margin-top: 32px;
+}
+
+.student-profile-card {
+  width: min(100%, 720px);
+  padding: 2.5em 2em;
+  border-radius: 1.5em;
+  background: #fff;
+  border: 1px solid #F0E6D8;
+  box-shadow: 0 4px 20px rgba(255,77,0,0.10);
+}
+
+.student-profile-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.student-profile-row:last-of-type {
+  border-bottom: none;
+}
+
+.student-profile-label {
+  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #FF4D00;
+}
+
+.student-profile-value {
+  font-size: 26px;
+  color: #181818;
+  word-break: break-word;
+}
+
+.student-profile-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 14px;
+  margin-top: 28px;
+  flex-wrap: wrap;
+}
+
+.student-profile-button {
+  border: none;
+  border-radius: 2em;
+  padding: 14px 20px;
+  font-size: 1rem;
+  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  background: #FF4D00;
+  color: #fff;
+  transition: background 0.18s;
+}
+
+.student-profile-button-primary {
+  background: #FF4D00;
+  color: #fff;
+}
+.student-profile-button-primary:hover {
+  background: #181818;
+}
+
+.student-profile-button-secondary {
+  background: #e2e8f0;
+  color: #181818;
+}
+
+@media (max-width: 720px) {
+  .student-profile-page {
+    padding: 0 16px 48px;
+  }
+
+  .student-profile-header {
+    min-height: 120px;
+  }
+
+  .student-profile-logo {
+    width: min(220px, 58vw);
+  }
+
+  .student-profile-logo-wrap {
+    position: static;
+    margin-top: -12px;
+  }
+
+  .student-profile-card {
+    padding: 24px 20px;
+    border-radius: 20px;
+  }
+
+  .student-profile-value {
+    font-size: 22px;
+  }
+
+  .student-profile-actions {
+    justify-content: stretch;
+  }
+
+  .student-profile-button {
+    width: 100%;
+  }
+}
