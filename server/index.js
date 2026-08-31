@@ -83,6 +83,7 @@ let usersCollection;
 let contractsCollection;
 let rostersCollection;
 let documentRequestsCollection;
+let auditLogsCollection;
 
 function normalizeRole(role) {
   const normalized = String(role || 'student').toLowerCase().trim();
@@ -134,6 +135,21 @@ function serializeUser(user, resolvedSchool) {
     school: user.school || matchedSchool?.school || null,
     ncaaDivision: user.ncaaDivision || matchedSchool?.division || null
   };
+}
+
+async function recordAuditLog(action, details = {}) {
+  try {
+    await auditLogsCollection.insertOne({
+      action,
+      userId: details.userId || null,
+      email: details.email || null,
+      ip: details.ip || null,
+      createdAt: new Date()
+    });
+  } catch (error) {
+    // audit logging should never break the request itself
+    console.error('Failed to write audit log:', error.message);
+  }
 }
 
 function buildStoredFileName(contractId, originalName) {
@@ -854,6 +870,8 @@ app.post('/api/auth/register', async (req, res) => {
     updatedAt: new Date()
   });
 
+  await recordAuditLog('register', { userId: String(insertResult.insertedId), email: normalizedEmail, ip: req.ip });
+
   const token = signToken({ _id: insertResult.insertedId, role: normalizedRole });
   setAuthCookie(res, token);
 
@@ -890,11 +908,36 @@ app.post('/api/auth/login', async (req, res) => {
   const user = await usersCollection.findOne({ email: normalizedEmail });
 
   if (!user) {
+    await recordAuditLog('login_failed', { email: normalizedEmail, ip: req.ip });
     return res.status(401).json({ message: 'Invalid email or password.' });
+  }
+
+  // lock the account for 15 minutes after 3 failed attempts
+  const now = new Date();
+  if (user.lockUntil && user.lockUntil > now) {
+    const minutesLeft = Math.ceil((user.lockUntil - now) / 60000);
+    return res.status(423).json({
+      message: `Too many failed login attempts. Try again in ${minutesLeft} minute(s).`
+    });
   }
 
   const passwordMatches = await bcrypt.compare(String(password), user.passwordHash);
   if (!passwordMatches) {
+    const attempts = (user.failedLoginAttempts || 0) + 1;
+    const update = {
+      $set: {
+        failedLoginAttempts: attempts,
+        updatedAt: now
+      }
+    };
+
+    if (attempts >= 3) {
+      update.$set.lockUntil = new Date(now.getTime() + 15 * 60 * 1000);
+      await recordAuditLog('lockout', { userId: String(user._id), email: normalizedEmail, ip: req.ip });
+    }
+
+    await usersCollection.updateOne({ _id: user._id }, update);
+    await recordAuditLog('login_failed', { userId: String(user._id), email: normalizedEmail, ip: req.ip });
     return res.status(401).json({ message: 'Invalid email or password.' });
   }
 
@@ -922,8 +965,22 @@ app.post('/api/auth/login', async (req, res) => {
     );
   }
 
+  // successful login resets the failed attempt counter
+  await usersCollection.updateOne(
+    { _id: user._id },
+    {
+      $set: {
+        failedLoginAttempts: 0,
+        lockUntil: null,
+        lastLoginAt: now,
+        lastLoginIp: req.ip || null
+      }
+    }
+  );
+
   const token = signToken(user);
   setAuthCookie(res, token);
+  await recordAuditLog('login_success', { userId: String(user._id), email: normalizedEmail, ip: req.ip });
 
   return res.json({
     message: 'Login successful.',
@@ -968,6 +1025,7 @@ async function start() {
   contractsCollection = db.collection('contracts');
   rostersCollection = db.collection('rosters');
   documentRequestsCollection = db.collection('documentRequests');
+  auditLogsCollection = db.collection('auditLogs');
 
   await usersCollection.createIndex({ email: 1 }, { unique: true });
   await contractsCollection.createIndex({ userId: 1, createdAt: -1 });
@@ -979,6 +1037,8 @@ async function start() {
   await documentRequestsCollection.createIndex({ studentUserId: 1, submittedAt: -1 });
   await documentRequestsCollection.createIndex({ studentSchool: 1, status: 1, submittedAt: -1 });
   await documentRequestsCollection.createIndex({ studentUserId: 1, contractId: 1 }, { unique: true });
+  await auditLogsCollection.createIndex({ createdAt: -1 });
+  await auditLogsCollection.createIndex({ userId: 1, createdAt: -1 });
 
   // Contract analysis endpoint (must be after collections are initialized)
   app.get('/api/contracts/:contractId/analysis', async (req, res, next) => {
