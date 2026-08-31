@@ -3,7 +3,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
-import { MongoClient, ObjectId } from 'mongodb';
+import { MongoClient } from 'mongodb';
 import multer from 'multer';
 import fs from 'fs/promises';
 import path from 'path';
@@ -14,6 +14,7 @@ import { resolveSchoolFromEmail } from './ncaaSchoolDirectory.js';
 import { isEduEmail, isStrongPassword } from './utils/validation.js';
 import { signToken, setAuthCookie, clearAuthCookie } from './utils/jwt.js';
 import { makeRequireAuth } from './middleware/auth.js';
+import { query, initDb } from './db.js';
 
 dotenv.config();
 
@@ -77,14 +78,12 @@ app.use(express.json());
 app.use(cookieParser());
 
 const client = new MongoClient(MONGODB_URI);
-let usersCollection;
 let contractsCollection;
 let rostersCollection;
 let documentRequestsCollection;
-let auditLogsCollection;
 
 // checks the session cookie on every protected request
-const requireAuth = makeRequireAuth(() => usersCollection, recordAuditLog);
+const requireAuth = makeRequireAuth(recordAuditLog);
 
 function normalizeRole(role) {
   const normalized = String(role || 'student').toLowerCase().trim();
@@ -99,19 +98,16 @@ function serializeUser(user, resolvedSchool) {
     email: user.email,
     role: user.role,
     school: user.school || matchedSchool?.school || null,
-    ncaaDivision: user.ncaaDivision || matchedSchool?.division || null
+    ncaaDivision: user.ncaaDivision || user.ncaa_division || matchedSchool?.division || null
   };
 }
 
 async function recordAuditLog(action, details = {}) {
   try {
-    await auditLogsCollection.insertOne({
-      action,
-      userId: details.userId || null,
-      email: details.email || null,
-      ip: details.ip || null,
-      createdAt: new Date()
-    });
+    await query(
+      'INSERT INTO audit_logs (action, user_id, email, ip) VALUES ($1, $2, $3, $4)',
+      [action, details.userId || null, details.email || null, details.ip || null]
+    );
   } catch (error) {
     // audit logging should never break the request itself
     console.error('Failed to write audit log:', error.message);
@@ -675,11 +671,14 @@ app.post('/api/compliance/requests', async (req, res, next) => {
       return res.status(404).json({ message: 'Contract not found for the current student.' });
     }
 
-    const complianceOfficer = await usersCollection.findOne({
-      email: complianceEmail,
-      role: 'compliance',
-      school: user.school
-    });
+    const officerResult = await query(
+      "SELECT * FROM users WHERE email = $1 AND role = 'compliance'",
+      [complianceEmail]
+    );
+    // sql treats null = null as false so match the school here to keep the old behavior
+    const complianceOfficer = officerResult.rows.find(
+      (officer) => (officer.school || null) === (user.school || null)
+    );
 
     if (!complianceOfficer) {
       return res.status(404).json({
@@ -705,7 +704,7 @@ app.post('/api/compliance/requests', async (req, res, next) => {
           studentEmail: user.email,
           studentSchool: user.school || null,
           studentDivision: user.ncaaDivision || null,
-          assignedComplianceUserId: complianceOfficer._id.toString(),
+          assignedComplianceUserId: String(complianceOfficer.id),
           assignedComplianceEmail: complianceOfficer.email,
           status: 'pending',
           reviewedAt: null,
@@ -828,41 +827,36 @@ app.post('/api/auth/register', async (req, res) => {
   // the school directory is optional now, any .edu email can register
   const resolvedSchool = resolveSchoolFromEmail(normalizedEmail);
 
-  const existingUser = await usersCollection.findOne({ email: normalizedEmail });
-  if (existingUser) {
+  const existingEmail = await query('SELECT id FROM users WHERE email = $1', [normalizedEmail]);
+  if (existingEmail.rows.length > 0) {
     return res.status(409).json({ message: 'An account with this email already exists.' });
   }
 
   const passwordHash = await bcrypt.hash(String(password), 10);
 
-  const insertResult = await usersCollection.insertOne({
-    email: normalizedEmail,
-    passwordHash,
-    role: normalizedRole,
-    school: resolvedSchool ? resolvedSchool.school : null,
-    ncaaDivision: resolvedSchool ? resolvedSchool.division : null,
-    schoolEmailDomain: resolvedSchool ? resolvedSchool.primaryDomain : null,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  });
+  const insertResult = await query(
+    `INSERT INTO users (email, password_hash, role, school, ncaa_division, school_email_domain)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING *`,
+    [
+      normalizedEmail,
+      passwordHash,
+      normalizedRole,
+      resolvedSchool ? resolvedSchool.school : null,
+      resolvedSchool ? resolvedSchool.division : null,
+      resolvedSchool ? resolvedSchool.primaryDomain : null
+    ]
+  );
+  const newUser = insertResult.rows[0];
 
-  await recordAuditLog('register', { userId: String(insertResult.insertedId), email: normalizedEmail, ip: req.ip });
+  await recordAuditLog('register', { userId: newUser.id, email: normalizedEmail, ip: req.ip });
 
-  const token = signToken({ _id: insertResult.insertedId, role: normalizedRole });
+  const token = signToken(newUser);
   setAuthCookie(res, token);
 
   return res.status(201).json({
     message: 'Registration successful.',
-    user: serializeUser(
-      {
-        _id: insertResult.insertedId,
-        email: normalizedEmail,
-        role: normalizedRole,
-        school: resolvedSchool ? resolvedSchool.school : null,
-        ncaaDivision: resolvedSchool ? resolvedSchool.division : null
-      },
-      resolvedSchool
-    )
+    user: serializeUser(newUser, resolvedSchool)
   });
 });
 
@@ -881,7 +875,8 @@ app.post('/api/auth/login', async (req, res) => {
   const expectedRole = normalizeRole(role);
   const resolvedSchool = resolveSchoolFromEmail(normalizedEmail);
 
-  const user = await usersCollection.findOne({ email: normalizedEmail });
+  const userResult = await query('SELECT * FROM users WHERE email = $1', [normalizedEmail]);
+  const user = userResult.rows[0];
 
   if (!user) {
     await recordAuditLog('login_failed', { email: normalizedEmail, ip: req.ip });
@@ -890,30 +885,31 @@ app.post('/api/auth/login', async (req, res) => {
 
   // lock the account for 15 minutes after 3 failed attempts
   const now = new Date();
-  if (user.lockUntil && user.lockUntil > now) {
-    const minutesLeft = Math.ceil((user.lockUntil - now) / 60000);
+  if (user.lock_until && user.lock_until > now) {
+    const minutesLeft = Math.ceil((user.lock_until - now) / 60000);
     return res.status(423).json({
       message: `Too many failed login attempts. Try again in ${minutesLeft} minute(s).`
     });
   }
 
-  const passwordMatches = await bcrypt.compare(String(password), user.passwordHash);
+  const passwordMatches = await bcrypt.compare(String(password), user.password_hash);
   if (!passwordMatches) {
-    const attempts = (user.failedLoginAttempts || 0) + 1;
-    const update = {
-      $set: {
-        failedLoginAttempts: attempts,
-        updatedAt: now
-      }
-    };
+    const attempts = user.failed_login_attempts + 1;
+
+    await query(
+      'UPDATE users SET failed_login_attempts = $1, updated_at = now() WHERE id = $2',
+      [attempts, user.id]
+    );
 
     if (attempts >= 3) {
-      update.$set.lockUntil = new Date(now.getTime() + 15 * 60 * 1000);
-      await recordAuditLog('lockout', { userId: String(user._id), email: normalizedEmail, ip: req.ip });
+      await query(
+        'UPDATE users SET lock_until = $1, updated_at = now() WHERE id = $2',
+        [new Date(now.getTime() + 15 * 60 * 1000), user.id]
+      );
+      await recordAuditLog('lockout', { userId: user.id, email: normalizedEmail, ip: req.ip });
     }
 
-    await usersCollection.updateOne({ _id: user._id }, update);
-    await recordAuditLog('login_failed', { userId: String(user._id), email: normalizedEmail, ip: req.ip });
+    await recordAuditLog('login_failed', { userId: user.id, email: normalizedEmail, ip: req.ip });
     return res.status(401).json({ message: 'Invalid email or password.' });
   }
 
@@ -925,33 +921,23 @@ app.post('/api/auth/login', async (req, res) => {
   if (
     resolvedSchool &&
     (user.school !== resolvedSchool.school ||
-      user.ncaaDivision !== resolvedSchool.division ||
-      user.schoolEmailDomain !== resolvedSchool.primaryDomain)
+      user.ncaa_division !== resolvedSchool.division ||
+      user.school_email_domain !== resolvedSchool.primaryDomain)
   ) {
-    await usersCollection.updateOne(
-      { _id: user._id },
-      {
-        $set: {
-          school: resolvedSchool.school,
-          ncaaDivision: resolvedSchool.division,
-          schoolEmailDomain: resolvedSchool.primaryDomain,
-          updatedAt: new Date()
-        }
-      }
+    await query(
+      `UPDATE users
+       SET school = $1, ncaa_division = $2, school_email_domain = $3, updated_at = now()
+       WHERE id = $4`,
+      [resolvedSchool.school, resolvedSchool.division, resolvedSchool.primaryDomain, user.id]
     );
   }
 
   // successful login resets the failed attempt counter
-  await usersCollection.updateOne(
-    { _id: user._id },
-    {
-      $set: {
-        failedLoginAttempts: 0,
-        lockUntil: null,
-        lastLoginAt: now,
-        lastLoginIp: req.ip || null
-      }
-    }
+  await query(
+    `UPDATE users
+     SET failed_login_attempts = 0, lock_until = null, last_login_at = now(), last_login_ip = $1, updated_at = now()
+     WHERE id = $2`,
+    [req.ip || null, user.id]
   );
 
   const token = signToken(user);
@@ -1004,15 +990,14 @@ app.delete('/api/contracts/:contractId', async (req, res, next) => {
 async function start() {
   await fs.mkdir(uploadsRoot, { recursive: true });
   await fs.mkdir(rosterUploadsRoot, { recursive: true });
+  // postgres owns auth + audit logs, mongo still holds contracts until the move is done
+  await initDb();
   await client.connect();
   const db = client.db(DB_NAME);
-  usersCollection = db.collection('users');
   contractsCollection = db.collection('contracts');
   rostersCollection = db.collection('rosters');
   documentRequestsCollection = db.collection('documentRequests');
-  auditLogsCollection = db.collection('auditLogs');
 
-  await usersCollection.createIndex({ email: 1 }, { unique: true });
   await contractsCollection.createIndex({ userId: 1, createdAt: -1 });
   await contractsCollection.createIndex({ userId: 1, lastAccessedAt: -1 });
   await contractsCollection.createIndex({ contractId: 1, userId: 1 }, { unique: true });
@@ -1022,8 +1007,6 @@ async function start() {
   await documentRequestsCollection.createIndex({ studentUserId: 1, submittedAt: -1 });
   await documentRequestsCollection.createIndex({ studentSchool: 1, status: 1, submittedAt: -1 });
   await documentRequestsCollection.createIndex({ studentUserId: 1, contractId: 1 }, { unique: true });
-  await auditLogsCollection.createIndex({ createdAt: -1 });
-  await auditLogsCollection.createIndex({ userId: 1, createdAt: -1 });
 
   // Contract analysis endpoint (must be after collections are initialized)
   app.get('/api/contracts/:contractId/analysis', async (req, res, next) => {
