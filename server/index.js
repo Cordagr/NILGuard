@@ -1,6 +1,3 @@
-// ...existing code...
-// Place this after all imports and after 'const app = express();'
-
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
@@ -15,7 +12,8 @@ import { randomUUID } from 'crypto';
 import { analyzeContractPdf } from './contractClassifier.js';
 import { resolveSchoolFromEmail } from './ncaaSchoolDirectory.js';
 import { isEduEmail, isStrongPassword } from './utils/validation.js';
-import { signToken, setAuthCookie } from './utils/jwt.js';
+import { signToken, setAuthCookie, clearAuthCookie } from './utils/jwt.js';
+import { makeRequireAuth } from './middleware/auth.js';
 
 dotenv.config();
 
@@ -85,44 +83,12 @@ let rostersCollection;
 let documentRequestsCollection;
 let auditLogsCollection;
 
+// checks the session cookie on every protected request
+const requireAuth = makeRequireAuth(() => usersCollection, recordAuditLog);
+
 function normalizeRole(role) {
   const normalized = String(role || 'student').toLowerCase().trim();
   return allowedRoles.has(normalized) ? normalized : 'student';
-}
-
-function getRequiredUserId(req) {
-  const userId = String(req.header('x-user-id') || req.body?.userId || req.query?.userId || '').trim();
-
-  if (!userId) {
-    const error = new Error('A current user id is required.');
-    error.statusCode = 401;
-    throw error;
-  }
-
-  return userId;
-}
-
-async function getRequiredCurrentUser(req) {
-  const userId = getRequiredUserId(req);
-
-  if (!ObjectId.isValid(userId)) {
-    const error = new Error('The current user id is invalid.');
-    error.statusCode = 401;
-    throw error;
-  }
-
-  const user = await usersCollection.findOne({ _id: new ObjectId(userId) });
-
-  if (!user) {
-    const error = new Error('The current user could not be found.');
-    error.statusCode = 401;
-    throw error;
-  }
-
-  return {
-    userId,
-    user
-  };
 }
 
 function serializeUser(user, resolvedSchool) {
@@ -377,9 +343,14 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
 });
 
+// everything below needs a logged in user
+app.use('/api/contracts', requireAuth);
+app.use('/api/rosters', requireAuth);
+app.use('/api/compliance', requireAuth);
+
 app.get('/api/contracts', async (req, res, next) => {
   try {
-    const userId = getRequiredUserId(req);
+    const userId = String(req.user._id);
     const sortBy = req.query.sortBy === 'createdAt' ? 'createdAt' : 'lastAccessedAt';
     const sortDirection = req.query.sortDirection === 'asc' ? 1 : -1;
 
@@ -398,7 +369,7 @@ app.get('/api/contracts', async (req, res, next) => {
 
 app.get('/api/rosters', async (req, res, next) => {
   try {
-    const userId = getRequiredUserId(req);
+    const userId = String(req.user._id);
     const rosters = await rostersCollection
       .find({ userId })
       .sort({ updatedAt: -1, school: 1, sport: 1, year: 1 })
@@ -414,7 +385,8 @@ app.get('/api/rosters', async (req, res, next) => {
 
 app.post('/api/rosters', rosterUpload.single('file'), async (req, res, next) => {
   try {
-    const { userId, user } = await getRequiredCurrentUser(req);
+    const user = req.user;
+    const userId = String(user._id);
     const file = req.file;
 
     if (!file) {
@@ -519,7 +491,7 @@ app.post('/api/rosters', rosterUpload.single('file'), async (req, res, next) => 
 
 app.get('/api/rosters/:rosterId/file', async (req, res, next) => {
   try {
-    const userId = getRequiredUserId(req);
+    const userId = String(req.user._id);
     const { rosterId } = req.params;
     const roster = await rostersCollection.findOne({ rosterId, userId });
 
@@ -541,7 +513,7 @@ app.get('/api/rosters/:rosterId/file', async (req, res, next) => {
 
 app.delete('/api/rosters/:rosterId', async (req, res, next) => {
   try {
-    const userId = getRequiredUserId(req);
+    const userId = String(req.user._id);
     const { rosterId } = req.params;
     const roster = await rostersCollection.findOne({ rosterId, userId });
 
@@ -560,7 +532,7 @@ app.delete('/api/rosters/:rosterId', async (req, res, next) => {
 
 app.post('/api/contracts', contractUpload.single('file'), async (req, res, next) => {
   try {
-    const userId = getRequiredUserId(req);
+    const userId = String(req.user._id);
     const file = req.file;
 
     if (!file) {
@@ -619,7 +591,7 @@ app.post('/api/contracts', contractUpload.single('file'), async (req, res, next)
 
 app.get('/api/contracts/:contractId/file', async (req, res, next) => {
   try {
-    const userId = getRequiredUserId(req);
+    const userId = String(req.user._id);
     const { contractId } = req.params;
     const contract = await contractsCollection.findOne({ contractId, userId });
 
@@ -651,7 +623,8 @@ app.get('/api/contracts/:contractId/file', async (req, res, next) => {
 
 app.get('/api/compliance/requests', async (req, res, next) => {
   try {
-    const { userId, user } = await getRequiredCurrentUser(req);
+    const user = req.user;
+    const userId = String(user._id);
 
     if (user.role === 'student') {
       const requests = await documentRequestsCollection
@@ -681,7 +654,8 @@ app.get('/api/compliance/requests', async (req, res, next) => {
 
 app.post('/api/compliance/requests', async (req, res, next) => {
   try {
-    const { userId, user } = await getRequiredCurrentUser(req);
+    const user = req.user;
+    const userId = String(user._id);
     assertUserRole(user, 'student');
 
     const contractId = String(req.body?.contractId || '').trim();
@@ -760,7 +734,8 @@ app.post('/api/compliance/requests', async (req, res, next) => {
 
 app.patch('/api/compliance/requests/:requestId', async (req, res, next) => {
   try {
-    const { userId, user } = await getRequiredCurrentUser(req);
+    const user = req.user;
+    const userId = String(user._id);
     assertUserRole(user, 'compliance');
 
     const { requestId } = req.params;
@@ -804,7 +779,8 @@ app.patch('/api/compliance/requests/:requestId', async (req, res, next) => {
 
 app.get('/api/compliance/requests/:requestId/file', async (req, res, next) => {
   try {
-    const { userId, user } = await getRequiredCurrentUser(req);
+    const user = req.user;
+    const userId = String(user._id);
     const { requestId } = req.params;
 
     let documentRequest;
@@ -988,10 +964,19 @@ app.post('/api/auth/login', async (req, res) => {
   });
 });
 
+app.post('/api/auth/logout', (req, res) => {
+  clearAuthCookie(res);
+  return res.json({ message: 'Logged out.' });
+});
+
+app.get('/api/auth/me', requireAuth, (req, res) => {
+  return res.json({ user: serializeUser(req.user) });
+});
+
 // Delete a contract (student-owned)
 app.delete('/api/contracts/:contractId', async (req, res, next) => {
   try {
-    const userId = getRequiredUserId(req);
+    const userId = String(req.user._id);
     const { contractId } = req.params;
     const contract = await contractsCollection.findOne({ contractId, userId });
     if (!contract) {
@@ -1043,7 +1028,7 @@ async function start() {
   // Contract analysis endpoint (must be after collections are initialized)
   app.get('/api/contracts/:contractId/analysis', async (req, res, next) => {
     try {
-      const userId = getRequiredUserId(req);
+      const userId = String(req.user._id);
       const contractId = req.params.contractId;
       console.log('Contract analysis request:', { contractId, userId });
       if (!contractId) {
