@@ -3,6 +3,7 @@
 
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import { MongoClient, ObjectId } from 'mongodb';
@@ -68,10 +69,12 @@ if (!MONGODB_URI) {
 
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173'
+    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    credentials: true
   })
 );
 app.use(express.json());
+app.use(cookieParser());
 
 const client = new MongoClient(MONGODB_URI);
 let usersCollection;
