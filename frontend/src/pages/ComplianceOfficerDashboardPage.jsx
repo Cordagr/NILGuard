@@ -2,12 +2,20 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/pages/StudentDashboard.css';
 import logo from '../assets/NILGUARD.png';
-import { getContractFileUrl, listContracts } from '../services/contractApi';
+import {
+  getComplianceRequestFileUrl,
+  listComplianceRequests,
+  updateComplianceRequestStatus
+} from '../services/complianceApi';
 import ProfileIcon from '../assets/ProfileIcon.png';
 
 function getCurrentUser() {
   const storedUser = localStorage.getItem('nilguard_user');
-  if (!storedUser) return null;
+
+  if (!storedUser) {
+    return null;
+  }
+
   try {
     return JSON.parse(storedUser);
   } catch (_error) {
@@ -17,7 +25,10 @@ function getCurrentUser() {
 }
 
 function formatDateTime(value) {
-  if (!value) return 'Not accessed yet';
+  if (!value) {
+    return 'Not available';
+  }
+
   return new Intl.DateTimeFormat('en-US', {
     dateStyle: 'medium',
     timeStyle: 'short'
@@ -25,64 +36,161 @@ function formatDateTime(value) {
 }
 
 function formatFileSize(bytes) {
-  if (!bytes) return '0 MB';
-  return `${(bytes / (1024 * 1024)).toFixed(bytes >= 1024 * 1024 ? 2 : 1)} MB`;
+  if (!bytes) {
+    return '0 MB';
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(
+    bytes >= 1024 * 1024 ? 2 : 1
+  )} MB`;
 }
 
 function ComplianceOfficerDashboardPage() {
-  const [contracts, setContracts] = useState([]);
-  const [isLoadingContracts, setIsLoadingContracts] = useState(true);
+  const [requests, setRequests] = useState([]);
+  const [isLoadingRequests, setIsLoadingRequests] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [updatingRequestId, setUpdatingRequestId] = useState('');
+
   const menuRef = useRef(null);
   const navigate = useNavigate();
-  const currentUser = getCurrentUser() || { role: 'compliance', school: '', ncaaDivision: '' };
 
-  const fetchContracts = async () => {
-    setIsLoadingContracts(true);
+  const currentUser =
+    getCurrentUser() || {
+      role: 'compliance',
+      school: '',
+      ncaaDivision: ''
+    };
+
+  const fetchRequests = async () => {
+    if (!currentUser?.id) {
+      setErrorMessage('No signed-in compliance officer was found.');
+      setIsLoadingRequests(false);
+      return;
+    }
+
+    setIsLoadingRequests(true);
+    setErrorMessage('');
+
     try {
-      const response = await listContracts(currentUser, 'lastAccessedAt', 'desc');
-      setContracts(response.contracts || []);
+      // IMPORTANT:
+      // Compliance officers need documentRequests, not the
+      // contracts owned by the compliance officer themselves.
+      const response = await listComplianceRequests(currentUser);
+
+      setRequests(response.requests || []);
     } catch (error) {
-      setErrorMessage(error.message || 'Unable to load contracts.');
+      setErrorMessage(
+        error.message || 'Unable to load submitted contracts.'
+      );
     } finally {
-      setIsLoadingContracts(false);
+      setIsLoadingRequests(false);
     }
   };
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(event.target)
+      ) {
         setMenuOpen(false);
       }
     };
+
     document.addEventListener('mousedown', handleClickOutside);
-    fetchContracts();
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+
+    fetchRequests();
+
+    return () => {
+      document.removeEventListener(
+        'mousedown',
+        handleClickOutside
+      );
+    };
   }, []);
+
+  const handleRequestStatus = async (requestId, status) => {
+    setUpdatingRequestId(requestId);
+    setErrorMessage('');
+
+    try {
+      const response = await updateComplianceRequestStatus(
+        currentUser,
+        requestId,
+        status
+      );
+
+      setRequests((previousRequests) =>
+        previousRequests.map((request) =>
+          request.id === requestId
+            ? response.request
+            : request
+        )
+      );
+    } catch (error) {
+      setErrorMessage(
+        error.message || 'Unable to update the contract status.'
+      );
+    } finally {
+      setUpdatingRequestId('');
+    }
+  };
+
+  const pendingRequests = requests.filter(
+    (request) => request.status === 'pending'
+  );
+
+  const reviewedRequests = requests.filter(
+    (request) => request.status !== 'pending'
+  );
 
   return (
     <div className="student-dashboard-container">
       <header className="student-dashboard-header">
         <div className="student-dashboard-header-logo-wrap">
-          <img src={logo} alt="NILGuard Logo" className="student-dashboard-header-logo" />
+          <img
+            src={logo}
+            alt="NILGuard Logo"
+            className="student-dashboard-header-logo"
+          />
         </div>
 
         <div className="student-dashboard-title-block">
           <h1>Compliance Officer Dashboard</h1>
+
           {currentUser?.school ? (
-            <p className="student-dashboard-identity">{currentUser.school} · {currentUser.ncaaDivision}</p>
+            <p className="student-dashboard-identity">
+              {currentUser.school} · {currentUser.ncaaDivision}
+            </p>
           ) : null}
         </div>
 
-        <div className="profile-menu" ref={menuRef}>
+        <div
+          className="profile-menu"
+          ref={menuRef}
+        >
           <button
             type="button"
             className="profile-menu-trigger"
-            onClick={() => setMenuOpen((prev) => !prev)}
+            onClick={() =>
+              setMenuOpen((previous) => !previous)
+            }
             aria-label="Open menu"
           >
-            <img src={ProfileIcon} alt="Profile" className="profile-icon-img" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', border: '2px solid #222', background: '#fff' }} />
+            <img
+              src={ProfileIcon}
+              alt="Profile"
+              className="profile-icon-img"
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                objectFit: 'cover',
+                border: '2px solid #222',
+                background: '#fff'
+              }}
+            />
           </button>
 
           {menuOpen && (
@@ -106,40 +214,127 @@ function ComplianceOfficerDashboardPage() {
         <div className="contracts-toolbar">
           <div className="active-contracts-actions-block">
             {errorMessage ? (
-              <p className="contracts-feedback contracts-error">{errorMessage}</p>
+              <p className="contracts-feedback contracts-error">
+                {errorMessage}
+              </p>
             ) : (
               <p className="contracts-feedback">
-                Showing all student-athlete contracts submitted for compliance review.
+                Showing contracts that students have submitted
+                directly to this compliance officer for review.
               </p>
             )}
           </div>
         </div>
 
+        {/* PENDING / RECEIVED CONTRACTS */}
         <section className="contracts-column">
           <div className="contracts-column-header">
             <h2>Received Contracts</h2>
           </div>
 
           <div className="contracts-list">
-            {isLoadingContracts ? (
-              <div className="contract-card">Loading contracts...</div>
-            ) : contracts.length === 0 ? (
-              <div className="contract-card">No contracts submitted for review yet.</div>
+            {isLoadingRequests ? (
+              <div className="contract-card">
+                Loading submitted contracts...
+              </div>
+            ) : pendingRequests.length === 0 ? (
+              <div className="contract-card">
+                No contracts submitted for review yet.
+              </div>
             ) : (
-              contracts.map((contract) => (
-                <article key={contract.id} className="contract-card contract-card-detailed">
-                  <div className="contract-card-meta">Contract ID: {contract.id}</div>
-                  <h3>{contract.fileName}</h3>
-                  <p>Uploaded: {formatDateTime(contract.createdAt)}</p>
-                  <p>Last accessed: {formatDateTime(contract.lastAccessedAt)}</p>
-                  <p>File size: {formatFileSize(contract.fileSize)}</p>
+              pendingRequests.map((request) => (
+                <article
+                  key={request.id}
+                  className="contract-card contract-card-detailed"
+                >
+                  <div className="contract-card-meta">
+                    Request ID: {request.id}
+                  </div>
+
+                  <h3>{request.contractFileName}</h3>
+
+                  <p>
+                    Student: {request.studentEmail}
+                  </p>
+
+                  {request.studentSchool ? (
+                    <p>
+                      School: {request.studentSchool}
+                    </p>
+                  ) : null}
+
+                  {request.studentDivision ? (
+                    <p>
+                      Division: {request.studentDivision}
+                    </p>
+                  ) : null}
+
+                  <p>
+                    Submitted:{' '}
+                    {formatDateTime(request.submittedAt)}
+                  </p>
+
+                  <p>
+                    File size:{' '}
+                    {formatFileSize(request.contractFileSize)}
+                  </p>
+
+                  <p>
+                    Status: {request.status}
+                  </p>
+
                   <div className="contract-action-row">
+                    {request.hasSourceFile ? (
+                      <button
+                        type="button"
+                        className="contract-action-link"
+                        onClick={() =>
+                          window.open(
+                            getComplianceRequestFileUrl(
+                              currentUser,
+                              request.id
+                            ),
+                            '_blank',
+                            'noopener,noreferrer'
+                          )
+                        }
+                      >
+                        View PDF
+                      </button>
+                    ) : null}
+
                     <button
                       type="button"
-                      className="contract-action-link"
-                      onClick={() => window.open(getContractFileUrl(currentUser, contract.id), '_blank', 'noopener,noreferrer')}
+                      className="dashboard-secondary-button dashboard-accept-button"
+                      onClick={() =>
+                        handleRequestStatus(
+                          request.id,
+                          'accepted'
+                        )
+                      }
+                      disabled={
+                        updatingRequestId === request.id
+                      }
                     >
-                      View PDF
+                      {updatingRequestId === request.id
+                        ? 'Updating...'
+                        : 'Accept'}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="dashboard-secondary-button"
+                      onClick={() =>
+                        handleRequestStatus(
+                          request.id,
+                          'rejected'
+                        )
+                      }
+                      disabled={
+                        updatingRequestId === request.id
+                      }
+                    >
+                      Reject
                     </button>
                   </div>
                 </article>
@@ -148,12 +343,76 @@ function ComplianceOfficerDashboardPage() {
           </div>
         </section>
 
+        {/* REVIEWED CONTRACTS */}
         <section className="contracts-column past-contracts-column">
           <div className="contracts-column-header">
             <h2>Reviewed</h2>
           </div>
+
           <div className="contracts-list contracts-list-compact">
-            <div className="contract-card">No reviewed contracts yet.</div>
+            {reviewedRequests.length === 0 ? (
+              <div className="contract-card">
+                No reviewed contracts yet.
+              </div>
+            ) : (
+              reviewedRequests.map((request) => (
+                <article
+                  key={request.id}
+                  className="contract-card contract-card-detailed"
+                >
+                  <div className="contract-card-meta">
+                    Request ID: {request.id}
+                  </div>
+
+                  <h3>{request.contractFileName}</h3>
+
+                  <p>
+                    Student: {request.studentEmail}
+                  </p>
+
+                  {request.studentSchool ? (
+                    <p>
+                      School: {request.studentSchool}
+                    </p>
+                  ) : null}
+
+                  <p>
+                    Submitted:{' '}
+                    {formatDateTime(request.submittedAt)}
+                  </p>
+
+                  <p>
+                    Reviewed:{' '}
+                    {formatDateTime(request.reviewedAt)}
+                  </p>
+
+                  <p>
+                    Status: {request.status}
+                  </p>
+
+                  <div className="contract-action-row">
+                    {request.hasSourceFile ? (
+                      <button
+                        type="button"
+                        className="contract-action-link"
+                        onClick={() =>
+                          window.open(
+                            getComplianceRequestFileUrl(
+                              currentUser,
+                              request.id
+                            ),
+                            '_blank',
+                            'noopener,noreferrer'
+                          )
+                        }
+                      >
+                        View PDF
+                      </button>
+                    ) : null}
+                  </div>
+                </article>
+              ))
+            )}
           </div>
         </section>
       </main>
@@ -162,3 +421,4 @@ function ComplianceOfficerDashboardPage() {
 }
 
 export default ComplianceOfficerDashboardPage;
+
