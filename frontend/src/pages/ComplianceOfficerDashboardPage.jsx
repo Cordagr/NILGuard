@@ -1,20 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import '../styles/pages/StudentDashboard.css';
 import logo from '../assets/NILGUARD.png';
 import { getContractFileUrl, listContracts } from '../services/contractApi';
 import ProfileIcon from '../assets/ProfileIcon.png';
-
-function getCurrentUser() {
-  const storedUser = localStorage.getItem('nilguard_user');
-  if (!storedUser) return null;
-  try {
-    return JSON.parse(storedUser);
-  } catch (_error) {
-    localStorage.removeItem('nilguard_user');
-    return null;
-  }
-}
 
 function formatDateTime(value) {
   if (!value) return 'Not accessed yet';
@@ -36,7 +26,8 @@ function ComplianceOfficerDashboardPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
   const navigate = useNavigate();
-  const currentUser = getCurrentUser() || { role: 'compliance', school: '', ncaaDivision: '' };
+  const { user, logout } = useAuth();
+  const currentUser = user || { role: 'compliance', school: '', ncaaDivision: '' };
 
   const fetchContracts = async () => {
     setIsLoadingContracts(true);
@@ -90,7 +81,7 @@ function ComplianceOfficerDashboardPage() {
               <button
                 type="button"
                 onClick={() => {
-                  localStorage.removeItem('nilguard_user');
+                  logout();
                   setMenuOpen(false);
                   navigate('/login');
                 }}

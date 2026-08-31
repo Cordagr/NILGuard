@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import '../styles/pages/CoachRosters.css';
 import logo from '../assets/NILGUARD.png';
 import ProfileIcon from '../assets/ProfileIcon.png';
@@ -102,21 +103,6 @@ function validateRosterCsvForAssignedSchool(csvText, assignedSchool) {
   return `This account is assigned to ${assignedSchool}. Every CSV row must use that school in the school column. Found: ${csvSchool || 'blank value'}.`;
 }
 
-function getCurrentUser() {
-  const storedUser = localStorage.getItem('nilguard_user');
-
-  if (!storedUser) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(storedUser);
-  } catch (_error) {
-    localStorage.removeItem('nilguard_user');
-    return null;
-  }
-}
-
 function formatTimestamp(value) {
   if (!value) {
     return 'Just uploaded';
@@ -137,7 +123,7 @@ function CoachRostersPage() {
   const [successMessage, setSuccessMessage] = useState('');
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
-  const currentUser = getCurrentUser();
+  const { user: currentUser, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const fetchRosters = async () => {
@@ -226,7 +212,7 @@ function CoachRostersPage() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('nilguard_user');
+    logout();
     navigate('/login');
   };
 
@@ -289,7 +275,7 @@ function CoachRostersPage() {
                   type="button"
                   style={{ width: '100%', background: 'transparent', border: 'none', padding: '0.9em 1.4em', textAlign: 'left', fontFamily: 'Barlow Condensed, sans-serif', fontSize: '1rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#181818', cursor: 'pointer', borderRadius: 0 }}
                   onClick={() => {
-                    localStorage.removeItem('nilguard_user');
+                  logout();
                     setMenuOpen(false);
                     navigate('/login');
                   }}

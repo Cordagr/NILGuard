@@ -4,10 +4,12 @@ import '../styles/pages/Login.css';
 import logo from '../assets/NILGUARD.png';
 import { getDashboardRouteForRole, getNormalizedRole, ROLE_LABELS } from '../utils/roleRouting';
 import { loginUser } from '../services/authApi';
+import { useAuth } from '../context/AuthContext';
 
 function LoginPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { startSession } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -18,6 +20,12 @@ function LoginPage() {
     [searchParams]
   );
 
+  const noticeMessage = searchParams.get('reason') === 'timeout'
+    ? 'Your session expired. Please log in again.'
+    : searchParams.get('reason') === 'auth'
+      ? 'Please log in to access that page.'
+      : '';
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
@@ -25,7 +33,7 @@ function LoginPage() {
 
     try {
       const response = await loginUser({ email, password, role: selectedRole });
-      localStorage.setItem('nilguard_user', JSON.stringify(response.user));
+      startSession(response.user);
       navigate(getDashboardRouteForRole(response.user.role));
     } catch (error) {
       setErrorMessage(error.message || 'Login failed. Please try again.');
@@ -54,8 +62,12 @@ function LoginPage() {
             </div>
           )}
 
+          {noticeMessage && (
+            <p className="login-hint">{noticeMessage}</p>
+          )}
+
           <p className="login-hint">
-            Sign in with your official school email. Your school and NCAA division are inferred from the email domain.
+            Sign in with your official university .edu email.
           </p>
 
           <div className="form-group">
