@@ -259,7 +259,10 @@ function CoachRostersPage() {
         </div>
 
         <div className="coach-header-actions">
-          <div className="profile-menu" style={{ position: 'relative' }}>
+          {currentUser?.email ? (
+            <span style={{ marginRight: '0.75rem', fontSize: '0.9rem', color: '#555' }}>{currentUser.email}</span>
+          ) : null}
+         <div className="profile-menu" style={{ position: 'relative' }}>
             <button
               type="button"
               className="profile-menu-trigger"

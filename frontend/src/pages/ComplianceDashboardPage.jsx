@@ -118,6 +118,9 @@ function ComplianceDashboardPage() {
           ) : null}
         </div>
 
+        {currentUser?.email ? (
+          <span style={{ marginRight: '0.75rem', fontSize: '0.9rem', color: '#555' }}>{currentUser.email}</span>
+        ) : null}
         <div className="profile-menu" ref={menuRef}>
           <button
             type="button"
