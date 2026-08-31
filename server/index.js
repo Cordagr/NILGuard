@@ -13,7 +13,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
 import { analyzeContractPdf } from './contractClassifier.js';
-import { getSupportedSchoolCounts, resolveSchoolFromEmail } from './ncaaSchoolDirectory.js';
+import { resolveSchoolFromEmail } from './ncaaSchoolDirectory.js';
+import { isEduEmail, isStrongPassword } from './utils/validation.js';
+import { signToken, setAuthCookie } from './utils/jwt.js';
 
 dotenv.config();
 
@@ -120,14 +122,6 @@ async function getRequiredCurrentUser(req) {
     userId,
     user
   };
-}
-
-function buildUnsupportedSchoolEmailMessage() {
-  const divisionSummary = getSupportedSchoolCounts()
-    .map(({ division, schoolCount }) => `${schoolCount} schools in ${division}`)
-    .join(', ');
-
-  return `Use a supported school email address. NILGuard currently supports ${divisionSummary}.`;
 }
 
 function serializeUser(user, resolvedSchool) {
@@ -829,17 +823,18 @@ app.post('/api/auth/register', async (req, res) => {
     return res.status(400).json({ message: 'Email and password are required.' });
   }
 
-  if (String(password).length < 8) {
+  if (!isEduEmail(email)) {
+    return res.status(400).json({ message: 'Use your official university .edu email address.' });
+  }
+
+  if (!isStrongPassword(password)) {
     return res.status(400).json({ message: 'Password must be at least 8 characters long.' });
   }
 
   const normalizedEmail = String(email).toLowerCase().trim();
   const normalizedRole = normalizeRole(role);
+  // the school directory is optional now, any .edu email can register
   const resolvedSchool = resolveSchoolFromEmail(normalizedEmail);
-
-  if (!resolvedSchool) {
-    return res.status(400).json({ message: buildUnsupportedSchoolEmailMessage() });
-  }
 
   const existingUser = await usersCollection.findOne({ email: normalizedEmail });
   if (existingUser) {
@@ -852,12 +847,15 @@ app.post('/api/auth/register', async (req, res) => {
     email: normalizedEmail,
     passwordHash,
     role: normalizedRole,
-    school: resolvedSchool.school,
-    ncaaDivision: resolvedSchool.division,
-    schoolEmailDomain: resolvedSchool.primaryDomain,
+    school: resolvedSchool ? resolvedSchool.school : null,
+    ncaaDivision: resolvedSchool ? resolvedSchool.division : null,
+    schoolEmailDomain: resolvedSchool ? resolvedSchool.primaryDomain : null,
     createdAt: new Date(),
     updatedAt: new Date()
   });
+
+  const token = signToken({ _id: insertResult.insertedId, role: normalizedRole });
+  setAuthCookie(res, token);
 
   return res.status(201).json({
     message: 'Registration successful.',
@@ -866,8 +864,8 @@ app.post('/api/auth/register', async (req, res) => {
         _id: insertResult.insertedId,
         email: normalizedEmail,
         role: normalizedRole,
-        school: resolvedSchool.school,
-        ncaaDivision: resolvedSchool.division
+        school: resolvedSchool ? resolvedSchool.school : null,
+        ncaaDivision: resolvedSchool ? resolvedSchool.division : null
       },
       resolvedSchool
     )
@@ -881,13 +879,13 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(400).json({ message: 'Email and password are required.' });
   }
 
+  if (!isEduEmail(email)) {
+    return res.status(403).json({ message: 'Use your official university .edu email address.' });
+  }
+
   const normalizedEmail = String(email).toLowerCase().trim();
   const expectedRole = normalizeRole(role);
   const resolvedSchool = resolveSchoolFromEmail(normalizedEmail);
-
-  if (!resolvedSchool) {
-    return res.status(403).json({ message: buildUnsupportedSchoolEmailMessage() });
-  }
 
   const user = await usersCollection.findOne({ email: normalizedEmail });
 
@@ -904,10 +902,12 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(403).json({ message: `This account is registered as ${user.role}, not ${expectedRole}.` });
   }
 
+  // keep the school fields up to date when the directory recognizes the domain
   if (
-    user.school !== resolvedSchool.school ||
-    user.ncaaDivision !== resolvedSchool.division ||
-    user.schoolEmailDomain !== resolvedSchool.primaryDomain
+    resolvedSchool &&
+    (user.school !== resolvedSchool.school ||
+      user.ncaaDivision !== resolvedSchool.division ||
+      user.schoolEmailDomain !== resolvedSchool.primaryDomain)
   ) {
     await usersCollection.updateOne(
       { _id: user._id },
@@ -922,16 +922,12 @@ app.post('/api/auth/login', async (req, res) => {
     );
   }
 
+  const token = signToken(user);
+  setAuthCookie(res, token);
+
   return res.json({
     message: 'Login successful.',
-    user: serializeUser(
-      {
-        ...user,
-        school: resolvedSchool.school,
-        ncaaDivision: resolvedSchool.division
-      },
-      resolvedSchool
-    )
+    user: serializeUser(user, resolvedSchool)
   });
 });
 
