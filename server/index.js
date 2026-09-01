@@ -78,7 +78,6 @@ app.use(express.json());
 app.use(cookieParser());
 
 const client = new MongoClient(MONGODB_URI);
-let contractsCollection;
 let rostersCollection;
 let documentRequestsCollection;
 
@@ -132,6 +131,25 @@ function serializeContract(contract) {
     lastAccessedAt: contract.lastAccessedAt,
     accessCount: contract.accessCount,
     uploadedBy: contract.userId
+  };
+}
+
+// postgres rows come back snake_case, this keeps the old camelCase names the routes expect
+function mapContractRow(row) {
+  return {
+    ...row,
+    contractId: row.contract_id,
+    userId: row.user_id,
+    fileName: row.file_name,
+    storedFileName: row.stored_file_name,
+    storedFilePath: row.stored_file_path,
+    fileSize: row.file_size,
+    mimeType: row.mime_type,
+    aiScreening: row.ai_screening,
+    accessCount: row.access_count,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    lastAccessedAt: row.last_accessed_at
   };
 }
 
@@ -347,13 +365,15 @@ app.use('/api/compliance', requireAuth);
 app.get('/api/contracts', async (req, res, next) => {
   try {
     const userId = String(req.user._id);
-    const sortBy = req.query.sortBy === 'createdAt' ? 'createdAt' : 'lastAccessedAt';
-    const sortDirection = req.query.sortDirection === 'asc' ? 1 : -1;
+    const sortBy = req.query.sortBy === 'createdAt' ? 'created_at' : 'last_accessed_at';
+    const sortDirection = req.query.sortDirection === 'asc' ? 'ASC' : 'DESC';
 
-    const contracts = await contractsCollection
-      .find({ userId })
-      .sort({ [sortBy]: sortDirection, createdAt: -1 })
-      .toArray();
+    // sql can not use $1 for column names so the whitelist above keeps this safe
+    const result = await query(
+      `SELECT * FROM contracts WHERE user_id = $1 ORDER BY ${sortBy} ${sortDirection}, created_at DESC`,
+      [userId]
+    );
+    const contracts = result.rows.map(mapContractRow);
 
     res.json({
       contracts: contracts.map(serializeContract)
@@ -553,28 +573,30 @@ app.post('/api/contracts', contractUpload.single('file'), async (req, res, next)
     await fs.mkdir(userUploadDirectory, { recursive: true });
     await fs.writeFile(storedFilePath, file.buffer);
 
-    const contractDocument = {
-      contractId,
-      userId,
-      fileName: file.originalname,
-      storedFileName,
-      storedFilePath,
-      fileSize: file.size,
-      mimeType: file.mimetype || 'application/pdf',
-      aiScreening: {
-        score: contractScreening.score,
-        positiveSignals: contractScreening.positiveSignals,
-        negativeSignals: contractScreening.negativeSignals,
-        textLength: contractScreening.textLength,
-        screenedAt: now
-      },
-      createdAt: now,
-      updatedAt: now,
-      lastAccessedAt: now,
-      accessCount: 0
-    };
-
-    await contractsCollection.insertOne(contractDocument);
+    const insertResult = await query(
+      `INSERT INTO contracts
+       (contract_id, user_id, file_name, stored_file_name, stored_file_path, file_size, mime_type, ai_screening)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *`,
+      [
+        contractId,
+        userId,
+        file.originalname,
+        storedFileName,
+        storedFilePath,
+        file.size,
+        file.mimetype || 'application/pdf',
+        // jsonb columns take a json string
+        JSON.stringify({
+          score: contractScreening.score,
+          positiveSignals: contractScreening.positiveSignals,
+          negativeSignals: contractScreening.negativeSignals,
+          textLength: contractScreening.textLength,
+          screenedAt: now
+        })
+      ]
+    );
+    const contractDocument = mapContractRow(insertResult.rows[0]);
 
     return res.status(201).json({
       message: 'Contract uploaded successfully.',
@@ -589,24 +611,21 @@ app.get('/api/contracts/:contractId/file', async (req, res, next) => {
   try {
     const userId = String(req.user._id);
     const { contractId } = req.params;
-    const contract = await contractsCollection.findOne({ contractId, userId });
+    const contractResult = await query(
+      'SELECT * FROM contracts WHERE contract_id = $1 AND user_id = $2',
+      [contractId, userId]
+    );
+    const contract = contractResult.rows[0] ? mapContractRow(contractResult.rows[0]) : null;
 
     if (!contract) {
       return res.status(404).json({ message: 'Contract not found for the current user.' });
     }
 
-    const now = new Date();
-    await contractsCollection.updateOne(
-      { contractId, userId },
-      {
-        $set: {
-          lastAccessedAt: now,
-          updatedAt: now
-        },
-        $inc: {
-          accessCount: 1
-        }
-      }
+    await query(
+      `UPDATE contracts
+       SET last_accessed_at = now(), updated_at = now(), access_count = access_count + 1
+       WHERE contract_id = $1 AND user_id = $2`,
+      [contractId, userId]
     );
 
     res.setHeader('Content-Type', 'application/pdf');
@@ -665,7 +684,11 @@ app.post('/api/compliance/requests', async (req, res, next) => {
       return res.status(400).json({ message: 'A compliance officer email is required.' });
     }
 
-    const contract = await contractsCollection.findOne({ contractId, userId });
+    const contractResult = await query(
+      'SELECT * FROM contracts WHERE contract_id = $1 AND user_id = $2',
+      [contractId, userId]
+    );
+    const contract = contractResult.rows[0] ? mapContractRow(contractResult.rows[0]) : null;
 
     if (!contract) {
       return res.status(404).json({ message: 'Contract not found for the current student.' });
@@ -964,16 +987,21 @@ app.delete('/api/contracts/:contractId', async (req, res, next) => {
   try {
     const userId = String(req.user._id);
     const { contractId } = req.params;
-    const contract = await contractsCollection.findOne({ contractId, userId });
+    const contractResult = await query(
+      'SELECT * FROM contracts WHERE contract_id = $1 AND user_id = $2',
+      [contractId, userId]
+    );
+    const contract = contractResult.rows[0] ? mapContractRow(contractResult.rows[0]) : null;
     if (!contract) {
       return res.status(404).json({ message: 'Contract not found for the current user.' });
     }
     // Remove contract record
-    await contractsCollection.deleteOne({ contractId, userId });
+    await query('DELETE FROM contracts WHERE contract_id = $1 AND user_id = $2', [contractId, userId]);
     // Remove file if unused
     if (contract.storedFilePath) {
-      const remaining = await contractsCollection.countDocuments({ storedFilePath: contract.storedFilePath });
-      if (remaining === 0) {
+      const remaining = await query('SELECT COUNT(*) FROM contracts WHERE stored_file_path = $1', [contract.storedFilePath]);
+      // pg returns COUNT(*) as a string so turn it into a number
+      if (Number(remaining.rows[0].count) === 0) {
         try {
           await fs.unlink(contract.storedFilePath);
         } catch (err) {
@@ -994,13 +1022,9 @@ async function start() {
   await initDb();
   await client.connect();
   const db = client.db(DB_NAME);
-  contractsCollection = db.collection('contracts');
   rostersCollection = db.collection('rosters');
   documentRequestsCollection = db.collection('documentRequests');
 
-  await contractsCollection.createIndex({ userId: 1, createdAt: -1 });
-  await contractsCollection.createIndex({ userId: 1, lastAccessedAt: -1 });
-  await contractsCollection.createIndex({ contractId: 1, userId: 1 }, { unique: true });
   await rostersCollection.createIndex({ userId: 1, updatedAt: -1 });
   await rostersCollection.createIndex({ userId: 1, school: 1, sport: 1, year: 1 }, { unique: true });
   await documentRequestsCollection.createIndex({ requestId: 1 }, { unique: true });
@@ -1019,7 +1043,11 @@ async function start() {
       }
 
       // Find the contract in the database
-      const contract = await contractsCollection.findOne({ contractId, userId });
+      const contractResult = await query(
+        'SELECT * FROM contracts WHERE contract_id = $1 AND user_id = $2',
+        [contractId, userId]
+      );
+      const contract = contractResult.rows[0] ? mapContractRow(contractResult.rows[0]) : null;
       if (!contract) {
         console.log('Contract not found for analysis:', { contractId, userId });
         return res.status(404).json({ message: 'Contract not found.' });
