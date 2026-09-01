@@ -1,6 +1,7 @@
 import { deleteContract } from '../services/contractApi';
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import '../styles/pages/StudentDashboard.css';
 import logo from '../assets/NILGUARD.png';
 import { getContractFileUrl, listContracts, uploadContract } from '../services/contractApi';
@@ -24,21 +25,6 @@ const sortOptions = {
     sortDirection: 'asc'
   }
 };
-
-function getCurrentUser() {
-  const storedUser = localStorage.getItem('nilguard_user');
-
-  if (!storedUser) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(storedUser);
-  } catch (_error) {
-    localStorage.removeItem('nilguard_user');
-    return null;
-  }
-}
 
 function formatDateTime(value) {
   if (!value) {
@@ -91,7 +77,7 @@ function StudentDashboardPage() {
   const menuRef = useRef(null);
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
-  const currentUser = getCurrentUser();
+  const { user: currentUser, logout } = useAuth();
 
   const fetchContracts = async (nextSortMode = sortMode) => {
     if (!currentUser?.id) {
@@ -241,6 +227,9 @@ function StudentDashboardPage() {
           ) : null}
         </div>
 
+        {currentUser?.email ? (
+          <span style={{ marginRight: '0.75rem', fontSize: '0.9rem', color: '#555' }}>{currentUser.email}</span>
+        ) : null}
         <div className="profile-menu" ref={menuRef}>
           <button
             type="button"
@@ -256,7 +245,7 @@ function StudentDashboardPage() {
               <button
                 type="button"
                 onClick={() => {
-                  localStorage.removeItem('nilguard_user');
+                  logout();
                   setMenuOpen(false);
                   navigate('/login');
                 }}

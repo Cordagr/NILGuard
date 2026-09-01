@@ -23,11 +23,9 @@ async function parseJsonResponse(response) {
 export async function listRosters(user) {
   const userId = getUserId(user);
   const searchParams = new URLSearchParams({ userId });
-  const response = await fetch(`${API_BASE_URL}/rosters?${searchParams.toString()}`, {
-    headers: {
-      'x-user-id': userId
-    }
-  });
+ const response = await fetch(`${API_BASE_URL}/rosters?${searchParams.toString()}`, {
+    credentials: 'include'
+ });
 
   return parseJsonResponse(response);
 }
@@ -38,13 +36,11 @@ export async function uploadRosterCsv(user, file) {
   formData.append('userId', userId);
   formData.append('file', file);
 
-  const response = await fetch(`${API_BASE_URL}/rosters`, {
-    method: 'POST',
-    headers: {
-      'x-user-id': userId
-    },
-    body: formData
-  });
+ const response = await fetch(`${API_BASE_URL}/rosters`, {
+ method: 'POST',
+    credentials: 'include',
+ body: formData
+ });
 
   return parseJsonResponse(response);
 }
@@ -52,12 +48,10 @@ export async function uploadRosterCsv(user, file) {
 export async function deleteRoster(user, rosterId) {
   const userId = getUserId(user);
   const searchParams = new URLSearchParams({ userId });
-  const response = await fetch(`${API_BASE_URL}/rosters/${rosterId}?${searchParams.toString()}`, {
-    method: 'DELETE',
-    headers: {
-      'x-user-id': userId
-    }
-  });
+ const response = await fetch(`${API_BASE_URL}/rosters/${rosterId}?${searchParams.toString()}`, {
+ method: 'DELETE',
+    credentials: 'include'
+ });
 
   return parseJsonResponse(response);
 }

@@ -1,8 +1,6 @@
-// ...existing code...
-// Place this after all imports and after 'const app = express();'
-
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import { MongoClient, ObjectId } from 'mongodb';
@@ -12,7 +10,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
 import { analyzeContractPdf } from './contractClassifier.js';
-import { getSupportedSchoolCounts, resolveSchoolFromEmail } from './ncaaSchoolDirectory.js';
+import { resolveSchoolFromEmail } from './ncaaSchoolDirectory.js';
+import { isEduEmail, isStrongPassword } from './utils/validation.js';
+import { signToken, setAuthCookie, clearAuthCookie } from './utils/jwt.js';
+import { makeRequireAuth } from './middleware/auth.js';
 
 dotenv.config();
 
@@ -68,63 +69,26 @@ if (!MONGODB_URI) {
 
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173'
+    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    credentials: true
   })
 );
 app.use(express.json());
+app.use(cookieParser());
 
 const client = new MongoClient(MONGODB_URI);
 let usersCollection;
 let contractsCollection;
 let rostersCollection;
 let documentRequestsCollection;
+let auditLogsCollection;
+
+// checks the session cookie on every protected request
+const requireAuth = makeRequireAuth(() => usersCollection, recordAuditLog);
 
 function normalizeRole(role) {
   const normalized = String(role || 'student').toLowerCase().trim();
   return allowedRoles.has(normalized) ? normalized : 'student';
-}
-
-function getRequiredUserId(req) {
-  const userId = String(req.header('x-user-id') || req.body?.userId || req.query?.userId || '').trim();
-
-  if (!userId) {
-    const error = new Error('A current user id is required.');
-    error.statusCode = 401;
-    throw error;
-  }
-
-  return userId;
-}
-
-async function getRequiredCurrentUser(req) {
-  const userId = getRequiredUserId(req);
-
-  if (!ObjectId.isValid(userId)) {
-    const error = new Error('The current user id is invalid.');
-    error.statusCode = 401;
-    throw error;
-  }
-
-  const user = await usersCollection.findOne({ _id: new ObjectId(userId) });
-
-  if (!user) {
-    const error = new Error('The current user could not be found.');
-    error.statusCode = 401;
-    throw error;
-  }
-
-  return {
-    userId,
-    user
-  };
-}
-
-function buildUnsupportedSchoolEmailMessage() {
-  const divisionSummary = getSupportedSchoolCounts()
-    .map(({ division, schoolCount }) => `${schoolCount} schools in ${division}`)
-    .join(', ');
-
-  return `Use a supported school email address. NILGuard currently supports ${divisionSummary}.`;
 }
 
 function serializeUser(user, resolvedSchool) {
@@ -137,6 +101,21 @@ function serializeUser(user, resolvedSchool) {
     school: user.school || matchedSchool?.school || null,
     ncaaDivision: user.ncaaDivision || matchedSchool?.division || null
   };
+}
+
+async function recordAuditLog(action, details = {}) {
+  try {
+    await auditLogsCollection.insertOne({
+      action,
+      userId: details.userId || null,
+      email: details.email || null,
+      ip: details.ip || null,
+      createdAt: new Date()
+    });
+  } catch (error) {
+    // audit logging should never break the request itself
+    console.error('Failed to write audit log:', error.message);
+  }
 }
 
 function buildStoredFileName(contractId, originalName) {
@@ -364,9 +343,14 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
 });
 
+// everything below needs a logged in user
+app.use('/api/contracts', requireAuth);
+app.use('/api/rosters', requireAuth);
+app.use('/api/compliance', requireAuth);
+
 app.get('/api/contracts', async (req, res, next) => {
   try {
-    const userId = getRequiredUserId(req);
+    const userId = String(req.user._id);
     const sortBy = req.query.sortBy === 'createdAt' ? 'createdAt' : 'lastAccessedAt';
     const sortDirection = req.query.sortDirection === 'asc' ? 1 : -1;
 
@@ -385,7 +369,7 @@ app.get('/api/contracts', async (req, res, next) => {
 
 app.get('/api/rosters', async (req, res, next) => {
   try {
-    const userId = getRequiredUserId(req);
+    const userId = String(req.user._id);
     const rosters = await rostersCollection
       .find({ userId })
       .sort({ updatedAt: -1, school: 1, sport: 1, year: 1 })
@@ -401,7 +385,8 @@ app.get('/api/rosters', async (req, res, next) => {
 
 app.post('/api/rosters', rosterUpload.single('file'), async (req, res, next) => {
   try {
-    const { userId, user } = await getRequiredCurrentUser(req);
+    const user = req.user;
+    const userId = String(user._id);
     const file = req.file;
 
     if (!file) {
@@ -506,7 +491,7 @@ app.post('/api/rosters', rosterUpload.single('file'), async (req, res, next) => 
 
 app.get('/api/rosters/:rosterId/file', async (req, res, next) => {
   try {
-    const userId = getRequiredUserId(req);
+    const userId = String(req.user._id);
     const { rosterId } = req.params;
     const roster = await rostersCollection.findOne({ rosterId, userId });
 
@@ -528,7 +513,7 @@ app.get('/api/rosters/:rosterId/file', async (req, res, next) => {
 
 app.delete('/api/rosters/:rosterId', async (req, res, next) => {
   try {
-    const userId = getRequiredUserId(req);
+    const userId = String(req.user._id);
     const { rosterId } = req.params;
     const roster = await rostersCollection.findOne({ rosterId, userId });
 
@@ -547,7 +532,7 @@ app.delete('/api/rosters/:rosterId', async (req, res, next) => {
 
 app.post('/api/contracts', contractUpload.single('file'), async (req, res, next) => {
   try {
-    const userId = getRequiredUserId(req);
+    const userId = String(req.user._id);
     const file = req.file;
 
     if (!file) {
@@ -606,7 +591,7 @@ app.post('/api/contracts', contractUpload.single('file'), async (req, res, next)
 
 app.get('/api/contracts/:contractId/file', async (req, res, next) => {
   try {
-    const userId = getRequiredUserId(req);
+    const userId = String(req.user._id);
     const { contractId } = req.params;
     const contract = await contractsCollection.findOne({ contractId, userId });
 
@@ -638,7 +623,8 @@ app.get('/api/contracts/:contractId/file', async (req, res, next) => {
 
 app.get('/api/compliance/requests', async (req, res, next) => {
   try {
-    const { userId, user } = await getRequiredCurrentUser(req);
+    const user = req.user;
+    const userId = String(user._id);
 
     if (user.role === 'student') {
       const requests = await documentRequestsCollection
@@ -668,7 +654,8 @@ app.get('/api/compliance/requests', async (req, res, next) => {
 
 app.post('/api/compliance/requests', async (req, res, next) => {
   try {
-    const { userId, user } = await getRequiredCurrentUser(req);
+    const user = req.user;
+    const userId = String(user._id);
     assertUserRole(user, 'student');
 
     const contractId = String(req.body?.contractId || '').trim();
@@ -747,7 +734,8 @@ app.post('/api/compliance/requests', async (req, res, next) => {
 
 app.patch('/api/compliance/requests/:requestId', async (req, res, next) => {
   try {
-    const { userId, user } = await getRequiredCurrentUser(req);
+    const user = req.user;
+    const userId = String(user._id);
     assertUserRole(user, 'compliance');
 
     const { requestId } = req.params;
@@ -791,7 +779,8 @@ app.patch('/api/compliance/requests/:requestId', async (req, res, next) => {
 
 app.get('/api/compliance/requests/:requestId/file', async (req, res, next) => {
   try {
-    const { userId, user } = await getRequiredCurrentUser(req);
+    const user = req.user;
+    const userId = String(user._id);
     const { requestId } = req.params;
 
     let documentRequest;
@@ -826,17 +815,18 @@ app.post('/api/auth/register', async (req, res) => {
     return res.status(400).json({ message: 'Email and password are required.' });
   }
 
-  if (String(password).length < 8) {
+  if (!isEduEmail(email)) {
+    return res.status(400).json({ message: 'Use your official university .edu email address.' });
+  }
+
+  if (!isStrongPassword(password)) {
     return res.status(400).json({ message: 'Password must be at least 8 characters long.' });
   }
 
   const normalizedEmail = String(email).toLowerCase().trim();
   const normalizedRole = normalizeRole(role);
+  // the school directory is optional now, any .edu email can register
   const resolvedSchool = resolveSchoolFromEmail(normalizedEmail);
-
-  if (!resolvedSchool) {
-    return res.status(400).json({ message: buildUnsupportedSchoolEmailMessage() });
-  }
 
   const existingUser = await usersCollection.findOne({ email: normalizedEmail });
   if (existingUser) {
@@ -849,12 +839,17 @@ app.post('/api/auth/register', async (req, res) => {
     email: normalizedEmail,
     passwordHash,
     role: normalizedRole,
-    school: resolvedSchool.school,
-    ncaaDivision: resolvedSchool.division,
-    schoolEmailDomain: resolvedSchool.primaryDomain,
+    school: resolvedSchool ? resolvedSchool.school : null,
+    ncaaDivision: resolvedSchool ? resolvedSchool.division : null,
+    schoolEmailDomain: resolvedSchool ? resolvedSchool.primaryDomain : null,
     createdAt: new Date(),
     updatedAt: new Date()
   });
+
+  await recordAuditLog('register', { userId: String(insertResult.insertedId), email: normalizedEmail, ip: req.ip });
+
+  const token = signToken({ _id: insertResult.insertedId, role: normalizedRole });
+  setAuthCookie(res, token);
 
   return res.status(201).json({
     message: 'Registration successful.',
@@ -863,8 +858,8 @@ app.post('/api/auth/register', async (req, res) => {
         _id: insertResult.insertedId,
         email: normalizedEmail,
         role: normalizedRole,
-        school: resolvedSchool.school,
-        ncaaDivision: resolvedSchool.division
+        school: resolvedSchool ? resolvedSchool.school : null,
+        ncaaDivision: resolvedSchool ? resolvedSchool.division : null
       },
       resolvedSchool
     )
@@ -878,22 +873,47 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(400).json({ message: 'Email and password are required.' });
   }
 
+  if (!isEduEmail(email)) {
+    return res.status(403).json({ message: 'Use your official university .edu email address.' });
+  }
+
   const normalizedEmail = String(email).toLowerCase().trim();
   const expectedRole = normalizeRole(role);
   const resolvedSchool = resolveSchoolFromEmail(normalizedEmail);
 
-  if (!resolvedSchool) {
-    return res.status(403).json({ message: buildUnsupportedSchoolEmailMessage() });
-  }
-
   const user = await usersCollection.findOne({ email: normalizedEmail });
 
   if (!user) {
+    await recordAuditLog('login_failed', { email: normalizedEmail, ip: req.ip });
     return res.status(401).json({ message: 'Invalid email or password.' });
+  }
+
+  // lock the account for 15 minutes after 3 failed attempts
+  const now = new Date();
+  if (user.lockUntil && user.lockUntil > now) {
+    const minutesLeft = Math.ceil((user.lockUntil - now) / 60000);
+    return res.status(423).json({
+      message: `Too many failed login attempts. Try again in ${minutesLeft} minute(s).`
+    });
   }
 
   const passwordMatches = await bcrypt.compare(String(password), user.passwordHash);
   if (!passwordMatches) {
+    const attempts = (user.failedLoginAttempts || 0) + 1;
+    const update = {
+      $set: {
+        failedLoginAttempts: attempts,
+        updatedAt: now
+      }
+    };
+
+    if (attempts >= 3) {
+      update.$set.lockUntil = new Date(now.getTime() + 15 * 60 * 1000);
+      await recordAuditLog('lockout', { userId: String(user._id), email: normalizedEmail, ip: req.ip });
+    }
+
+    await usersCollection.updateOne({ _id: user._id }, update);
+    await recordAuditLog('login_failed', { userId: String(user._id), email: normalizedEmail, ip: req.ip });
     return res.status(401).json({ message: 'Invalid email or password.' });
   }
 
@@ -901,10 +921,12 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(403).json({ message: `This account is registered as ${user.role}, not ${expectedRole}.` });
   }
 
+  // keep the school fields up to date when the directory recognizes the domain
   if (
-    user.school !== resolvedSchool.school ||
-    user.ncaaDivision !== resolvedSchool.division ||
-    user.schoolEmailDomain !== resolvedSchool.primaryDomain
+    resolvedSchool &&
+    (user.school !== resolvedSchool.school ||
+      user.ncaaDivision !== resolvedSchool.division ||
+      user.schoolEmailDomain !== resolvedSchool.primaryDomain)
   ) {
     await usersCollection.updateOne(
       { _id: user._id },
@@ -919,23 +941,42 @@ app.post('/api/auth/login', async (req, res) => {
     );
   }
 
+  // successful login resets the failed attempt counter
+  await usersCollection.updateOne(
+    { _id: user._id },
+    {
+      $set: {
+        failedLoginAttempts: 0,
+        lockUntil: null,
+        lastLoginAt: now,
+        lastLoginIp: req.ip || null
+      }
+    }
+  );
+
+  const token = signToken(user);
+  setAuthCookie(res, token);
+  await recordAuditLog('login_success', { userId: String(user._id), email: normalizedEmail, ip: req.ip });
+
   return res.json({
     message: 'Login successful.',
-    user: serializeUser(
-      {
-        ...user,
-        school: resolvedSchool.school,
-        ncaaDivision: resolvedSchool.division
-      },
-      resolvedSchool
-    )
+    user: serializeUser(user, resolvedSchool)
   });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  clearAuthCookie(res);
+  return res.json({ message: 'Logged out.' });
+});
+
+app.get('/api/auth/me', requireAuth, (req, res) => {
+  return res.json({ user: serializeUser(req.user) });
 });
 
 // Delete a contract (student-owned)
 app.delete('/api/contracts/:contractId', async (req, res, next) => {
   try {
-    const userId = getRequiredUserId(req);
+    const userId = String(req.user._id);
     const { contractId } = req.params;
     const contract = await contractsCollection.findOne({ contractId, userId });
     if (!contract) {
@@ -969,6 +1010,7 @@ async function start() {
   contractsCollection = db.collection('contracts');
   rostersCollection = db.collection('rosters');
   documentRequestsCollection = db.collection('documentRequests');
+  auditLogsCollection = db.collection('auditLogs');
 
   await usersCollection.createIndex({ email: 1 }, { unique: true });
   await contractsCollection.createIndex({ userId: 1, createdAt: -1 });
@@ -980,11 +1022,13 @@ async function start() {
   await documentRequestsCollection.createIndex({ studentUserId: 1, submittedAt: -1 });
   await documentRequestsCollection.createIndex({ studentSchool: 1, status: 1, submittedAt: -1 });
   await documentRequestsCollection.createIndex({ studentUserId: 1, contractId: 1 }, { unique: true });
+  await auditLogsCollection.createIndex({ createdAt: -1 });
+  await auditLogsCollection.createIndex({ userId: 1, createdAt: -1 });
 
   // Contract analysis endpoint (must be after collections are initialized)
   app.get('/api/contracts/:contractId/analysis', async (req, res, next) => {
     try {
-      const userId = getRequiredUserId(req);
+      const userId = String(req.user._id);
       const contractId = req.params.contractId;
       console.log('Contract analysis request:', { contractId, userId });
       if (!contractId) {
