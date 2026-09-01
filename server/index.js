@@ -3,7 +3,6 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
-import { MongoClient } from 'mongodb';
 import multer from 'multer';
 import fs from 'fs/promises';
 import path from 'path';
@@ -20,8 +19,6 @@ dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.PORT || 5000);
-const MONGODB_URI = process.env.MONGODB_URI;
-const DB_NAME = process.env.MONGODB_DB_NAME || 'nilguard';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsRoot = path.join(__dirname, 'uploads', 'contracts');
@@ -64,8 +61,8 @@ const rosterUpload = multer({
   }
 });
 
-if (!MONGODB_URI) {
-  throw new Error('Missing MONGODB_URI. Add it to your environment variables.');
+if (!process.env.DATABASE_URL) {
+  throw new Error('Missing DATABASE_URL. Add it to your environment variables.');
 }
 
 app.use(
@@ -76,10 +73,6 @@ app.use(
 );
 app.use(express.json());
 app.use(cookieParser());
-
-const client = new MongoClient(MONGODB_URI);
-let rostersCollection;
-let documentRequestsCollection;
 
 // checks the session cookie on every protected request
 const requireAuth = makeRequireAuth(recordAuditLog);
@@ -150,6 +143,45 @@ function mapContractRow(row) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     lastAccessedAt: row.last_accessed_at
+  };
+}
+
+// same idea as mapContractRow, rosters and requests also come back snake_case now
+function mapRosterRow(row) {
+  return {
+    ...row,
+    rosterId: row.roster_id,
+    userId: row.user_id,
+    sourceFileName: row.source_file_name,
+    storedFileName: row.stored_file_name,
+    storedFilePath: row.stored_file_path,
+    playerCount: row.player_count,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function mapRequestRow(row) {
+  return {
+    ...row,
+    requestId: row.request_id,
+    contractId: row.contract_id,
+    contractFileName: row.contract_file_name,
+    contractFileSize: row.contract_file_size,
+    storedFilePath: row.stored_file_path,
+    mimeType: row.mime_type,
+    studentUserId: row.student_user_id,
+    studentEmail: row.student_email,
+    studentSchool: row.student_school,
+    studentDivision: row.student_division,
+    assignedComplianceUserId: row.assigned_compliance_user_id,
+    assignedComplianceEmail: row.assigned_compliance_email,
+    reviewedAt: row.reviewed_at,
+    reviewedBy: row.reviewed_by,
+    reviewerEmail: row.reviewer_email,
+    submittedAt: row.submitted_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
   };
 }
 
@@ -338,9 +370,9 @@ async function deleteRosterFileIfUnused(storedFilePath) {
     return;
   }
 
-  const remainingReferenceCount = await rostersCollection.countDocuments({ storedFilePath });
+  const remaining = await query('SELECT COUNT(*) FROM rosters WHERE stored_file_path = $1', [storedFilePath]);
 
-  if (remainingReferenceCount > 0) {
+  if (Number(remaining.rows[0].count) > 0) {
     return;
   }
 
@@ -386,10 +418,11 @@ app.get('/api/contracts', async (req, res, next) => {
 app.get('/api/rosters', async (req, res, next) => {
   try {
     const userId = String(req.user._id);
-    const rosters = await rostersCollection
-      .find({ userId })
-      .sort({ updatedAt: -1, school: 1, sport: 1, year: 1 })
-      .toArray();
+    const result = await query(
+      'SELECT * FROM rosters WHERE user_id = $1 ORDER BY updated_at DESC, school ASC, sport ASC, year ASC',
+      [userId]
+    );
+    const rosters = result.rows.map(mapRosterRow);
 
     res.json({
       rosters: rosters.map(serializeRoster)
@@ -440,56 +473,40 @@ app.post('/api/rosters', rosterUpload.single('file'), async (req, res, next) => 
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '');
-      const existingRoster = await rostersCollection.findOne({
-        userId,
-        school: rosterGroup.school,
-        sport: rosterGroup.sport,
-        year: rosterGroup.year
-      });
+
+      const existingResult = await query(
+        'SELECT * FROM rosters WHERE user_id = $1 AND school = $2 AND sport = $3 AND year = $4',
+        [userId, rosterGroup.school, rosterGroup.sport, rosterGroup.year]
+      );
+      const existingRoster = existingResult.rows[0] ? mapRosterRow(existingResult.rows[0]) : null;
 
       if (existingRoster?.storedFilePath && existingRoster.storedFilePath !== storedFilePath) {
         staleFilePaths.add(existingRoster.storedFilePath);
       }
 
-      await rostersCollection.updateOne(
-        {
+      // one row per user/school/sport/year, the insert becomes an update on a repeat upload
+      const upsertResult = await query(
+        `INSERT INTO rosters
+         (roster_id, user_id, school, sport, year, players, player_count, source_file_name, stored_file_name, stored_file_path)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (user_id, school, sport, year) DO UPDATE SET
+           roster_id = $1, players = $6, player_count = $7, source_file_name = $8,
+           stored_file_name = $9, stored_file_path = $10, updated_at = now()
+         RETURNING *`,
+        [
+          rosterId,
           userId,
-          school: rosterGroup.school,
-          sport: rosterGroup.sport,
-          year: rosterGroup.year
-        },
-        {
-          $set: {
-            rosterId,
-            school: rosterGroup.school,
-            sport: rosterGroup.sport,
-            year: rosterGroup.year,
-            players: rosterGroup.players,
-            playerCount: rosterGroup.players.length,
-            sourceFileName: file.originalname,
-            storedFileName,
-            storedFilePath,
-            updatedAt: now
-          },
-          $setOnInsert: {
-            createdAt: now
-          }
-        },
-        {
-          upsert: true
-        }
+          rosterGroup.school,
+          rosterGroup.sport,
+          rosterGroup.year,
+          JSON.stringify(rosterGroup.players),
+          rosterGroup.players.length,
+          file.originalname,
+          storedFileName,
+          storedFilePath
+        ]
       );
-
-      const savedRoster = await rostersCollection.findOne({
-        userId,
-        school: rosterGroup.school,
-        sport: rosterGroup.sport,
-        year: rosterGroup.year
-      });
-
-      if (savedRoster) {
-        savedRosters.push(savedRoster);
-      }
+      savedRosters.push(mapRosterRow(upsertResult.rows[0]));
     }
 
     for (const staleFilePath of staleFilePaths) {
@@ -509,7 +526,11 @@ app.get('/api/rosters/:rosterId/file', async (req, res, next) => {
   try {
     const userId = String(req.user._id);
     const { rosterId } = req.params;
-    const roster = await rostersCollection.findOne({ rosterId, userId });
+    const rosterResult = await query(
+      'SELECT * FROM rosters WHERE roster_id = $1 AND user_id = $2',
+      [rosterId, userId]
+    );
+    const roster = rosterResult.rows[0] ? mapRosterRow(rosterResult.rows[0]) : null;
 
     if (!roster) {
       return res.status(404).json({ message: 'Roster not found for the current user.' });
@@ -531,13 +552,17 @@ app.delete('/api/rosters/:rosterId', async (req, res, next) => {
   try {
     const userId = String(req.user._id);
     const { rosterId } = req.params;
-    const roster = await rostersCollection.findOne({ rosterId, userId });
+    const rosterResult = await query(
+      'SELECT * FROM rosters WHERE roster_id = $1 AND user_id = $2',
+      [rosterId, userId]
+    );
+    const roster = rosterResult.rows[0] ? mapRosterRow(rosterResult.rows[0]) : null;
 
     if (!roster) {
       return res.status(404).json({ message: 'Roster not found for the current user.' });
     }
 
-    await rostersCollection.deleteOne({ rosterId, userId });
+    await query('DELETE FROM rosters WHERE roster_id = $1 AND user_id = $2', [rosterId, userId]);
     await deleteRosterFileIfUnused(roster.storedFilePath);
 
     return res.json({ message: 'Roster deleted successfully.' });
@@ -642,25 +667,25 @@ app.get('/api/compliance/requests', async (req, res, next) => {
     const userId = String(user._id);
 
     if (user.role === 'student') {
-      const requests = await documentRequestsCollection
-        .find({ studentUserId: userId })
-        .sort({ submittedAt: -1, updatedAt: -1 })
-        .toArray();
+      const result = await query(
+        'SELECT * FROM document_requests WHERE student_user_id = $1 ORDER BY submitted_at DESC, updated_at DESC',
+        [userId]
+      );
 
       return res.json({
-        requests: requests.map(serializeDocumentRequest)
+        requests: result.rows.map(mapRequestRow).map(serializeDocumentRequest)
       });
     }
 
     assertUserRole(user, 'compliance');
 
-    const requests = await documentRequestsCollection
-      .find({ assignedComplianceUserId: userId })
-      .sort({ status: 1, submittedAt: -1, updatedAt: -1 })
-      .toArray();
+    const result = await query(
+      'SELECT * FROM document_requests WHERE assigned_compliance_user_id = $1 ORDER BY status ASC, submitted_at DESC, updated_at DESC',
+      [userId]
+    );
 
     return res.json({
-      requests: requests.map(serializeDocumentRequest)
+      requests: result.rows.map(mapRequestRow).map(serializeDocumentRequest)
     });
   } catch (error) {
     next(error);
@@ -710,40 +735,45 @@ app.post('/api/compliance/requests', async (req, res, next) => {
     }
 
     const now = new Date();
-    const existingRequest = await documentRequestsCollection.findOne({ studentUserId: userId, contractId });
+    const existingResult = await query(
+      'SELECT * FROM document_requests WHERE student_user_id = $1 AND contract_id = $2',
+      [userId, contractId]
+    );
+    const existingRequest = existingResult.rows[0] ? mapRequestRow(existingResult.rows[0]) : null;
     const requestId = existingRequest?.requestId || `REQ-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`;
 
-    await documentRequestsCollection.updateOne(
-      { studentUserId: userId, contractId },
-      {
-        $set: {
-          requestId,
-          contractId,
-          contractFileName: contract.fileName,
-          contractFileSize: contract.fileSize,
-          storedFilePath: contract.storedFilePath,
-          mimeType: contract.mimeType || 'application/pdf',
-          studentUserId: userId,
-          studentEmail: user.email,
-          studentSchool: user.school || null,
-          studentDivision: user.ncaaDivision || null,
-          assignedComplianceUserId: String(complianceOfficer.id),
-          assignedComplianceEmail: complianceOfficer.email,
-          status: 'pending',
-          reviewedAt: null,
-          reviewedBy: null,
-          reviewerEmail: null,
-          updatedAt: now,
-          submittedAt: now
-        },
-        $setOnInsert: {
-          createdAt: now
-        }
-      },
-      { upsert: true }
+    // resubmitting for the same contract reuses the row and resets the review fields
+    const upsertResult = await query(
+      `INSERT INTO document_requests
+       (request_id, contract_id, contract_file_name, contract_file_size, stored_file_path, mime_type,
+        student_user_id, student_email, student_school, student_division,
+        assigned_compliance_user_id, assigned_compliance_email, status, reviewed_at, reviewed_by, reviewer_email, submitted_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NULL, NULL, NULL, $14)
+       ON CONFLICT (student_user_id, contract_id) DO UPDATE SET
+         request_id = $1, contract_file_name = $3, contract_file_size = $4, stored_file_path = $5,
+         mime_type = $6, student_email = $8, student_school = $9, student_division = $10,
+         assigned_compliance_user_id = $11, assigned_compliance_email = $12, status = $13,
+         reviewed_at = NULL, reviewed_by = NULL, reviewer_email = NULL, submitted_at = $14, updated_at = now()
+       RETURNING *`,
+      [
+        requestId,
+        contractId,
+        contract.fileName,
+        contract.fileSize,
+        contract.storedFilePath,
+        contract.mimeType || 'application/pdf',
+        userId,
+        user.email,
+        user.school || null,
+        user.ncaaDivision || null,
+        String(complianceOfficer.id),
+        complianceOfficer.email,
+        'pending',
+        now
+      ]
     );
 
-    const savedRequest = await documentRequestsCollection.findOne({ studentUserId: userId, contractId });
+    const savedRequest = mapRequestRow(upsertResult.rows[0]);
 
     return res.status(existingRequest ? 200 : 201).json({
       message: `Document submitted to ${complianceOfficer.email} for review.`,
@@ -767,28 +797,25 @@ app.patch('/api/compliance/requests/:requestId', async (req, res, next) => {
       return res.status(400).json({ message: 'Status must be accepted or rejected.' });
     }
 
-    const documentRequest = await documentRequestsCollection.findOne({ requestId, assignedComplianceUserId: userId });
+    const requestResult = await query(
+      'SELECT * FROM document_requests WHERE request_id = $1 AND assigned_compliance_user_id = $2',
+      [requestId, userId]
+    );
+    const documentRequest = requestResult.rows[0] ? mapRequestRow(requestResult.rows[0]) : null;
 
     if (!documentRequest) {
       return res.status(404).json({ message: 'Compliance request not found for the current officer.' });
     }
 
-    const now = new Date();
-
-    await documentRequestsCollection.updateOne(
-      { requestId },
-      {
-        $set: {
-          status: nextStatus,
-          reviewedAt: now,
-          reviewedBy: userId,
-          reviewerEmail: user.email,
-          updatedAt: now
-        }
-      }
+    await query(
+      `UPDATE document_requests
+       SET status = $1, reviewed_at = now(), reviewed_by = $2, reviewer_email = $3, updated_at = now()
+       WHERE request_id = $4`,
+      [nextStatus, userId, user.email, requestId]
     );
 
-    const updatedRequest = await documentRequestsCollection.findOne({ requestId });
+    const updatedResult = await query('SELECT * FROM document_requests WHERE request_id = $1', [requestId]);
+    const updatedRequest = mapRequestRow(updatedResult.rows[0]);
 
     return res.json({
       message: `Document request ${nextStatus}.`,
@@ -808,10 +835,18 @@ app.get('/api/compliance/requests/:requestId/file', async (req, res, next) => {
     let documentRequest;
 
     if (user.role === 'student') {
-      documentRequest = await documentRequestsCollection.findOne({ requestId, studentUserId: userId });
+      const requestResult = await query(
+        'SELECT * FROM document_requests WHERE request_id = $1 AND student_user_id = $2',
+        [requestId, userId]
+      );
+      documentRequest = requestResult.rows[0] ? mapRequestRow(requestResult.rows[0]) : null;
     } else {
       assertUserRole(user, 'compliance');
-      documentRequest = await documentRequestsCollection.findOne({ requestId, assignedComplianceUserId: userId });
+      const requestResult = await query(
+        'SELECT * FROM document_requests WHERE request_id = $1 AND assigned_compliance_user_id = $2',
+        [requestId, userId]
+      );
+      documentRequest = requestResult.rows[0] ? mapRequestRow(requestResult.rows[0]) : null;
     }
 
     if (!documentRequest) {
@@ -1018,21 +1053,9 @@ app.delete('/api/contracts/:contractId', async (req, res, next) => {
 async function start() {
   await fs.mkdir(uploadsRoot, { recursive: true });
   await fs.mkdir(rosterUploadsRoot, { recursive: true });
-  // postgres owns auth + audit logs, mongo still holds contracts until the move is done
   await initDb();
-  await client.connect();
-  const db = client.db(DB_NAME);
-  rostersCollection = db.collection('rosters');
-  documentRequestsCollection = db.collection('documentRequests');
 
-  await rostersCollection.createIndex({ userId: 1, updatedAt: -1 });
-  await rostersCollection.createIndex({ userId: 1, school: 1, sport: 1, year: 1 }, { unique: true });
-  await documentRequestsCollection.createIndex({ requestId: 1 }, { unique: true });
-  await documentRequestsCollection.createIndex({ studentUserId: 1, submittedAt: -1 });
-  await documentRequestsCollection.createIndex({ studentSchool: 1, status: 1, submittedAt: -1 });
-  await documentRequestsCollection.createIndex({ studentUserId: 1, contractId: 1 }, { unique: true });
-
-  // Contract analysis endpoint (must be after collections are initialized)
+  // Contract analysis endpoint (must be after the database is ready)
   app.get('/api/contracts/:contractId/analysis', async (req, res, next) => {
     try {
       const userId = String(req.user._id);
