@@ -194,8 +194,25 @@ function ComplianceDashboardPage() {
                 <article key={request.id} className="contract-card contract-card-detailed">
                   <div className="contract-card-meta">Request ID: {request.id}</div>
                   <h3>{request.contractFileName}</h3>
-                  <p>Student: {request.studentEmail}</p>
-                  <p>Submitted: {formatDateTime(request.submittedAt)}</p>
+                  <p>
+                    <strong>Student:</strong> {request.studentEmail}
+                  </p>
+                  {request.studentSchool && (
+                    <p>
+                      <strong>School:</strong> {request.studentSchool}
+                    </p>
+                  )}
+                  {request.studentDivision && (
+                    <p>
+                      <strong>Division:</strong> {request.studentDivision}
+                    </p>
+                  )}
+                  <p>
+                    <strong>Contract ID:</strong> {request.contractId}
+                  </p>
+                  <p>
+                    <strong>Submitted:</strong> {formatDateTime(request.submittedAt)}
+                  </p>
                   <p>Status: <span className="request-status-pill request-status-pending">Pending</span></p>
                   <div className="contract-action-row">
                     <button type="button" className="contract-action-link" onClick={() => handleOpenDocument(request.id)}>
@@ -239,8 +256,25 @@ function ComplianceDashboardPage() {
                 <article key={request.id} className="contract-card contract-card-detailed">
                   <div className="contract-card-meta">Request ID: {request.id}</div>
                   <h3>{request.contractFileName}</h3>
-                  <p>Student: {request.studentEmail}</p>
-                  <p>Reviewed: {formatDateTime(request.reviewedAt)}</p>
+                  <p>
+                    <strong>Student:</strong> {request.studentEmail}
+                  </p>
+                  {request.studentSchool && (
+                    <p>
+                      <strong>School:</strong> {request.studentSchool}
+                    </p>
+                  )}
+                  {request.studentDivision && (
+                    <p>
+                      <strong>Division:</strong> {request.studentDivision}
+                    </p>
+                  )}
+                  <p>
+                    <strong>Contract ID:</strong> {request.contractId}
+                  </p>
+                  <p>
+                    <strong>Submitted:</strong> {formatDateTime(request.submittedAt)}
+                  </p>
                   <p>
                     Status:{' '}
                     <span
