@@ -8,7 +8,7 @@ export function signToken(user) {
   }
 
   return jwt.sign(
-    { userId: String(user._id), role: user.role },
+    { userId: String(user._id || user.id), role: user.role },
     secret,
     { expiresIn: process.env.JWT_EXPIRES_IN || '30m' }
   );

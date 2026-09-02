@@ -60,17 +60,15 @@ a
 - Roles: `student`, `coach`, `school`, and `compliance` (contract reviewers use the compliance role).
 - Sessions use a JWT stored in an httpOnly cookie that expires after 30 minutes. The user id always comes from the session, never from the request body or headers.
 - After 3 failed login attempts the account locks for 15 minutes.
-- Register, login, failed logins, and lockouts are written to an `auditLogs` collection in MongoDB.
+- Register, login, failed logins, and lockouts are written to an `audit_logs` table in PostgreSQL.
 - All `/api/contracts`, `/api/rosters`, and `/api/compliance` endpoints require a valid session.
 
 ## Local Setup
 
-1. MongoDB: any local instance works, for example `docker run -d -p 27017:27017 --name nilguard-mongo mongo:7`.
+1. PostgreSQL: any local instance works, for example `docker run -d -p 5432:5432 --name nilguard-postgres -e POSTGRES_PASSWORD=nilguarddev postgres:16`.
 2. Create a `.env` file in the project root:
-   - `MONGODB_URI=mongodb://localhost:27017`
+   - `DATABASE_URL=postgres://postgres:nilguarddev@localhost:5432/nilguard`
    - `JWT_SECRET=<any long random string>`
    - Optional: `PORT`, `CORS_ORIGIN`, `JWT_EXPIRES_IN`
-3. Backend: `npm install` then `npm run server` (runs on port 5000).
+3. Backend: `npm install` then `npm run server` (runs on port 5000, creates the tables on first start).
 4. Frontend: `cd frontend`, `npm install`, then `npm run dev` (runs on port 5173).
-
-Note: the SRS describes PostgreSQL, but the current implementation uses MongoDB.
