@@ -4,10 +4,12 @@ import '../styles/pages/Register.css';
 import logo from '../assets/NILGUARD.png';
 import { getDashboardRouteForRole, getNormalizedRole, ROLE_LABELS } from '../utils/roleRouting';
 import { registerUser } from '../services/authApi';
+import { useAuth } from '../context/AuthContext';
 
 function RegisterPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { startSession } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -46,7 +48,7 @@ function RegisterPage() {
         password: formData.password,
         role: selectedRole
       });
-      localStorage.setItem('nilguard_user', JSON.stringify(response.user));
+      startSession(response.user);
       navigate(getDashboardRouteForRole(response.user.role));
     } catch (error) {
       setErrorMessage(error.message || 'Registration failed. Please try again.');
@@ -76,7 +78,7 @@ function RegisterPage() {
           )}
 
           <p className="register-hint">
-            Use your official school email. NILGuard assigns your school and NCAA division from the email domain.
+            Use your official university .edu email. NILGuard assigns your school and NCAA division from the email domain.
           </p>
 
           <div className="form-group">
