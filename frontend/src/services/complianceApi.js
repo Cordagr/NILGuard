@@ -44,7 +44,7 @@ export async function submitComplianceRequest(user, contractId, complianceEmail)
   return parseJsonResponse(response);
 }
 
-export async function updateComplianceRequestStatus(user, requestId, status) {
+export async function updateComplianceRequestStatus(user, requestId, status, guidelines) {
   const userId = getUserId(user);
  const response = await fetch(`${API_BASE_URL}/compliance/requests/${requestId}`, {
  method: 'PATCH',
@@ -52,7 +52,7 @@ export async function updateComplianceRequestStatus(user, requestId, status) {
       'Content-Type': 'application/json'
  },
     credentials: 'include',
- body: JSON.stringify({ userId, status })
+ body: JSON.stringify({ userId, status, guidelines })
  });
 
   return parseJsonResponse(response);
@@ -62,4 +62,38 @@ export function getComplianceRequestFileUrl(user, requestId) {
   const userId = getUserId(user);
   const searchParams = new URLSearchParams({ userId });
   return `${API_BASE_URL}/compliance/requests/${requestId}/file?${searchParams.toString()}`;
+}
+
+export async function listComplianceMessages() {
+  const response = await fetch(`${API_BASE_URL}/compliance/messages`, {
+    credentials: 'include'
+  });
+
+  return parseJsonResponse(response);
+}
+
+export async function sendComplianceMessage(requestId, subject, body) {
+  const response = await fetch(`${API_BASE_URL}/compliance/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    credentials: 'include',
+    body: JSON.stringify({ requestId, subject, body })
+  });
+
+  return parseJsonResponse(response);
+}
+
+export async function createAccountByCompliance(email, password, role) {
+  const response = await fetch(`${API_BASE_URL}/compliance/accounts`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    credentials: 'include',
+    body: JSON.stringify({ email, password, role })
+  });
+
+  return parseJsonResponse(response);
 }
