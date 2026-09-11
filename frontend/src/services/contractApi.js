@@ -1,33 +1,23 @@
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  'http://localhost:5000/api';
+  import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
 function getUserId(user) {
-  const userId =
-    user?.id;
+  const userId = user?.id || user?._id || user?.userId;
 
   if (!userId) {
-    throw new Error(
-      'No signed-in user was found for this session.'
-    );
+    throw new Error('No signed-in user was found for this session.');
   }
 
   return userId;
 }
 
-async function parseJsonResponse(
-  response
-) {
-  const payload =
-    await response
-      .json()
-      .catch(
-        () => ({})
-      );
+async function parseJsonResponse(response) {
+  const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
     throw new Error(
-      payload.message ||
+      payload.error ||
+        payload.message ||
         'Request failed.'
     );
   }
@@ -40,180 +30,84 @@ export async function listContracts(
   sortBy = 'lastAccessedAt',
   sortDirection = 'desc'
 ) {
-  const userId =
-    getUserId(user);
+  const userId = getUserId(user);
 
-  const searchParams =
-    new URLSearchParams({
-      userId,
-      sortBy,
-      sortDirection
-    });
+  const searchParams = new URLSearchParams({
+    userId,
+    sortBy,
+    sortDirection
+  });
 
-  const response =
-    await fetch(
-      `${API_BASE_URL}/contracts?${searchParams.toString()}`,
-      {
-        headers: {
-          'x-user-id':
-            userId
-        }
-      }
-    );
-
-  const payload =
-    await parseJsonResponse(
-      response
-    );
-
-  /*
-   * The existing Student Dashboard stores
-   * agreement metadata in localStorage.
-   *
-   * The backend now extracts that metadata
-   * from the actual PDF and returns it here.
-   *
-   * Sync it into the existing storage location
-   * so we do not have to replace the large
-   * StudentDashboardPage.jsx file.
-   */
-  (
-    payload.contracts ||
-    []
-  ).forEach(
-    (contract) => {
-      if (
-        contract?.id &&
-        contract?.agreementMetadata
-      ) {
-        localStorage.setItem(
-          `nilguard_contract_metadata_${userId}_${contract.id}`,
-          JSON.stringify(
-            contract.agreementMetadata
-          )
-        );
+  const response = await fetch(
+    `${API_BASE_URL}/contracts?${searchParams.toString()}`,
+    {
+      credentials: 'include',
+      headers: {
+        'x-user-id': userId
       }
     }
   );
 
-  return payload;
+  return parseJsonResponse(response);
 }
 
-export async function uploadContract(
-  user,
-  file
-) {
-  const userId =
-    getUserId(user);
+export async function uploadContract(user, file) {
+  const userId = getUserId(user);
 
-  const formData =
-    new FormData();
+  if (!file) {
+    throw new Error('Please select a contract PDF.');
+  }
 
-  formData.append(
-    'userId',
+  const formData = new FormData();
+
+  formData.append('userId', userId);
+  formData.append('file', file);
+
+  const response = await fetch(`${API_BASE_URL}/contracts`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'x-user-id': userId
+    },
+    body: formData
+  });
+
+  return parseJsonResponse(response);
+}
+
+export function getContractFileUrl(user, contractId) {
+  const userId = getUserId(user);
+
+  const searchParams = new URLSearchParams({
     userId
-  );
-
-  formData.append(
-    'file',
-    file
-  );
-
-  const response =
-    await fetch(
-      `${API_BASE_URL}/contracts`,
-      {
-        method:
-          'POST',
-
-        headers: {
-          'x-user-id':
-            userId
-        },
-
-        body:
-          formData
-      }
-    );
-
-  return parseJsonResponse(
-    response
-  );
-}
-
-export async function deleteContract(
-  user,
-  contractId
-) {
-  const userId =
-    getUserId(user);
-
-  const searchParams =
-    new URLSearchParams({
-      userId
-    });
-
-  const response =
-    await fetch(
-      `${API_BASE_URL}/contracts/${contractId}?${searchParams.toString()}`,
-      {
-        method:
-          'DELETE',
-
-        headers: {
-          'x-user-id':
-            userId
-        }
-      }
-    );
-
-  return parseJsonResponse(
-    response
-  );
-}
-
-export function getContractFileUrl(
-  user,
-  contractId
-) {
-  const userId =
-    getUserId(user);
-
-  const searchParams =
-    new URLSearchParams({
-      userId
-    });
+  });
 
   return `${API_BASE_URL}/contracts/${contractId}/file?${searchParams.toString()}`;
 }
 
-export async function getContractAnalysis(
-  user,
-  contractId
-) {
-  const userId =
-    getUserId(user);
+export async function deleteContract(user, contractId) {
+  const userId = getUserId(user);
 
   if (!contractId) {
-    throw new Error(
-      'No contract ID provided for analysis.'
-    );
+    throw new Error('No contract ID provided.');
   }
 
-  const response =
-    await fetch(
-      `${API_BASE_URL}/contracts/${contractId}/analysis`,
-      {
-        headers: {
-          'x-user-id':
-            userId
-        }
-      }
-    );
+  const searchParams = new URLSearchParams({
+    userId
+  });
 
-  return parseJsonResponse(
-    response
+  const response = await fetch(
+    `${API_BASE_URL}/contracts/${contractId}?${searchParams.toString()}`,
+    {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: {
+        'x-user-id': userId
+      }
+    }
   );
+
+  return parseJsonResponse(response);
 }
 
 export async function saveContractMetadata(
@@ -233,6 +127,7 @@ export async function saveContractMetadata(
     `${API_BASE_URL}/contracts/${contractId}/metadata`,
     {
       method: 'PATCH',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         'x-user-id': userId
@@ -240,6 +135,31 @@ export async function saveContractMetadata(
       body: JSON.stringify({
         metadata
       })
+    }
+  );
+
+  return parseJsonResponse(response);
+}
+
+export async function getContractAnalysis(
+  user,
+  contractId
+) {
+  const userId = getUserId(user);
+
+  if (!contractId) {
+    throw new Error(
+      'No contract ID provided for analysis.'
+    );
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/contracts/${contractId}/analysis`,
+    {
+      credentials: 'include',
+      headers: {
+        'x-user-id': userId
+      }
     }
   );
 

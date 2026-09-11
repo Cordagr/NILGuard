@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 import '../styles/pages/StudentDashboard.css';
 
@@ -280,8 +281,7 @@ function buildTimeline(
 
 function StudentDashboardPage() {
   const navigate = useNavigate();
-
-  const currentUser = getCurrentUser();
+  const { user: currentUser, logout } = useAuth();
 
   const menuRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -958,13 +958,8 @@ function StudentDashboardPage() {
               <button
                 type="button"
                 onClick={() => {
-                  localStorage.removeItem(
-                    'nilguard_user'
-                  );
-
                   setMenuOpen(false);
-
-                  navigate('/login');
+                  logout();
                 }}
               >
                 Logout

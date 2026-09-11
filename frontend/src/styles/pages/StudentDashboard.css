@@ -8,9 +8,10 @@
 
 /* ── Header ── */
 .student-dashboard-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr) auto auto auto;
+  column-gap: 0.75rem;
   align-items: center;
-  justify-content: space-between;
   padding: 0.75rem 1.25rem;
   background: transparent;
   border-bottom: none;
@@ -26,23 +27,22 @@
 }
 
 .student-dashboard-header-logo {
-  height: 190px;
+  height: 112px;
   width: auto;
-  margin-top: -90px;
-  margin-bottom: -150px;
+  margin: 0;
   position: relative;
   z-index: 5;
 }
 
 /* ── Title block (center of header) ── */
 .student-dashboard-title-block {
+  min-width: 0;
   text-align: center;
-  flex: 1;
 }
 
 .student-dashboard-title-block h1 {
   font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
-  font-size: clamp(2rem, 5vw, 3.8rem);
+  font-size: clamp(1.7rem, 4vw, 3.8rem);
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.02em;
@@ -124,6 +124,105 @@
   color: #fff;
 }
 
+.inbox-unread-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #FF4D00;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+}
+
+.student-inbox-dropdown {
+  right: 0;
+  width: min(360px, calc(100vw - 2rem));
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.student-inbox-heading {
+  padding: 0.9em 1.2em;
+  border-bottom: 1px solid #F0E6D8;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.student-inbox-empty,
+.student-inbox-message {
+  padding: 0.9em 1.2em;
+  font-size: 0.85rem;
+}
+
+.student-inbox-empty {
+  color: #777;
+}
+
+.student-inbox-message {
+  display: grid;
+  gap: 0.25rem;
+  border-bottom: 1px solid #F0E6D8;
+}
+
+.student-inbox-message span {
+  color: #555;
+}
+
+.student-inbox-message small {
+  color: #999;
+}
+
+.student-inbox-compose,
+.inbox-reply-button,
+.inbox-reply-form button {
+  border: 0;
+  background: #181818;
+  color: #fff;
+  padding: 0.55rem 0.8rem;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.student-inbox-compose {
+  width: calc(100% - 2rem);
+  margin: 0.75rem 1rem 1rem;
+}
+
+.inbox-reply-button {
+  margin-top: 0.55rem;
+  background: transparent;
+  color: #181818;
+  border: 1px solid #d8c8b5;
+}
+
+.inbox-reply-form {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.8rem 1rem;
+  border-top: 1px solid #F0E6D8;
+}
+
+.inbox-reply-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  border: 1px solid #d8c8b5;
+  padding: 0.55rem;
+  font: inherit;
+}
+
 /* ── Main content grid ── */
 main.student-dashboard-content,
 .student-dashboard-content {
@@ -163,7 +262,15 @@ main.student-dashboard-content,
     grid-row: auto !important;
   }
   .student-dashboard-header {
+    grid-template-columns: 90px minmax(0, 1fr) auto auto;
+    column-gap: 0.5rem;
     padding: 0.75rem 1rem;
+  }
+  .student-dashboard-header-logo {
+    height: 78px;
+  }
+  .student-dashboard-header > span {
+    display: none;
   }
 }
 
@@ -303,19 +410,12 @@ main.student-dashboard-content,
 
 /* ── Contract cards ── */
 .contract-card {
-  background: #fff;
-  border: 2px solid #F0E6D8;
-  border-radius: 1.4em;
-  padding: 1.8em 1.8em 1.4em;
+  background: transparent;
+  border: none;
+  border-top: 1px solid #d8c8b5;
+  border-radius: 0;
+  padding: 1.25em 0 1.4em;
   margin-bottom: 1.2em;
-  box-shadow: 0 2px 16px rgba(24,24,24,0.05);
-  transition: box-shadow 0.18s, transform 0.14s, border-color 0.14s;
-}
-
-.contract-card:hover {
-  box-shadow: 0 10px 36px rgba(255,77,0,0.12);
-  transform: translateY(-3px);
-  border-color: #FF4D00;
 }
 
 .contract-card-meta {
@@ -347,17 +447,17 @@ main.student-dashboard-content,
 
 /* ── Empty state ── */
 .contracts-list .contract-card:only-child {
-  border: 2.5px dashed #FF4D00;
+  border: none;
+  border-top: 1px solid #d8c8b5;
   background: transparent;
   text-align: center;
-  padding: 3em 2em;
+  padding: 2em 0;
   color: #bbb;
   font-family: 'Barlow Condensed', sans-serif;
   font-size: 1rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  box-shadow: none;
 }
 
 /* ── Status pills ── */
@@ -385,6 +485,181 @@ main.student-dashboard-content,
 .request-status-rejected {
   background: #F8D7DA;
   color: #721C24;
+}
+
+.guideline-review-list,
+.student-compliance-review {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #fffaf3;
+  border: 1px solid #eadcc9;
+}
+
+.student-guideline-tasks h4,
+.student-contract-timeline h4 {
+  margin: 0.9rem 0 0.55rem;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.student-guideline-tasks h4 {
+  margin-top: 1.1rem;
+}
+
+.guideline-review-list h4 {
+  margin: 0 0 0.75rem;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.guideline-review-item {
+  padding: 0.75rem 0;
+  border-top: 1px solid #eadcc9;
+}
+
+.guideline-review-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.9rem;
+}
+
+.guideline-review-heading span {
+  color: #777;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.guideline-review-heading label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #777;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.guideline-review-heading input {
+  border: 1px solid #d8c8b5;
+  border-radius: 4px;
+  padding: 0.25rem;
+  font: inherit;
+  color: #181818;
+  background: #fff;
+}
+
+.guideline-review-item p {
+  font-size: 0.82rem;
+}
+
+.guideline-review-controls {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.35fr) 1fr;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+.guideline-review-controls select,
+.guideline-review-controls textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d8c8b5;
+  border-radius: 4px;
+  padding: 0.55rem;
+  font: inherit;
+  color: #181818;
+  background: #fff;
+}
+
+.student-guideline-feedback {
+  margin-top: 0.7rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid #eadcc9;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.student-guideline-feedback span {
+  color: #777;
+  font-size: 0.82rem;
+}
+
+.student-guideline-feedback p {
+  color: #333;
+}
+
+.student-contract-timeline {
+  margin-top: 1.1rem;
+  border-top: 1px solid #eadcc9;
+}
+
+.student-contract-timeline ol {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 1.35rem;
+}
+
+.student-contract-timeline ol::before {
+  content: '';
+  position: absolute;
+  top: 0.35rem;
+  bottom: 0.35rem;
+  left: 0.28rem;
+  width: 2px;
+  background: #d8c8b5;
+}
+
+.timeline-event {
+  position: relative;
+  display: flex;
+  min-height: 2.35rem;
+  padding-bottom: 0.75rem;
+}
+
+.timeline-event-marker {
+  position: absolute;
+  left: -1.22rem;
+  top: 0.28rem;
+  width: 0.58rem;
+  height: 0.58rem;
+  border: 2px solid #ff4d00;
+  border-radius: 50%;
+  background: #fffaf3;
+}
+
+.timeline-event > div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.timeline-event strong {
+  font-size: 0.86rem;
+}
+
+.timeline-event span:not(.timeline-event-marker) {
+  color: #777;
+  font-size: 0.78rem;
+}
+
+.timeline-event-closed .timeline-event-marker {
+  border-color: #218739;
+  background: #d4edda;
+}
+
+@media (max-width: 600px) {
+  .guideline-review-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .guideline-review-heading {
+    flex-direction: column;
+    gap: 0.2rem;
+  }
 }
 
 /* ── Action buttons row ── */
@@ -556,4 +831,11 @@ main.student-dashboard-content,
   opacity: 0.9;
   max-width: 260px;
   line-height: 1.3;
+}
+
+.guideline-task-instructions {
+  max-width: 620px;
+  margin: 0.35rem 0 0;
+  color: #666;
+  font-size: 0.86rem;
 }

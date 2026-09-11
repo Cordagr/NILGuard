@@ -1,26 +1,12 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import '../styles/pages/StudentProfile.css';
 import logo from '../assets/NILGUARD.png';
 
-function getCurrentUser() {
-  const storedUser = localStorage.getItem('nilguard_user');
-
-  if (!storedUser) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(storedUser);
-  } catch (_error) {
-    localStorage.removeItem('nilguard_user');
-    return null;
-  }
-}
-
 function StudentProfilePage() {
   const navigate = useNavigate();
-  const currentUser = getCurrentUser();
+  const { user: currentUser, logout } = useAuth();
 
   useEffect(() => {
     if (!currentUser?.id) {
@@ -29,7 +15,7 @@ function StudentProfilePage() {
   }, [currentUser?.id, navigate]);
 
   const handleLogout = () => {
-    localStorage.removeItem('nilguard_user');
+    logout();
     navigate('/login');
   };
 

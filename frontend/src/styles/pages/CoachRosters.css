@@ -38,10 +38,9 @@
 }
 
 .coach-logo {
-  height: 190px;
+  height: 112px;
   width: auto;
-  margin-top: -50px;
-  margin-bottom: -120px;
+  margin: 0;
   position: relative;
   z-index: 5;
 }
@@ -408,8 +407,8 @@
   }
 
   .coach-logo {
-    height: 120px;
-    margin-bottom: -40px;
+    height: 78px;
+    margin: 0;
   }
 
   .coach-layout {

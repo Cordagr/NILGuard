@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -11,21 +12,6 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
   import.meta.url
 ).toString();
-
-function getCurrentUser() {
-  const storedUser = localStorage.getItem('nilguard_user');
-
-  if (!storedUser) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(storedUser);
-  } catch (_error) {
-    localStorage.removeItem('nilguard_user');
-    return null;
-  }
-}
 
 function formatDateTime(value) {
   if (!value) {
@@ -135,7 +121,7 @@ function renderPdfHighlightedText(text, tokens) {
 function ContractAnalysisPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const currentUser = getCurrentUser();
+  const { user: currentUser } = useAuth();
   const contractId = searchParams.get('contractId') || '';
   const fileName = searchParams.get('fileName') || 'Selected Contract';
   const mode = searchParams.get('mode') || 'analyze';
@@ -260,10 +246,7 @@ function ContractAnalysisPage() {
 
     return {
       url: contractFileUrl,
-      httpHeaders: {
-        'x-user-id': currentUser.id
-      },
-      withCredentials: false
+      withCredentials: true
     };
   }, [contractFileUrl, currentUser?.id]);
 
