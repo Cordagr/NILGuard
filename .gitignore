@@ -1,5 +1,75 @@
+# =========================
+# Environment / secrets
+# =========================
 .env
+.env.*
+!.env.example
+
+# =========================
+# Dependencies
+# =========================
 node_modules/
-frontend/node_modules/
+**/node_modules/
+
+# =========================
+# Frontend build output
+# =========================
 frontend/dist/
+dist/
+
+# Vite
+frontend/.vite/
+.vite/
+
+# =========================
+# Backend generated files
+# =========================
 server/uploads/
+uploads/
+
+# =========================
+# Logs
+# =========================
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# =========================
+# OS / editor junk
+# =========================
+.DS_Store
+Thumbs.db
+
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+.idea/
+
+# =========================
+# Temporary files
+# =========================
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# =========================
+# Python cache (if any)
+# =========================
+__pycache__/
+*.py[cod]
+
+# =========================
+# Coverage / test output
+# =========================
+coverage/
+.nyc_output/
+
+# =========================
+# Misc generated metadata
+# =========================
+*.metadata
+*.metadata.json

@@ -21,6 +21,7 @@ const app = express();
 const PORT = Number(process.env.PORT || 5000);
 const MONGODB_URI = process.env.MONGODB_URI;
 const DB_NAME = process.env.MONGODB_DB_NAME || 'nilguard';
+const AGREEMENT_METADATA_VERSION = 2;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsRoot = path.join(__dirname, 'uploads', 'contracts');
@@ -164,6 +165,117 @@ function buildStoredFileName(contractId, originalName) {
   return `${contractId}-${sanitizedName.toLowerCase().endsWith('.pdf') ? sanitizedName : `${sanitizedName}.pdf`}`;
 }
 
+
+function getDefaultAgreementMetadata() {
+  return {
+    athleteName: '',
+    brandPayer: '',
+    contractValue: '',
+    startDate: '',
+    endDate: '',
+    deliverables: [],
+    paymentStatus: 'Not recorded',
+    disclosureStatus: 'Pending',
+    amendments: []
+  };
+}
+
+function normalizeAgreementMetadata(metadata = {}) {
+  const defaults = getDefaultAgreementMetadata();
+
+  return {
+    athleteName: String(metadata.athleteName || '').trim(),
+    brandPayer: String(metadata.brandPayer || '').trim(),
+    contractValue: String(metadata.contractValue || '').trim(),
+    startDate: String(metadata.startDate || '').trim(),
+    endDate: String(metadata.endDate || '').trim(),
+    deliverables: Array.isArray(metadata.deliverables)
+      ? metadata.deliverables
+          .map((item) => String(item || '').trim())
+          .filter(Boolean)
+      : defaults.deliverables,
+    paymentStatus: String(metadata.paymentStatus || defaults.paymentStatus).trim(),
+    disclosureStatus: String(metadata.disclosureStatus || defaults.disclosureStatus).trim(),
+    amendments: Array.isArray(metadata.amendments)
+      ? metadata.amendments
+          .map((amendment) => ({
+            date: String(amendment?.date || '').trim(),
+            notes: String(amendment?.notes || '').trim()
+          }))
+          .filter((amendment) => amendment.date || amendment.notes)
+      : defaults.amendments
+  };
+}
+
+function mergeExtractedAgreementMetadata(existing, extracted) {
+  const current = normalizeAgreementMetadata(existing);
+  const detected = normalizeAgreementMetadata(extracted);
+
+  return {
+    athleteName: current.athleteName || detected.athleteName,
+    brandPayer: current.brandPayer || detected.brandPayer,
+    contractValue: current.contractValue || detected.contractValue,
+    startDate: current.startDate || detected.startDate,
+    endDate: current.endDate || detected.endDate,
+    deliverables: current.deliverables.length
+      ? current.deliverables
+      : detected.deliverables,
+    paymentStatus: current.paymentStatus !== 'Not recorded'
+      ? current.paymentStatus
+      : detected.paymentStatus,
+    disclosureStatus: current.disclosureStatus !== 'Pending'
+      ? current.disclosureStatus
+      : detected.disclosureStatus,
+    amendments: current.amendments.length
+      ? current.amendments
+      : detected.amendments
+  };
+}
+
+async function hydrateLegacyContractMetadata(contract) {
+  const existing = normalizeAgreementMetadata(contract.agreementMetadata);
+
+  const needsExtraction =
+    contract.agreementMetadataVersion !== AGREEMENT_METADATA_VERSION ||
+    !contract.agreementMetadata ||
+    !Object.prototype.hasOwnProperty.call(contract.agreementMetadata, 'athleteName') ||
+    !Array.isArray(contract.agreementMetadata.amendments);
+
+  if (!needsExtraction || !contract.storedFilePath) {
+    return contract;
+  }
+
+  try {
+    const fileBuffer = await fs.readFile(contract.storedFilePath);
+    const screening = await analyzeContractPdf(fileBuffer, contract.fileName);
+    const mergedMetadata = mergeExtractedAgreementMetadata(
+      existing,
+      screening.agreementMetadata
+    );
+
+    await contractsCollection.updateOne(
+      {
+        contractId: contract.contractId,
+        userId: contract.userId
+      },
+      {
+        $set: {
+          agreementMetadata: mergedMetadata,
+          agreementMetadataVersion: AGREEMENT_METADATA_VERSION
+        }
+      }
+    );
+
+    return {
+      ...contract,
+      agreementMetadata: mergedMetadata,
+      agreementMetadataVersion: AGREEMENT_METADATA_VERSION
+    };
+  } catch (_error) {
+    return contract;
+  }
+}
+
 function serializeContract(contract) {
   return {
     id: contract.contractId,
@@ -173,7 +285,8 @@ function serializeContract(contract) {
     updatedAt: contract.updatedAt,
     lastAccessedAt: contract.lastAccessedAt,
     accessCount: contract.accessCount,
-    uploadedBy: contract.userId
+    uploadedBy: contract.userId,
+    agreementMetadata: normalizeAgreementMetadata(contract.agreementMetadata)
   };
 }
 
@@ -431,8 +544,12 @@ app.get('/api/contracts', async (req, res, next) => {
       .sort({ [sortBy]: sortDirection, createdAt: -1 })
       .toArray();
 
+    const hydratedContracts = await Promise.all(
+      contracts.map(hydrateLegacyContractMetadata)
+    );
+
     res.json({
-      contracts: contracts.map(serializeContract)
+      contracts: hydratedContracts.map(serializeContract)
     });
   } catch (error) {
     next(error);
@@ -645,6 +762,10 @@ app.post('/api/contracts', contractUpload.single('file'), async (req, res, next)
         findings: contractScreening.findings,
         screenedAt: now
       },
+      agreementMetadata: normalizeAgreementMetadata(
+        contractScreening.agreementMetadata
+      ),
+      agreementMetadataVersion: AGREEMENT_METADATA_VERSION,
       createdAt: now,
       updatedAt: now,
       lastAccessedAt: now,
@@ -656,6 +777,117 @@ app.post('/api/contracts', contractUpload.single('file'), async (req, res, next)
     return res.status(201).json({
       message: 'Contract uploaded successfully.',
       contract: serializeContract(contractDocument)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
+/*
+ * Persist editable agreement metadata for a student-owned contract.
+ */
+app.patch('/api/contracts/:contractId/metadata', async (req, res, next) => {
+  try {
+    const userId = String(req.user._id);
+    const { contractId } = req.params;
+    const incomingMetadata = req.body?.metadata || {};
+
+    if (!contractId) {
+      return res.status(400).json({
+        message: 'A contract id is required.'
+      });
+    }
+
+    const contract = await contractsCollection.findOne({
+      contractId,
+      userId
+    });
+
+    if (!contract) {
+      return res.status(404).json({
+        message: 'Contract not found for the current user.'
+      });
+    }
+
+    const existing = normalizeAgreementMetadata(contract.agreementMetadata);
+
+    const normalizeString = (value, fallback = '') => {
+      if (value === null || value === undefined) {
+        return fallback;
+      }
+      return String(value).trim();
+    };
+
+    const deliverables = Array.isArray(incomingMetadata.deliverables)
+      ? incomingMetadata.deliverables
+          .map((item) => normalizeString(item))
+          .filter(Boolean)
+      : existing.deliverables;
+
+    const amendments = Array.isArray(incomingMetadata.amendments)
+      ? incomingMetadata.amendments
+          .map((amendment) => ({
+            date: normalizeString(amendment?.date),
+            notes: normalizeString(amendment?.notes)
+          }))
+          .filter((amendment) => amendment.date || amendment.notes)
+      : existing.amendments;
+
+    const metadata = {
+      athleteName: normalizeString(
+        incomingMetadata.athleteName,
+        existing.athleteName
+      ),
+      brandPayer: normalizeString(
+        incomingMetadata.brandPayer,
+        existing.brandPayer
+      ),
+      contractValue: normalizeString(
+        incomingMetadata.contractValue,
+        existing.contractValue
+      ),
+      startDate: normalizeString(
+        incomingMetadata.startDate,
+        existing.startDate
+      ),
+      endDate: normalizeString(
+        incomingMetadata.endDate,
+        existing.endDate
+      ),
+      deliverables,
+      paymentStatus: normalizeString(
+        incomingMetadata.paymentStatus,
+        existing.paymentStatus
+      ),
+      disclosureStatus: normalizeString(
+        incomingMetadata.disclosureStatus,
+        existing.disclosureStatus
+      ),
+      amendments
+    };
+
+    const now = new Date();
+
+    await contractsCollection.updateOne(
+      { contractId, userId },
+      {
+        $set: {
+          agreementMetadata: metadata,
+          agreementMetadataVersion: AGREEMENT_METADATA_VERSION,
+          updatedAt: now
+        }
+      }
+    );
+
+    const updatedContract = await contractsCollection.findOne({
+      contractId,
+      userId
+    });
+
+    return res.json({
+      message: 'Agreement details saved successfully.',
+      contract: serializeContract(updatedContract)
     });
   } catch (error) {
     next(error);
@@ -935,6 +1167,20 @@ app.patch('/api/compliance/requests/:requestId', async (req, res, next) => {
       }
     );
 
+    await contractsCollection.updateOne(
+      {
+        contractId: documentRequest.contractId,
+        userId: documentRequest.studentUserId
+      },
+      {
+        $set: {
+          'agreementMetadata.disclosureStatus':
+            nextStatus === 'accepted' ? 'Approved' : 'Rejected',
+          updatedAt: now
+        }
+      }
+    );
+
     const updatedRequest = await documentRequestsCollection.findOne({ requestId });
 
     return res.json({
@@ -1135,6 +1381,11 @@ app.post('/api/compliance/accounts', async (req, res, next) => {
   }
 });
 
+
+function buildUnsupportedSchoolEmailMessage() {
+  return 'Use a supported school email address.';
+}
+
 app.post('/api/auth/register', async (req, res) => {
   const { email, password, role } = req.body || {};
 
@@ -1152,8 +1403,13 @@ app.post('/api/auth/register', async (req, res) => {
 
   const normalizedEmail = String(email).toLowerCase().trim();
   const normalizedRole = normalizeRole(role);
-  // the school directory is optional now, any .edu email can register
   const resolvedSchool = resolveSchoolFromEmail(normalizedEmail);
+
+  if (!resolvedSchool) {
+    return res.status(400).json({
+      message: buildUnsupportedSchoolEmailMessage()
+    });
+  }
 
   const existingUser = await usersCollection.findOne({ email: normalizedEmail });
   if (existingUser) {
@@ -1207,6 +1463,12 @@ app.post('/api/auth/login', async (req, res) => {
   const normalizedEmail = String(email).toLowerCase().trim();
   const expectedRole = normalizeRole(role);
   const resolvedSchool = resolveSchoolFromEmail(normalizedEmail);
+
+  if (!resolvedSchool) {
+    return res.status(403).json({
+      message: buildUnsupportedSchoolEmailMessage()
+    });
+  }
 
   const user = await usersCollection.findOne({ email: normalizedEmail });
 
