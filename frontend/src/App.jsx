@@ -10,7 +10,6 @@ import ContractsPage from './pages/ContractsPage.jsx';
 import ContractAnalysisPage from './pages/ContractAnalysisPage.jsx';
 import CoachRostersPage from './pages/CoachRostersPage.jsx';
 import ComplianceDashboardPage from './pages/ComplianceDashboardPage.jsx';
-import ComplianceOfficerDashboardPage from './pages/ComplianceOfficerDashboardPage.jsx';
 import './styles/global.css';
 import './App.css';
 
