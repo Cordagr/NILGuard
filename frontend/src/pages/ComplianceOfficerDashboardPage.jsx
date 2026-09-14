@@ -47,7 +47,6 @@ function getGuidelineDraft(request) {
 }
 
 function formatFileSize(bytes) {
-  if (!bytes) return '0 MB';
   return `${(bytes / (1024 * 1024)).toFixed(bytes >= 1024 * 1024 ? 2 : 1)} MB`;
 }
 
@@ -62,16 +61,14 @@ function ComplianceOfficerDashboardPage() {
   const menuRef = useRef(null);
   const [isInboxOpen, setIsInboxOpen] = useState(false);
   const inboxRef = useRef(null);
-  const navigate = useNavigate();
-  const { user, logout } = useAuth();
-  const currentUser = user || { role: 'compliance', school: '', ncaaDivision: '' };
-
   const [messages, setMessages] = useState([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
   const [messagesError, setMessagesError] = useState('');
-  const [replyRequestId, setReplyRequestId] = useState('');
-  const [replyBody, setReplyBody] = useState('');
-  const [isSendingReply, setIsSendingReply] = useState(false);
+  const [selectedConversationId, setSelectedConversationId] = useState('');
+  const [conversationReply, setConversationReply] = useState('');
+  const [sendingMessageId, setSendingMessageId] = useState('');
+  const [newMessage, setNewMessage] = useState({ requestId: '', subject: '', body: '' });
+  const [isSendingNewMessage, setIsSendingNewMessage] = useState(false);
 
   const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
   const [newAccountEmail, setNewAccountEmail] = useState('');
@@ -81,25 +78,29 @@ function ComplianceOfficerDashboardPage() {
   const [createAccountSuccess, setCreateAccountSuccess] = useState('');
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
 
+  const currentUser = useAuth().user || { role: 'compliance', school: '', ncaaDivision: '' };
   const pendingRequests = requests.filter((request) => request.status === 'pending');
   const reviewedRequests = requests.filter((request) => request.status !== 'pending');
   const unreadMessageCount = messages.filter((item) => !item.isRead).length;
 
-  const handleSendReply = async (event) => {
-    event.preventDefault();
-    if (!replyRequestId || !replyBody.trim()) return;
-    setIsSendingReply(true);
-    try {
-      await sendComplianceMessage(replyRequestId, 'Reply from compliance', replyBody.trim());
-      setReplyBody('');
-      setReplyRequestId('');
-      await fetchMessages();
-    } catch (error) {
-      setMessagesError(error.message || 'Unable to send reply.');
-    } finally {
-      setIsSendingReply(false);
+  const conversations = Object.values(messages.reduce((groups, message) => {
+    const conversationId = message.requestId || message.contractId || message.id;
+    if (!groups[conversationId]) {
+      groups[conversationId] = {
+        id: conversationId,
+        studentEmail: message.senderUserId === String(currentUser?.id)
+          ? message.recipientEmail
+          : message.senderEmail,
+        messages: []
+      };
     }
-  };
+    groups[conversationId].messages.push(message);
+    return groups;
+  }, {}));
+
+  const activeConversation = conversations.find(
+    (conversation) => conversation.id === selectedConversationId
+  );
 
   const fetchRequests = async () => {
     setIsLoadingRequests(true);
@@ -187,6 +188,21 @@ function ComplianceOfficerDashboardPage() {
     }
   };
 
+  const handleSendNewMessage = async () => {
+    if (!newMessage.requestId || !newMessage.body.trim()) return;
+
+    setIsSendingNewMessage(true);
+    try {
+      await sendComplianceMessage(newMessage.requestId, newMessage.subject, newMessage.body);
+      setNewMessage({ requestId: '', subject: '', body: '' });
+      await fetchMessages();
+    } catch (error) {
+      setMessagesError(error.message || 'Unable to send message.');
+    } finally {
+      setIsSendingNewMessage(false);
+    }
+  };
+
   const handleCreateAccount = async (event) => {
     event.preventDefault();
     setCreateAccountError('');
@@ -228,7 +244,7 @@ function ComplianceOfficerDashboardPage() {
   }, []);
 
   return (
-    <div className="student-dashboard-container">
+    <div className={`student-dashboard-container ${isInboxOpen ? 'inbox-overlay-open' : ''}`}>
       <header className="student-dashboard-header">
         <div className="student-dashboard-header-logo-wrap">
           <img src={logo} alt="NILGuard Logo" className="student-dashboard-header-logo" />
@@ -244,85 +260,105 @@ function ComplianceOfficerDashboardPage() {
         {currentUser?.email ? (
           <span style={{ marginRight: '0.75rem', fontSize: '0.9rem', color: '#555' }}>{currentUser.email}</span>
         ) : null}
-        <div className="profile-menu" ref={inboxRef} style={{ marginRight: '0.5rem' }}>
+        <div className="profile-menu" ref={inboxRef}>
           <button
             type="button"
-            className="profile-menu-trigger"
+            className="profile-menu-trigger inbox-trigger"
             onClick={() => setIsInboxOpen((prev) => !prev)}
             aria-label="Open inbox"
-            style={{ position: 'relative' }}
           >
-            <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-              <path d="M8 16a2 2 0 0 0 1.985-1.75c.017-.137-.097-.25-.235-.25h-3.5c-.138 0-.252.113-.235.25A2 2 0 0 0 8 16ZM8 1.5A3.5 3.5 0 0 0 4.5 5v2.947c0 .346-.102.683-.294.97l-1.703 2.556a.99.99 0 0 0 .824 1.527h9.346a.99.99 0 0 0 .824-1.527l-1.703-2.556a1.75 1.75 0 0 1-.294-.97V5A3.5 3.5 0 0 0 8 1.5Z" />
-            </svg>
+            <span className="inbox-icon" aria-hidden="true" />
+            <span>Inbox</span>
             {unreadMessageCount > 0 ? (
-              <span
-                style={{
-                  position: 'absolute',
-                  top: 2,
-                  right: 2,
-                  minWidth: 16,
-                  height: 16,
-                  borderRadius: '50%',
-                  background: '#FF4D00',
-                  color: '#fff',
-                  fontSize: '0.65rem',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '0 3px'
-                }}
-              >
+              <span className="inbox-unread-badge">
                 {unreadMessageCount}
               </span>
             ) : null}
           </button>
 
           {isInboxOpen && (
-            <div className="profile-menu-dropdown" style={{ minWidth: 340, maxHeight: 420, overflowY: 'auto', right: 0 }}>
-              <div style={{ padding: '0.9em 1.4em', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.85rem', borderBottom: '2px solid #F0E6D8' }}>
-                Inbox
+            <div className="profile-menu-dropdown student-inbox-dropdown">
+              <div className="student-inbox-heading">Student Messages</div>
+              <div className="student-inbox-compose">
+                <select
+                  value={newMessage.requestId}
+                  onChange={(event) => setNewMessage((previous) => ({ ...previous, requestId: event.target.value }))}
+                >
+                  <option value="">Choose a student contract</option>
+                  {requests.map((request) => (
+                    <option key={request.id} value={request.id}>
+                      {request.studentEmail} · {request.contractFileName}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={newMessage.subject}
+                  onChange={(event) => setNewMessage((previous) => ({ ...previous, subject: event.target.value }))}
+                  placeholder="Subject"
+                />
+                <textarea
+                  rows="3"
+                  value={newMessage.body}
+                  onChange={(event) => setNewMessage((previous) => ({ ...previous, body: event.target.value }))}
+                  placeholder="Message student and press Enter"
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                      event.preventDefault();
+                      handleSendNewMessage();
+                    }
+                  }}
+                />
               </div>
               {messagesError ? (
                 <div style={{ padding: '1em 1.4em', fontSize: '0.85rem', color: '#c0392b' }}>{messagesError}</div>
               ) : isLoadingMessages ? (
                 <div style={{ padding: '1em 1.4em', fontSize: '0.85rem' }}>Loading messages...</div>
               ) : messages.length === 0 ? (
-                <div style={{ padding: '1em 1.4em', fontSize: '0.85rem', color: '#999' }}>No messages from students yet.</div>
+                <div className="student-inbox-empty">No messages from students yet.</div>
               ) : (
-                messages.map((item) => (
-                  <div key={item.id} style={{ padding: '0.9em 1.4em', borderBottom: '1px solid #F0E6D8' }}>
-                    <div style={{ fontSize: '0.72rem', color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                      {item.senderEmail}
-                    </div>
-                    <div style={{ fontWeight: 700, fontSize: '0.95rem', margin: '0.2em 0' }}>{item.subject}</div>
-                    <div style={{ fontSize: '0.85rem', color: '#666' }}>{item.body}</div>
-                    <div style={{ fontSize: '0.72rem', color: '#bbb', marginTop: '0.3em' }}>{formatDateTime(item.createdAt)}</div>
-                    {item.requestId ? (
-                      <button
-                        type="button"
-                        className="inbox-reply-button"
-                        onClick={() => setReplyRequestId(item.requestId)}
-                      >
-                        Reply to assigned student
-                      </button>
-                    ) : null}
-                  </div>
-                ))
+                <div className="inbox-conversation-list">
+                  {conversations.map((conversation) => (
+                    <button
+                      type="button"
+                      className="inbox-conversation"
+                      key={conversation.id}
+                      aria-expanded={selectedConversationId === conversation.id}
+                      onClick={() => setSelectedConversationId((previous) => previous === conversation.id ? '' : conversation.id)}
+                    >
+                      <strong>{conversation.studentEmail}</strong>
+                      <span>{conversation.messages.length} messages</span>
+                    </button>
+                  ))}
+                </div>
               )}
-              {replyRequestId ? (
-                <form className="inbox-reply-form" onSubmit={handleSendReply}>
+              {activeConversation ? (
+                <div className="inbox-thread">
+                  <div className="inbox-thread-header">
+                    <strong>{activeConversation.messages[0].subject}</strong>
+                    <span>{activeConversation.studentEmail}</span>
+                  </div>
+                  <div className="inbox-thread-messages">
+                    {activeConversation.messages.map((message) => (
+                      <div className={`student-inbox-message ${message.senderUserId === String(currentUser?.id) ? 'message-sent' : 'message-received'}`} key={message.id}>
+                        <small className="message-direction">{message.senderUserId === String(currentUser?.id) ? 'You' : message.senderEmail} · {formatDateTime(message.createdAt)}</small>
+                        <span>{message.body}</span>
+                      </div>
+                    ))}
+                  </div>
                   <textarea
-                    value={replyBody}
-                    onChange={(event) => setReplyBody(event.target.value)}
-                    placeholder="Reply about this assigned contract"
-                    rows={3}
+                    className="inbox-message-reply"
+                    value={conversationReply}
+                    onChange={(event) => setConversationReply(event.target.value)}
+                    placeholder="Reply and press Enter"
+                    rows={2}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && !event.shiftKey) {
+                        event.preventDefault();
+                        handleSendReply(activeConversation);
+                      }
+                    }}
                   />
-                  <button type="submit" disabled={isSendingReply || !replyBody.trim()}>
-                    {isSendingReply ? 'Sending...' : 'Send reply'}
-                  </button>
-                </form>
+                </div>
               ) : null}
             </div>
           )}

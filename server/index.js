@@ -120,6 +120,7 @@ let rostersCollection;
 let documentRequestsCollection;
 let auditLogsCollection;
 let messagesCollection;
+let notificationsCollection;
 
 // checks the session cookie on every protected request
 const requireAuth = makeRequireAuth(() => usersCollection, recordAuditLog);
@@ -231,6 +232,33 @@ function serializeMessage(message) {
     isRead: Boolean(message.isRead),
     createdAt: message.createdAt
   };
+}
+
+function serializeNotification(notification) {
+  return {
+    id: notification.notificationId,
+    requestId: notification.requestId || null,
+    contractId: notification.contractId || null,
+    type: notification.type,
+    title: notification.title,
+    body: notification.body,
+    isRead: Boolean(notification.isRead),
+    createdAt: notification.createdAt
+  };
+}
+
+async function createStudentNotification({ requestId, contractId, studentUserId, type, title, body }) {
+  await notificationsCollection.insertOne({
+    notificationId: `NOT-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`,
+    requestId,
+    contractId,
+    recipientUserId: String(studentUserId),
+    type,
+    title,
+    body,
+    isRead: false,
+    createdAt: new Date()
+  });
 }
 
 function assertUserRole(user, ...roles) {
@@ -834,6 +862,15 @@ app.post('/api/compliance/requests', async (req, res, next) => {
 
     const savedRequest = await documentRequestsCollection.findOne({ studentUserId: userId, contractId });
 
+    await createStudentNotification({
+      requestId,
+      contractId,
+      studentUserId: userId,
+      type: 'contract_submitted',
+      title: 'Contract submitted',
+      body: `Your contract was submitted to ${complianceOfficer.email} for review.`
+    });
+
     return res.status(existingRequest ? 200 : 201).json({
       message: `Document submitted to ${complianceOfficer.email} for review.`,
       request: serializeDocumentRequest(savedRequest)
@@ -937,6 +974,32 @@ app.patch('/api/compliance/requests/:requestId', async (req, res, next) => {
 
     const updatedRequest = await documentRequestsCollection.findOne({ requestId });
 
+    const needsChanges = reviewedGuidelines.filter(
+      (guideline) => guideline.decision === 'needs_changes'
+    );
+
+    await createStudentNotification({
+      requestId,
+      contractId: documentRequest.contractId,
+      studentUserId: documentRequest.studentUserId,
+      type: nextStatus === 'accepted' ? 'contract_approved' : 'contract_rejected',
+      title: nextStatus === 'accepted' ? 'Contract approved' : 'Contract rejected',
+      body: nextStatus === 'accepted'
+        ? 'Your contract passed compliance review.'
+        : 'Your contract was rejected. Review the compliance task feedback.'
+    });
+
+    if (needsChanges.length > 0) {
+      await createStudentNotification({
+        requestId,
+        contractId: documentRequest.contractId,
+        studentUserId: documentRequest.studentUserId,
+        type: 'task_needs_changes',
+        title: 'Compliance tasks need changes',
+        body: `${needsChanges.length} compliance task${needsChanges.length === 1 ? '' : 's'} need your attention.`
+      });
+    }
+
     return res.json({
       message: `Document request ${nextStatus}.`,
       request: serializeDocumentRequest(updatedRequest)
@@ -1016,6 +1079,39 @@ app.get('/api/compliance/messages', async (req, res, next) => {
   }
 });
 
+app.get('/api/compliance/notifications', async (req, res, next) => {
+  try {
+    const userId = String(req.user._id);
+    assertUserRole(req.user, 'student');
+    const notifications = await notificationsCollection
+      .find({ recipientUserId: userId })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .toArray();
+
+    return res.json({
+      notifications: notifications.map(serializeNotification),
+      unreadCount: notifications.filter((notification) => !notification.isRead).length
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/api/compliance/notifications/:notificationId/read', async (req, res, next) => {
+  try {
+    const userId = String(req.user._id);
+    assertUserRole(req.user, 'student');
+    await notificationsCollection.updateOne(
+      { notificationId: req.params.notificationId, recipientUserId: userId },
+      { $set: { isRead: true, readAt: new Date() } }
+    );
+    return res.json({ message: 'Notification marked as read.' });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post('/api/compliance/messages', async (req, res, next) => {
   try {
     const user = req.user;
@@ -1062,6 +1158,17 @@ app.post('/api/compliance/messages', async (req, res, next) => {
       isRead: false,
       createdAt: now
     });
+
+    if (user.role === 'compliance') {
+      await createStudentNotification({
+        requestId,
+        contractId: request.contractId,
+        studentUserId: request.studentUserId,
+        type: 'officer_message',
+        title: 'New message from compliance',
+        body: subject || 'You received a new compliance message.'
+      });
+    }
 
     return res.status(201).json({ message: `Message sent to ${recipientEmail}.` });
   } catch (error) {
@@ -1339,10 +1446,13 @@ async function start() {
   documentRequestsCollection = db.collection('documentRequests');
   auditLogsCollection = db.collection('auditLogs');
   messagesCollection = db.collection('messages');
+  notificationsCollection = db.collection('notifications');
 
   await usersCollection.createIndex({ email: 1 }, { unique: true });
   await messagesCollection.createIndex({ recipientEmail: 1, createdAt: -1 });
   await messagesCollection.createIndex({ senderUserId: 1, createdAt: -1 });
+  await notificationsCollection.createIndex({ recipientUserId: 1, createdAt: -1 });
+  await notificationsCollection.createIndex({ notificationId: 1 }, { unique: true });
   await contractsCollection.createIndex({ userId: 1, createdAt: -1 });
   await contractsCollection.createIndex({ userId: 1, lastAccessedAt: -1 });
   await contractsCollection.createIndex({ contractId: 1, userId: 1 }, { unique: true });

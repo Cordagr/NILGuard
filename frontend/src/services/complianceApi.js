@@ -72,6 +72,23 @@ export async function listComplianceMessages() {
   return parseJsonResponse(response);
 }
 
+export async function listComplianceNotifications() {
+  const response = await fetch(`${API_BASE_URL}/compliance/notifications`, {
+    credentials: 'include'
+  });
+
+  return parseJsonResponse(response);
+}
+
+export async function markComplianceNotificationRead(notificationId) {
+  const response = await fetch(
+    `${API_BASE_URL}/compliance/notifications/${notificationId}/read`,
+    { method: 'PATCH', credentials: 'include' }
+  );
+
+  return parseJsonResponse(response);
+}
+
 export async function sendComplianceMessage(requestId, subject, body) {
   const response = await fetch(`${API_BASE_URL}/compliance/messages`, {
     method: 'POST',

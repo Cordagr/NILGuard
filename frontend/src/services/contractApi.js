@@ -18,6 +18,25 @@ export async function getContractAnalysis(user, contractId) {
  });
   return parseJsonResponse(response);
 }
+
+export async function saveContractMetadata(user, contractId, metadata) {
+  const userId = getUserId(user);
+
+  if (!contractId) {
+    throw new Error('No contract ID provided for metadata.');
+  }
+
+  const response = await fetch(`${API_BASE_URL}/contracts/${contractId}/metadata`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    credentials: 'include',
+    body: JSON.stringify({ userId, metadata })
+  });
+
+  return parseJsonResponse(response);
+}
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
 function getUserId(user) {
