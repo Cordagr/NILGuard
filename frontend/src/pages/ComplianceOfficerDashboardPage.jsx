@@ -3,47 +3,37 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import '../styles/pages/StudentDashboard.css';
 import logo from '../assets/NILGUARD.png';
-import { getComplianceRequestFileUrl, listComplianceRequests, updateComplianceRequestStatus } from '../services/complianceApi';
-import { createAccountByCompliance, listComplianceMessages, sendComplianceMessage } from '../services/complianceApi';
+import {
+  getComplianceRequestFileUrl,
+  listComplianceRequests,
+  updateComplianceRequestStatus
+} from '../services/complianceApi';
 import ProfileIcon from '../assets/ProfileIcon.png';
 
+function getCurrentUser() {
+  const storedUser = localStorage.getItem('nilguard_user');
+
+  if (!storedUser) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(storedUser);
+  } catch (_error) {
+    localStorage.removeItem('nilguard_user');
+    return null;
+  }
+}
+
 function formatDateTime(value) {
-  if (!value) return 'Not accessed yet';
+  if (!value) {
+    return 'Not available';
+  }
+
   return new Intl.DateTimeFormat('en-US', {
     dateStyle: 'medium',
     timeStyle: 'short'
   }).format(new Date(value));
-}
-
-const NIL_GUIDELINES = [
-  ['compensation', 'Compensation clause', 'Confirm compensation, consideration, or payment terms are clear.'],
-  ['termination', 'Termination clause', 'Confirm the contract includes a termination date or termination process.'],
-  ['governing-law', 'Governing law', 'Confirm the governing law or jurisdiction is specified.'],
-  ['signature', 'Signature block', 'Confirm all required parties have a signature or signed section.'],
-  ['party-definitions', 'Party definitions', 'Confirm the student and other parties are clearly identified.'],
-  ['nil-disclosure', 'NIL disclosure', 'Confirm the contract addresses Name, Image, and Likeness rights.'],
-  ['exclusivity', 'Exclusivity statement', 'Confirm exclusivity or non-exclusivity terms are clear.']
-].map(([id, title, summary]) => ({ id: `compliance-missing-${id}`, title, summary }));
-
-function getRequestGuidelines(request) {
-  return request.guidelines?.length ? request.guidelines : NIL_GUIDELINES.map((guideline) => ({
-    ...guideline,
-    aiStatus: 'pending',
-    decision: null,
-    feedback: '',
-    dueAt: null
-  }));
-}
-
-function getGuidelineDraft(request) {
-  return getRequestGuidelines(request).reduce((draft, guideline) => {
-    draft[guideline.id] = {
-      decision: guideline.decision || '',
-      feedback: guideline.feedback || '',
-      dueAt: guideline.dueAt || ''
-    };
-    return draft;
-  }, {});
 }
 
 function formatFileSize(bytes) {
@@ -54,10 +44,9 @@ function ComplianceOfficerDashboardPage() {
   const [requests, setRequests] = useState([]);
   const [isLoadingRequests, setIsLoadingRequests] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-  const [processingRequestId, setProcessingRequestId] = useState('');
-  const [guidelineDrafts, setGuidelineDrafts] = useState({});
   const [menuOpen, setMenuOpen] = useState(false);
+  const [updatingRequestId, setUpdatingRequestId] = useState('');
+
   const menuRef = useRef(null);
   const [isInboxOpen, setIsInboxOpen] = useState(false);
   const inboxRef = useRef(null);
@@ -103,88 +92,77 @@ function ComplianceOfficerDashboardPage() {
   );
 
   const fetchRequests = async () => {
+    if (!currentUser?.id) {
+      setErrorMessage('No signed-in compliance officer was found.');
+      setIsLoadingRequests(false);
+      return;
+    }
+
     setIsLoadingRequests(true);
+    setErrorMessage('');
+
     try {
+      // IMPORTANT:
+      // Compliance officers need documentRequests, not the
+      // contracts owned by the compliance officer themselves.
       const response = await listComplianceRequests(currentUser);
+
       setRequests(response.requests || []);
-      setGuidelineDrafts((previousDrafts) => ({
-        ...previousDrafts,
-        ...(response.requests || []).reduce((drafts, request) => {
-          drafts[request.id] = getGuidelineDraft(request);
-          return drafts;
-        }, {})
-      }));
     } catch (error) {
-      setErrorMessage(error.message || 'Unable to load contract requests.');
+      setErrorMessage(
+        error.message || 'Unable to load submitted contracts.'
+      );
     } finally {
       setIsLoadingRequests(false);
     }
   };
 
-  const handleOpenDocument = (requestId) => {
-    setErrorMessage('');
-    setSuccessMessage('');
-    window.open(getComplianceRequestFileUrl(currentUser, requestId), '_blank', 'noopener,noreferrer');
-  };
-
-  const handleGuidelineChange = (requestId, guidelineId, field, value) => {
-    setGuidelineDrafts((previousDrafts) => ({
-      ...previousDrafts,
-      [requestId]: {
-        ...previousDrafts[requestId],
-        [guidelineId]: {
-          ...previousDrafts[requestId]?.[guidelineId],
-          [field]: value
-        }
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(event.target)
+      ) {
+        setMenuOpen(false);
       }
-    }));
-  };
+    };
 
-  const handleReviewRequest = async (request, status) => {
-    const draft = guidelineDrafts[request.id] || {};
-    const guidelines = getRequestGuidelines(request).map((guideline) => ({
-      id: guideline.id,
-      decision: draft[guideline.id]?.decision || '',
-      feedback: draft[guideline.id]?.feedback || '',
-      dueAt: draft[guideline.id]?.dueAt || ''
-    }));
+    document.addEventListener('mousedown', handleClickOutside);
 
-    if (guidelines.some((guideline) => !guideline.decision)) {
-      setErrorMessage('Choose a decision for every NIL guideline before submitting the review.');
-      return;
-    }
+    fetchRequests();
 
-    if (guidelines.some((guideline) => guideline.decision === 'needs_changes' && !guideline.feedback.trim())) {
-      setErrorMessage('Add feedback for every guideline marked Needs changes.');
-      return;
-    }
+    return () => {
+      document.removeEventListener(
+        'mousedown',
+        handleClickOutside
+      );
+    };
+  }, []);
 
-    setProcessingRequestId(request.id);
+  const handleRequestStatus = async (requestId, status) => {
+    setUpdatingRequestId(requestId);
     setErrorMessage('');
-    setSuccessMessage('');
 
     try {
-      const response = await updateComplianceRequestStatus(currentUser, request.id, status, guidelines);
-      setSuccessMessage(response.message || `Request ${status}.`);
+      const response = await updateComplianceRequestStatus(
+        currentUser,
+        requestId,
+        status
+      );
+
       setRequests((previousRequests) =>
-        previousRequests.map((item) => (item.id === request.id ? response.request : item))
+        previousRequests.map((request) =>
+          request.id === requestId
+            ? response.request
+            : request
+        )
       );
     } catch (error) {
-      setErrorMessage(error.message || 'Unable to update the request status.');
+      setErrorMessage(
+        error.message || 'Unable to update the contract status.'
+      );
     } finally {
-      setProcessingRequestId('');
-    }
-  };
-
-  const fetchMessages = async () => {
-    setIsLoadingMessages(true);
-    try {
-      const response = await listComplianceMessages();
-      setMessages(response.messages || []);
-    } catch (error) {
-      setMessagesError(error.message || 'Unable to load inbox messages.');
-    } finally {
-      setIsLoadingMessages(false);
+      setUpdatingRequestId('');
     }
   };
 
@@ -228,32 +206,28 @@ function ComplianceOfficerDashboardPage() {
     }
   };
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setMenuOpen(false);
-      }
-      if (inboxRef.current && !inboxRef.current.contains(event.target)) {
-        setIsInboxOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    fetchRequests();
-    fetchMessages();
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  const reviewedRequests = requests.filter(
+    (request) => request.status !== 'pending'
+  );
 
   return (
     <div className={`student-dashboard-container ${isInboxOpen ? 'inbox-overlay-open' : ''}`}>
       <header className="student-dashboard-header">
         <div className="student-dashboard-header-logo-wrap">
-          <img src={logo} alt="NILGuard Logo" className="student-dashboard-header-logo" />
+          <img
+            src={logo}
+            alt="NILGuard Logo"
+            className="student-dashboard-header-logo"
+          />
         </div>
 
         <div className="student-dashboard-title-block">
           <h1>Compliance Officer Dashboard</h1>
+
           {currentUser?.school ? (
-            <p className="student-dashboard-identity">{currentUser.school} · {currentUser.ncaaDivision}</p>
+            <p className="student-dashboard-identity">
+              {currentUser.school} · {currentUser.ncaaDivision}
+            </p>
           ) : null}
         </div>
 
@@ -370,7 +344,19 @@ function ComplianceOfficerDashboardPage() {
             onClick={() => setMenuOpen((prev) => !prev)}
             aria-label="Open menu"
           >
-            <img src={ProfileIcon} alt="Profile" className="profile-icon-img" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', border: '2px solid #222', background: '#fff' }} />
+            <img
+              src={ProfileIcon}
+              alt="Profile"
+              className="profile-icon-img"
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                objectFit: 'cover',
+                border: '2px solid #222',
+                background: '#fff'
+              }}
+            />
           </button>
 
           {menuOpen && (
@@ -378,18 +364,8 @@ function ComplianceOfficerDashboardPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setIsCreateAccountOpen(true);
-                  setMenuOpen(false);
-                }}
-              >
-                Create Account
-              </button>
-              <button
-                type="button"
-                onClick={() => {
                   logout();
                   setMenuOpen(false);
-                  navigate('/login');
                 }}
               >
                 Logout
@@ -403,96 +379,127 @@ function ComplianceOfficerDashboardPage() {
         <div className="contracts-toolbar">
           <div className="active-contracts-actions-block">
             {errorMessage ? (
-              <p className="contracts-feedback contracts-error">{errorMessage}</p>
-            ) : successMessage ? (
-              <p className="contracts-feedback contracts-success">{successMessage}</p>
+              <p className="contracts-feedback contracts-error">
+                {errorMessage}
+              </p>
             ) : (
-              null
+              <p className="contracts-feedback">
+                Showing contracts that students have submitted
+                directly to this compliance officer for review.
+              </p>
             )}
           </div>
         </div>
 
+        {/* PENDING / RECEIVED CONTRACTS */}
         <section className="contracts-column">
           <div className="contracts-column-header">
-            <div>
-              <h2>Pending Requests</h2>
-            </div>
+            <h2>Received Contracts</h2>
           </div>
 
           <div className="contracts-list">
             {isLoadingRequests ? (
-              <div className="contract-card">Loading pending requests...</div>
+              <div className="contract-card">
+                Loading submitted contracts...
+              </div>
             ) : pendingRequests.length === 0 ? (
-              <div className="contract-card">No pending student submissions.</div>
+              <div className="contract-card">
+                No contracts submitted for review yet.
+              </div>
             ) : (
               pendingRequests.map((request) => (
-                <article key={request.id} className="contract-card contract-card-detailed">
-                  <div className="contract-card-meta">Request ID: {request.id}</div>
-                  <h3>{request.contractFileName}</h3>
-                  <p>Student: {request.studentEmail}</p>
-                  <p>Submitted: {formatDateTime(request.submittedAt)}</p>
-                  <p>Review due: <strong>{formatDateTime(request.reviewDueAt)}</strong></p>
-                  <p>Status: <span className="request-status-pill request-status-pending">Pending</span></p>
-                  <div className="guideline-review-list">
-                    <h4>NIL Guideline Review: Complete These 7 Tasks</h4>
-                    {getRequestGuidelines(request).map((guideline) => {
-                      const draft = guidelineDrafts[request.id]?.[guideline.id] || {};
-                      return (
-                        <div key={guideline.id} className="guideline-review-item">
-                          <div className="guideline-review-heading">
-                            <strong>{guideline.title}</strong>
-                            <label>
-                              Due
-                              <input
-                                type="date"
-                                value={draft.dueAt ? new Date(draft.dueAt).toISOString().slice(0, 10) : ''}
-                                onChange={(event) => handleGuidelineChange(request.id, guideline.id, 'dueAt', event.target.value)}
-                                aria-label={`Due date for ${guideline.title}`}
-                              />
-                            </label>
-                          </div>
-                          <p>{guideline.summary}</p>
-                          <div className="guideline-review-controls">
-                            <select
-                              value={draft.decision || ''}
-                              onChange={(event) => handleGuidelineChange(request.id, guideline.id, 'decision', event.target.value)}
-                              aria-label={`Decision for ${guideline.title}`}
-                            >
-                              <option value="">Select decision</option>
-                              <option value="pass">Pass</option>
-                              <option value="needs_changes">Needs changes</option>
-                            </select>
-                            <textarea
-                              value={draft.feedback || ''}
-                              onChange={(event) => handleGuidelineChange(request.id, guideline.id, 'feedback', event.target.value)}
-                              placeholder="Feedback for the student"
-                              aria-label={`Feedback for ${guideline.title}`}
-                              rows="2"
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
+                <article
+                  key={request.id}
+                  className="contract-card contract-card-detailed"
+                >
+                  <div className="contract-card-meta">
+                    Request ID: {request.id}
                   </div>
+
+                  <h3>{request.contractFileName}</h3>
+
+                  <p>
+                    Student: {request.studentEmail}
+                  </p>
+
+                  {request.studentSchool ? (
+                    <p>
+                      School: {request.studentSchool}
+                    </p>
+                  ) : null}
+
+                  {request.studentDivision ? (
+                    <p>
+                      Division: {request.studentDivision}
+                    </p>
+                  ) : null}
+
+                  <p>
+                    Submitted:{' '}
+                    {formatDateTime(request.submittedAt)}
+                  </p>
+
+                  <p>
+                    File size:{' '}
+                    {formatFileSize(request.contractFileSize)}
+                  </p>
+
+                  <p>
+                    Status: {request.status}
+                  </p>
+
                   <div className="contract-action-row">
-                    <button type="button" className="contract-action-link" onClick={() => handleOpenDocument(request.id)}>
-                      Open PDF
-                    </button>
+                    {request.hasSourceFile ? (
+                      <button
+                        type="button"
+                        className="contract-action-link"
+                        onClick={() =>
+                          window.open(
+                            getComplianceRequestFileUrl(
+                              currentUser,
+                              request.id
+                            ),
+                            '_blank',
+                            'noopener,noreferrer'
+                          )
+                        }
+                      >
+                        View PDF
+                      </button>
+                    ) : null}
+
                     <button
                       type="button"
                       className="dashboard-secondary-button dashboard-accept-button"
-                      onClick={() => handleReviewRequest(request, 'accepted')}
-                      disabled={processingRequestId === request.id}
+                      onClick={() =>
+                        handleRequestStatus(
+                          request.id,
+                          'accepted'
+                        )
+                      }
+                      disabled={
+                        updatingRequestId === request.id
+                      }
                     >
-                      {processingRequestId === request.id ? 'Saving...' : 'Accept'}
+                      {updatingRequestId === request.id
+                        ? 'Updating...'
+                        : 'Accept'}
                     </button>
+
                     <button
                       type="button"
-                      className="dashboard-secondary-button dashboard-reject-button"
-                      onClick={() => handleReviewRequest(request, 'rejected')}
-                      disabled={processingRequestId === request.id}
+                      className="dashboard-secondary-button"
+                      onClick={() =>
+                        handleRequestStatus(
+                          request.id,
+                          'rejected'
+                        )
+                      }
+                      disabled={
+                        updatingRequestId === request.id
+                      }
                     >
-                      {processingRequestId === request.id ? 'Saving...' : 'Reject'}
+                      Reject
                     </button>
                   </div>
                 </article>
@@ -501,112 +508,82 @@ function ComplianceOfficerDashboardPage() {
           </div>
         </section>
 
-        <div className="past-contracts-column">
-          <section className="contracts-column">
-            <div className="contracts-column-header">
-              <h2>Reviewed</h2>
-            </div>
-            <div className="contracts-list contracts-list-compact">
-              {reviewedRequests.length === 0 ? (
-                <div className="contract-card">No reviewed requests yet.</div>
-              ) : (
-                reviewedRequests.map((request) => (
-                  <article key={request.id} className="contract-card">
-                    <div className="contract-card-meta">Request ID: {request.id}</div>
-                    <h3>{request.contractFileName}</h3>
-                    <p>Student: {request.studentEmail}</p>
-                    <p>
-                      Status:{' '}
-                      <span className={`request-status-pill request-status-${request.status}`}>
-                        {request.status}
-                      </span>
-                    </p>
-                    <div className="contract-action-row">
-                      <button type="button" className="contract-action-link" onClick={() => handleOpenDocument(request.id)}>
-                        Open PDF
-                      </button>
-                    </div>
-                  </article>
-                ))
-              )}
-            </div>
-          </section>
-        </div>
-      </main>
-
-      {isCreateAccountOpen ? (
-        <div className="dashboard-dialog-backdrop" role="presentation">
-          <div className="dashboard-dialog" role="dialog" aria-modal="true" aria-labelledby="create-account-title">
-            <h2 id="create-account-title">Create Account</h2>
-            <p className="dashboard-dialog-copy">
-              Create a login for a student or coach at your school.
-            </p>
-            <form onSubmit={handleCreateAccount}>
-              <label className="contracts-sort-label">
-                Email
-                <input
-                  type="email"
-                  className="dashboard-dialog-input"
-                  value={newAccountEmail}
-                  onChange={(event) => setNewAccountEmail(event.target.value)}
-                  placeholder="student@school.edu"
-                />
-              </label>
-              <label className="contracts-sort-label">
-                Temporary Password
-                <input
-                  type="password"
-                  className="dashboard-dialog-input"
-                  value={newAccountPassword}
-                  onChange={(event) => setNewAccountPassword(event.target.value)}
-                  placeholder="At least 8 characters"
-                />
-              </label>
-              <label className="contracts-sort-label">
-                Role
-                <select
-                  className="contracts-sort-select"
-                  value={newAccountRole}
-                  onChange={(event) => setNewAccountRole(event.target.value)}
-                >
-                  <option value="student">Student</option>
-                  <option value="coach">Coach</option>
-                  <option value="compliance">Compliance</option>
-                </select>
-              </label>
-
-              {createAccountError ? (
-                <p className="contracts-feedback contracts-error">{createAccountError}</p>
-              ) : createAccountSuccess ? (
-                <p className="contracts-feedback contracts-success">{createAccountSuccess}</p>
-              ) : null}
-
-              <div className="contract-action-row">
-                <button
-                  type="button"
-                  className="dashboard-secondary-button"
-                  onClick={() => {
-                    setIsCreateAccountOpen(false);
-                    setCreateAccountError('');
-                    setCreateAccountSuccess('');
-                  }}
-                >
-                  Close
-                </button>
-                <button
-                  type="submit"
-                  className="dashboard-secondary-button dashboard-accept-button"
-                  disabled={isCreatingAccount}
-                >
-                  {isCreatingAccount ? 'Creating...' : 'Create Account'}
-                </button>
-              </div>
-            </form>
+        {/* REVIEWED CONTRACTS */}
+        <section className="contracts-column past-contracts-column">
+          <div className="contracts-column-header">
+            <h2>Reviewed</h2>
           </div>
-        </div>
-      ) : null}
+
+          <div className="contracts-list contracts-list-compact">
+            {reviewedRequests.length === 0 ? (
+              <div className="contract-card">
+                No reviewed contracts yet.
+              </div>
+            ) : (
+              reviewedRequests.map((request) => (
+                <article
+                  key={request.id}
+                  className="contract-card contract-card-detailed"
+                >
+                  <div className="contract-card-meta">
+                    Request ID: {request.id}
+                  </div>
+
+                  <h3>{request.contractFileName}</h3>
+
+                  <p>
+                    Student: {request.studentEmail}
+                  </p>
+
+                  {request.studentSchool ? (
+                    <p>
+                      School: {request.studentSchool}
+                    </p>
+                  ) : null}
+
+                  <p>
+                    Submitted:{' '}
+                    {formatDateTime(request.submittedAt)}
+                  </p>
+
+                  <p>
+                    Reviewed:{' '}
+                    {formatDateTime(request.reviewedAt)}
+                  </p>
+
+                  <p>
+                    Status: {request.status}
+                  </p>
+
+                  <div className="contract-action-row">
+                    {request.hasSourceFile ? (
+                      <button
+                        type="button"
+                        className="contract-action-link"
+                        onClick={() =>
+                          window.open(
+                            getComplianceRequestFileUrl(
+                              currentUser,
+                              request.id
+                            ),
+                            '_blank',
+                            'noopener,noreferrer'
+                          )
+                        }
+                      >
+                        View PDF
+                      </button>
+                    ) : null}
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
 
 export default ComplianceOfficerDashboardPage;
+
