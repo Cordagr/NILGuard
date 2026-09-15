@@ -1,0 +1,299 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Barlow:wght@400;500&display=swap');
+.contracts101-page {
+  min-height: 100vh;
+  background: #f5f7fa;
+}
+
+.contracts101-header {
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.contracts101-header-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.contracts101-eyebrow {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+}
+
+.contracts101-header h1 {
+  margin: 0;
+  font-size: 2rem;
+  color: #111827;
+}
+
+.contracts101-subtitle {
+  max-width: 700px;
+  margin: 10px 0 0;
+  color: #6b7280;
+  line-height: 1.6;
+}
+
+.contracts101-back-button {
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #374151;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.contracts101-back-button:hover {
+  background: #f9fafb;
+}
+
+.contracts101-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 24px 48px;
+}
+
+.contracts101-layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.contracts101-sidebar {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.contracts101-sidebar-title {
+  padding: 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.contracts101-sidebar-title span {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+}
+
+.contracts101-sidebar-title h2 {
+  margin: 6px 0 0;
+  font-size: 1.15rem;
+  color: #111827;
+}
+
+.contracts101-lesson-list {
+  padding: 8px;
+}
+
+.contracts101-lesson-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: #374151;
+}
+
+.contracts101-lesson-button:hover {
+  background: #f3f4f6;
+}
+
+.contracts101-lesson-button.active {
+  background: #eef2ff;
+  color: #1d4ed8;
+}
+
+.contracts101-lesson-number {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d1d5db;
+  border-radius: 50%;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.contracts101-lesson-button.active .contracts101-lesson-number {
+  border-color: #2563eb;
+}
+
+.contracts101-lesson-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.contracts101-lesson-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.contracts101-lesson-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px 12px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #6b7280;
+  letter-spacing: 0.04em;
+}
+
+.contracts101-progress-bar {
+  height: 6px;
+  margin: 0 24px;
+  background: #e5e7eb;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.contracts101-progress-fill {
+  height: 100%;
+  background: #2563eb;
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+
+.contracts101-lesson-content {
+  padding: 32px 40px 40px;
+}
+
+.contracts101-lesson-content h2 {
+  margin: 0 0 24px;
+  font-size: 1.65rem;
+  color: #111827;
+}
+
+.contracts101-lesson-content h3 {
+  margin: 28px 0 12px;
+  font-size: 1.05rem;
+  color: #1f2937;
+}
+
+.contracts101-lesson-content p {
+  margin: 0 0 18px;
+  color: #4b5563;
+  line-height: 1.75;
+}
+
+.contracts101-lesson-content ul {
+  margin: 0 0 20px;
+  padding-left: 24px;
+  color: #4b5563;
+}
+
+.contracts101-lesson-content li {
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+.contracts101-tip {
+  margin-top: 28px;
+  padding: 16px 18px;
+  border-radius: 8px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  color: #374151;
+  line-height: 1.6;
+}
+
+.contracts101-navigation {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.contracts101-secondary-button,
+.contracts101-primary-button {
+  border-radius: 8px;
+  padding: 11px 18px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.contracts101-secondary-button {
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #374151;
+}
+
+.contracts101-primary-button {
+  border: 1px solid #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.contracts101-secondary-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.contracts101-primary-button:hover {
+  background: #1d4ed8;
+}
+
+@media (max-width: 800px) {
+  .contracts101-header-content {
+    flex-direction: column;
+  }
+
+  .contracts101-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .contracts101-sidebar {
+    order: 1;
+  }
+
+  .contracts101-lesson-card {
+    order: 2;
+  }
+
+  .contracts101-lesson-content {
+    padding: 28px 24px;
+  }
+}
+
+@media (max-width: 500px) {
+  .contracts101-content {
+    padding: 20px 16px 32px;
+  }
+
+  .contracts101-header-content {
+    padding: 24px 16px;
+  }
+
+  .contracts101-navigation {
+    flex-direction: column-reverse;
+  }
+
+  .contracts101-secondary-button,
+  .contracts101-primary-button {
+    width: 100%;
+  }
+}
+

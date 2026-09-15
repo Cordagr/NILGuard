@@ -1,0 +1,406 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Barlow:wght@400;500&display=swap');
+
+.nil-deals-quiz-page {
+  min-height: 100vh;
+  background: #f5f7fb;
+  color: #1f2937;
+}
+
+.nil-deals-quiz-header {
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.nil-deals-quiz-header-content {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 32px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+}
+
+.nil-deals-quiz-eyebrow {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #2563eb;
+}
+
+.nil-deals-quiz-header h1 {
+  margin: 0;
+  font-size: 1.8rem;
+  color: #111827;
+}
+
+.nil-deals-quiz-subtitle {
+  margin: 6px 0 0;
+  color: #6b7280;
+}
+
+.nil-deals-quiz-back-button {
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #374151;
+  padding: 11px 18px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.nil-deals-quiz-back-button:hover {
+  background: #f9fafb;
+}
+
+.nil-deals-quiz-content {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 50px 24px 70px;
+}
+
+.nil-deals-quiz-card,
+.nil-deals-results-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 36px;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
+}
+
+.nil-deals-quiz-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+
+.nil-deals-quiz-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #2563eb;
+}
+
+.nil-deals-quiz-top h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #111827;
+}
+
+.nil-deals-quiz-percentage {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.nil-deals-quiz-progress-bar {
+  width: 100%;
+  height: 8px;
+  margin-bottom: 38px;
+  background: #e5e7eb;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.nil-deals-quiz-progress-fill {
+  height: 100%;
+  background: #2563eb;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.nil-deals-question h3 {
+  margin: 0 0 24px;
+  font-size: 1.25rem;
+  line-height: 1.5;
+  color: #111827;
+}
+
+.nil-deals-answer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.nil-deals-answer {
+  width: 100%;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #374151;
+  text-align: left;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.nil-deals-answer:hover {
+  border-color: #93c5fd;
+  background: #f8fbff;
+}
+
+.nil-deals-answer.selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.nil-deals-answer-letter {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d1d5db;
+  border-radius: 50%;
+  background: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #4b5563;
+}
+
+.nil-deals-answer.selected .nil-deals-answer-letter {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.nil-deals-answer-text {
+  flex: 1;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.nil-deals-answer-radio {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d1d5db;
+  border-radius: 50%;
+  color: #ffffff;
+  font-size: 0.75rem;
+}
+
+.nil-deals-answer.selected .nil-deals-answer-radio {
+  border-color: #2563eb;
+  background: #2563eb;
+}
+
+.nil-deals-quiz-navigation {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 34px;
+  padding-top: 24px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.nil-deals-quiz-primary,
+.nil-deals-quiz-secondary {
+  min-height: 44px;
+  padding: 11px 20px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nil-deals-quiz-primary {
+  border: 1px solid #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.nil-deals-quiz-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.nil-deals-quiz-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.nil-deals-quiz-secondary {
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #374151;
+}
+
+.nil-deals-quiz-secondary:hover:not(:disabled) {
+  background: #f9fafb;
+}
+
+.nil-deals-quiz-secondary:disabled {
+  color: #9ca3af;
+  background: #f3f4f6;
+  cursor: not-allowed;
+}
+
+/* Results */
+
+.nil-deals-results-card {
+  max-width: 650px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.nil-deals-results-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 1.7rem;
+  font-weight: 800;
+}
+
+.nil-deals-results-label {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #2563eb;
+}
+
+.nil-deals-results-card h2 {
+  margin: 0;
+  font-size: 2rem;
+  color: #111827;
+}
+
+.nil-deals-results-description {
+  max-width: 500px;
+  margin: 12px auto 26px;
+  color: #6b7280;
+  line-height: 1.6;
+}
+
+.nil-deals-score-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+  margin-bottom: 18px;
+  border-radius: 10px;
+  background: #f9fafb;
+}
+
+.nil-deals-score {
+  font-size: 3rem;
+  line-height: 1;
+  font-weight: 800;
+  color: #111827;
+}
+
+.nil-deals-score-detail {
+  margin-top: 8px;
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.nil-deals-passing-message {
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.nil-deals-passing-message.passed {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.nil-deals-passing-message.needs-review {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.nil-deals-results-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.nil-deals-results-primary,
+.nil-deals-results-secondary {
+  min-height: 44px;
+  padding: 11px 20px;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nil-deals-results-primary {
+  border: 1px solid #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.nil-deals-results-primary:hover {
+  background: #1d4ed8;
+}
+
+.nil-deals-results-secondary {
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #374151;
+}
+
+.nil-deals-results-secondary:hover {
+  background: #f9fafb;
+}
+
+@media (max-width: 700px) {
+  .nil-deals-quiz-header-content {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .nil-deals-quiz-back-button {
+    width: 100%;
+  }
+
+  .nil-deals-quiz-content {
+    padding: 28px 16px 50px;
+  }
+
+  .nil-deals-quiz-card,
+  .nil-deals-results-card {
+    padding: 24px 18px;
+  }
+
+  .nil-deals-quiz-top {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .nil-deals-quiz-navigation,
+  .nil-deals-results-actions {
+    flex-direction: column;
+  }
+
+  .nil-deals-quiz-navigation button,
+  .nil-deals-results-actions button {
+    width: 100%;
+  }
+}
+

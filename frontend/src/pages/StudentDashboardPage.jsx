@@ -454,6 +454,23 @@ function StudentDashboardPage() {
       </header>
 
       <main className="student-dashboard-content">
+        <section className="education-dashboard-entry">
+  <div>
+    <h2>Education & Financial Literacy</h2>
+    <p>
+      Learn about managing your money, evaluating NIL opportunities,
+      and understanding important contract terms.
+    </p>
+  </div>
+
+  <button
+    type="button"
+    className="dashboard-secondary-button"
+    onClick={() => navigate('/student/education')}
+  >
+    Start Learning
+  </button>
+</section>
         <div className="contracts-toolbar">
           <div className="active-contracts-actions-block">
             <div className="active-contracts-actions">
