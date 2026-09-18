@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/pages/NILDeals.css';
@@ -6,7 +5,8 @@ import '../styles/pages/NILDeals.css';
 const lessons = [
   {
     title: 'Brand Outreach',
-    subtitle: 'Building professional relationships with potential NIL partners',
+    subtitle:
+      'Building professional relationships with potential NIL partners',
     content: (
       <>
         <p>
@@ -59,11 +59,13 @@ const lessons = [
           amount of time, and keep records of important conversations.
         </p>
       </>
-    )
+    ),
   },
+
   {
     title: 'Evaluating NIL Offers',
-    subtitle: 'Understanding what to look for before accepting an opportunity',
+    subtitle:
+      'Understanding what to look for before accepting an opportunity',
     content: (
       <>
         <p>
@@ -140,11 +142,13 @@ const lessons = [
           </p>
         </div>
       </>
-    )
+    ),
   },
+
   {
     title: 'Managing Endorsements',
-    subtitle: 'Fulfilling your responsibilities and maintaining professional relationships',
+    subtitle:
+      'Fulfilling your responsibilities and maintaining professional relationships',
     content: (
       <>
         <p>
@@ -205,8 +209,8 @@ const lessons = [
           qualified professional for guidance.
         </p>
       </>
-    )
-  }
+    ),
+  },
 ];
 
 function NILDealsPage() {
@@ -245,7 +249,7 @@ function NILDealsPage() {
   useEffect(() => {
     const progress = {
       currentLesson,
-      completedLessons
+      completedLessons,
     };
 
     localStorage.setItem(
@@ -274,7 +278,7 @@ function NILDealsPage() {
 
       window.scrollTo({
         top: 0,
-        behavior: 'smooth'
+        behavior: 'smooth',
       });
     } else {
       navigate('/student/education/nil-deals/quiz');
@@ -290,7 +294,7 @@ function NILDealsPage() {
 
     window.scrollTo({
       top: 0,
-      behavior: 'smooth'
+      behavior: 'smooth',
     });
   };
 
@@ -299,7 +303,7 @@ function NILDealsPage() {
 
     window.scrollTo({
       top: 0,
-      behavior: 'smooth'
+      behavior: 'smooth',
     });
   };
 
@@ -309,18 +313,19 @@ function NILDealsPage() {
 
   const lesson = lessons[currentLesson];
 
+  const progressPercentage =
+    ((currentLesson + 1) / lessons.length) * 100;
+
   return (
     <div className="nil-deals-page">
-
       <header className="nil-deals-header">
         <div className="nil-deals-header-content">
-
           <div>
             <p className="nil-deals-eyebrow">
               NILGUARD LEARNING CENTER
             </p>
 
-            <h1>NIL Deal Basics & Partnerships</h1>
+            <h1>NIL Deal Basics &amp; Partnerships</h1>
 
             <p className="nil-deals-subtitle">
               Learn how to find, evaluate, and manage NIL
@@ -335,70 +340,50 @@ function NILDealsPage() {
           >
             ← Education Dashboard
           </button>
-
         </div>
       </header>
 
       <main className="nil-deals-content">
-
         <section className="nil-deals-progress-section">
-
           <div className="nil-deals-progress-top">
-
             <div>
               <span className="nil-deals-progress-label">
                 MODULE 2
               </span>
 
-              <h2>
-                {lesson.title}
-              </h2>
+              <h2>{lesson.title}</h2>
             </div>
 
             <span className="nil-deals-progress-count">
               Lesson {currentLesson + 1} of {lessons.length}
             </span>
-
           </div>
 
           <div className="nil-deals-progress-bar">
-
             <div
               className="nil-deals-progress-fill"
               style={{
-                width: `${
-                  ((currentLesson + 1) /
-                    lessons.length) *
-                  100
-                }%`
+                width: `${progressPercentage}%`,
               }}
             />
-
           </div>
 
           <p className="nil-deals-completion-text">
             {completedLessons.length} of {lessons.length}{' '}
             lessons completed
           </p>
-
         </section>
 
         <div className="nil-deals-layout">
-
           <aside className="nil-deals-sidebar">
-
-            <div className="nil-deals-sidebar-header">
+            <div className="nil-deals-sidebar-title">
               <span>MODULE 2</span>
-              <strong>Your Lessons</strong>
+              <h2>Your Lessons</h2>
             </div>
 
             <div className="nil-deals-lesson-list">
-
               {lessons.map((item, index) => {
-
-                const isActive =
-                  currentLesson === index;
-
+                const isActive = currentLesson === index;
                 const isCompleted =
                   completedLessons.includes(index);
 
@@ -406,29 +391,19 @@ function NILDealsPage() {
                   <button
                     key={item.title}
                     type="button"
-                    className={`nil-deals-lesson-item ${
+                    className={`nil-deals-lesson-button ${
                       isActive ? 'active' : ''
                     }`}
                     onClick={() =>
                       handleLessonSelect(index)
                     }
                   >
-
-                    <span
-                      className={`nil-deals-lesson-number ${
-                        isCompleted ? 'completed' : ''
-                      }`}
-                    >
-                      {isCompleted
-                        ? '✓'
-                        : index + 1}
+                    <span className="nil-deals-lesson-number">
+                      {isCompleted ? '✓' : index + 1}
                     </span>
 
                     <span className="nil-deals-lesson-info">
-
-                      <strong>
-                        {item.title}
-                      </strong>
+                      <strong>{item.title}</strong>
 
                       <small>
                         {isCompleted
@@ -437,21 +412,15 @@ function NILDealsPage() {
                             ? 'In Progress'
                             : 'Not Started'}
                       </small>
-
                     </span>
-
                   </button>
                 );
               })}
-
             </div>
-
           </aside>
 
           <section className="nil-deals-lesson-card">
-
             <div className="nil-deals-lesson-heading">
-
               <span className="nil-deals-lesson-label">
                 LESSON {currentLesson + 1}
               </span>
@@ -459,7 +428,6 @@ function NILDealsPage() {
               <h2>{lesson.title}</h2>
 
               <p>{lesson.subtitle}</p>
-
             </div>
 
             <div className="nil-deals-lesson-content">
@@ -467,7 +435,6 @@ function NILDealsPage() {
             </div>
 
             <div className="nil-deals-navigation">
-
               <button
                 type="button"
                 className="nil-deals-secondary-button"
@@ -486,18 +453,35 @@ function NILDealsPage() {
                   ? 'Take Quick Assessment →'
                   : 'Complete & Continue →'}
               </button>
-
             </div>
-
           </section>
-
         </div>
 
-      </main>
+        <footer className="nil-deals-footer">
+          <div>
+            <span className="nil-footer-label">
+              MODULE 2
+            </span>
 
+            <h2>NIL Deal Basics &amp; Partnerships</h2>
+
+            <p>
+              Complete all three lessons to prepare for the
+              quick assessment.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="nil-deals-secondary-button"
+            onClick={handleBackToEducation}
+          >
+            Back to Education
+          </button>
+        </footer>
+      </main>
     </div>
   );
 }
 
 export default NILDealsPage;
-

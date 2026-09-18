@@ -332,6 +332,26 @@ function Contracts101Page() {
                   : 'Next Lesson →'}
               </button>
             </div>
+
+            <footer className="contracts101-footer">
+              <div>
+                <span className="contracts101-footer-label">MODULE 3</span>
+
+                <h2>Contracts 101</h2>
+
+                <p>
+                  Complete all three lessons to prepare for the quick assessment.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="contracts101-secondary-button"
+                onClick={() => navigate('/student/education')}
+              >
+                Back to Education
+              </button>
+            </footer>
           </section>
 
         </div>

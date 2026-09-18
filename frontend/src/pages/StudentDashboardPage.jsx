@@ -1228,7 +1228,7 @@ function StudentDashboardPage() {
     Start Learning
   </button>
 </section>
-=======
+
         {/* UPLOAD TOOLBAR */}
 
 
