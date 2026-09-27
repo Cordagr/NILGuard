@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
+import dns from 'dns';
 import bcrypt from 'bcryptjs';
 import pg from 'pg';
 import multer from 'multer';
@@ -17,6 +18,8 @@ import { makeRequireAuth } from './middleware/auth.js';
 import { createCollections, initializeDatabase } from './db.js';
 
 dotenv.config();
+
+dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 const app = express();
 const PORT = Number(process.env.PORT || 5000);

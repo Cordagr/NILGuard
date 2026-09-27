@@ -9,6 +9,13 @@ import StudentDashboardPage from './pages/StudentDashboardPage.jsx';
 import ContractsPage from './pages/ContractsPage.jsx';
 import ContractAnalysisPage from './pages/ContractAnalysisPage.jsx';
 import CoachRostersPage from './pages/CoachRostersPage.jsx';
+import EducationDashboardPage from './pages/EducationDashboardPage.jsx';
+import MoneyBasicsPage from './pages/MoneyBasicsPage.jsx';
+import MoneyBasicsQuizPage from './pages/MoneyBasicsQuizPage.jsx';
+import NILDealsPage from './pages/NILDealsPage.jsx';
+import NILDealsQuizPage from './pages/NILDealsQuizPage.jsx';
+import Contracts101Page from './pages/Contracts101Page.jsx';
+import Contracts101QuizPage from './pages/Contracts101QuizPage.jsx';
 import ComplianceDashboardPage from './pages/ComplianceDashboardPage.jsx';
 import ComplianceOfficerDashboardPage from './pages/ComplianceOfficerDashboardPage.jsx';
 import './styles/global.css';
@@ -31,6 +38,68 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+  path="/student/education"
+  element={
+    <ProtectedRoute allowedRole="student">
+      <EducationDashboardPage />
+    </ProtectedRoute>
+  }
+/>
+<Route
+  path="/student/education/money-basics"
+  element={
+    <ProtectedRoute allowedRole="student">
+      <MoneyBasicsPage />
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/student/education/money-basics/quiz"
+  element={
+    <ProtectedRoute allowedRole="student">
+      <MoneyBasicsQuizPage />
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/student/education/nil-deals"
+  element={
+    <ProtectedRoute allowedRole="student">
+      <NILDealsPage />
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/student/education/nil-deals/quiz"
+  element={
+    <ProtectedRoute allowedRole="student">
+      <NILDealsQuizPage />
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/student/education/contracts"
+  element={
+    <ProtectedRoute allowedRole="student">
+      <Contracts101Page />
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/student/education/contracts/quiz"
+  element={
+    <ProtectedRoute allowedRole="student">
+      <Contracts101QuizPage />
+    </ProtectedRoute>
+  }
+/>
+
             <Route
               path="/dashboard/coach"
               element={
