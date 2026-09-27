@@ -288,7 +288,6 @@ function StudentDashboardPage() {
   const { user: currentUser, logout } = useAuth();
 
   const menuRef = useRef(null);
-  const inboxRef = useRef(null);
   const fileInputRef = useRef(null);
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -416,12 +415,16 @@ function StudentDashboardPage() {
     } finally {
       setIsLoadingHistory(false);
     }
-  };
 
-  const fetchMessages = async () => {
+    setIsLoadingHistory(true);
+
     try {
-      const response = await listComplianceMessages();
-      setMessages(response.messages || []);
+      const response =
+        await listComplianceRequests(currentUser);
+
+      setComplianceRequests(
+        response.requests || []
+      );
     } catch (error) {
       setErrorMessage(error.message || 'Unable to load inbox messages.');
     }

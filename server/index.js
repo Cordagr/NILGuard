@@ -4,7 +4,7 @@ import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import dns from 'dns';
 import bcrypt from 'bcryptjs';
-import { MongoClient, ObjectId } from 'mongodb';
+import pg from 'pg';
 import multer from 'multer';
 import fs from 'fs/promises';
 import path from 'path';
@@ -15,15 +15,16 @@ import { resolveSchoolFromEmail } from './ncaaSchoolDirectory.js';
 import { isEduEmail, isStrongPassword } from './utils/validation.js';
 import { signToken, setAuthCookie, clearAuthCookie } from './utils/jwt.js';
 import { makeRequireAuth } from './middleware/auth.js';
+import { createCollections, initializeDatabase } from './db.js';
 
 dotenv.config();
 
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 const app = express();
-const PORT = Number(process.env.PORT || 5001);
-const MONGODB_URI = process.env.MONGODB_URI;
-const DB_NAME = process.env.MONGODB_DB_NAME || 'nilguard';
+const PORT = Number(process.env.PORT || 5000);
+const AGREEMENT_METADATA_VERSION = 2;
+const DATABASE_URL = process.env.DATABASE_URL;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsRoot = path.join(__dirname, 'uploads', 'contracts');
@@ -103,8 +104,8 @@ const rosterUpload = multer({
   }
 });
 
-if (!MONGODB_URI) {
-  throw new Error('Missing MONGODB_URI. Add it to your environment variables.');
+if (!DATABASE_URL) {
+  throw new Error('Missing DATABASE_URL. Add it to your environment variables.');
 }
 
 app.use(
@@ -116,7 +117,11 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
-const client = new MongoClient(MONGODB_URI);
+const { Pool } = pg;
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined
+});
 let usersCollection;
 let contractsCollection;
 let rostersCollection;
@@ -168,6 +173,117 @@ function buildStoredFileName(contractId, originalName) {
   return `${contractId}-${sanitizedName.toLowerCase().endsWith('.pdf') ? sanitizedName : `${sanitizedName}.pdf`}`;
 }
 
+
+function getDefaultAgreementMetadata() {
+  return {
+    athleteName: '',
+    brandPayer: '',
+    contractValue: '',
+    startDate: '',
+    endDate: '',
+    deliverables: [],
+    paymentStatus: 'Not recorded',
+    disclosureStatus: 'Pending',
+    amendments: []
+  };
+}
+
+function normalizeAgreementMetadata(metadata = {}) {
+  const defaults = getDefaultAgreementMetadata();
+
+  return {
+    athleteName: String(metadata.athleteName || '').trim(),
+    brandPayer: String(metadata.brandPayer || '').trim(),
+    contractValue: String(metadata.contractValue || '').trim(),
+    startDate: String(metadata.startDate || '').trim(),
+    endDate: String(metadata.endDate || '').trim(),
+    deliverables: Array.isArray(metadata.deliverables)
+      ? metadata.deliverables
+          .map((item) => String(item || '').trim())
+          .filter(Boolean)
+      : defaults.deliverables,
+    paymentStatus: String(metadata.paymentStatus || defaults.paymentStatus).trim(),
+    disclosureStatus: String(metadata.disclosureStatus || defaults.disclosureStatus).trim(),
+    amendments: Array.isArray(metadata.amendments)
+      ? metadata.amendments
+          .map((amendment) => ({
+            date: String(amendment?.date || '').trim(),
+            notes: String(amendment?.notes || '').trim()
+          }))
+          .filter((amendment) => amendment.date || amendment.notes)
+      : defaults.amendments
+  };
+}
+
+function mergeExtractedAgreementMetadata(existing, extracted) {
+  const current = normalizeAgreementMetadata(existing);
+  const detected = normalizeAgreementMetadata(extracted);
+
+  return {
+    athleteName: current.athleteName || detected.athleteName,
+    brandPayer: current.brandPayer || detected.brandPayer,
+    contractValue: current.contractValue || detected.contractValue,
+    startDate: current.startDate || detected.startDate,
+    endDate: current.endDate || detected.endDate,
+    deliverables: current.deliverables.length
+      ? current.deliverables
+      : detected.deliverables,
+    paymentStatus: current.paymentStatus !== 'Not recorded'
+      ? current.paymentStatus
+      : detected.paymentStatus,
+    disclosureStatus: current.disclosureStatus !== 'Pending'
+      ? current.disclosureStatus
+      : detected.disclosureStatus,
+    amendments: current.amendments.length
+      ? current.amendments
+      : detected.amendments
+  };
+}
+
+async function hydrateLegacyContractMetadata(contract) {
+  const existing = normalizeAgreementMetadata(contract.agreementMetadata);
+
+  const needsExtraction =
+    contract.agreementMetadataVersion !== AGREEMENT_METADATA_VERSION ||
+    !contract.agreementMetadata ||
+    !Object.prototype.hasOwnProperty.call(contract.agreementMetadata, 'athleteName') ||
+    !Array.isArray(contract.agreementMetadata.amendments);
+
+  if (!needsExtraction || !contract.storedFilePath) {
+    return contract;
+  }
+
+  try {
+    const fileBuffer = await fs.readFile(contract.storedFilePath);
+    const screening = await analyzeContractPdf(fileBuffer, contract.fileName);
+    const mergedMetadata = mergeExtractedAgreementMetadata(
+      existing,
+      screening.agreementMetadata
+    );
+
+    await contractsCollection.updateOne(
+      {
+        contractId: contract.contractId,
+        userId: contract.userId
+      },
+      {
+        $set: {
+          agreementMetadata: mergedMetadata,
+          agreementMetadataVersion: AGREEMENT_METADATA_VERSION
+        }
+      }
+    );
+
+    return {
+      ...contract,
+      agreementMetadata: mergedMetadata,
+      agreementMetadataVersion: AGREEMENT_METADATA_VERSION
+    };
+  } catch (_error) {
+    return contract;
+  }
+}
+
 function serializeContract(contract) {
   return {
     id: contract.contractId,
@@ -177,7 +293,8 @@ function serializeContract(contract) {
     updatedAt: contract.updatedAt,
     lastAccessedAt: contract.lastAccessedAt,
     accessCount: contract.accessCount,
-    uploadedBy: contract.userId
+    uploadedBy: contract.userId,
+    agreementMetadata: normalizeAgreementMetadata(contract.agreementMetadata)
   };
 }
 
@@ -462,8 +579,12 @@ app.get('/api/contracts', async (req, res, next) => {
       .sort({ [sortBy]: sortDirection, createdAt: -1 })
       .toArray();
 
+    const hydratedContracts = await Promise.all(
+      contracts.map(hydrateLegacyContractMetadata)
+    );
+
     res.json({
-      contracts: contracts.map(serializeContract)
+      contracts: hydratedContracts.map(serializeContract)
     });
   } catch (error) {
     next(error);
@@ -676,6 +797,10 @@ app.post('/api/contracts', contractUpload.single('file'), async (req, res, next)
         findings: contractScreening.findings,
         screenedAt: now
       },
+      agreementMetadata: normalizeAgreementMetadata(
+        contractScreening.agreementMetadata
+      ),
+      agreementMetadataVersion: AGREEMENT_METADATA_VERSION,
       createdAt: now,
       updatedAt: now,
       lastAccessedAt: now,
@@ -687,6 +812,117 @@ app.post('/api/contracts', contractUpload.single('file'), async (req, res, next)
     return res.status(201).json({
       message: 'Contract uploaded successfully.',
       contract: serializeContract(contractDocument)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
+/*
+ * Persist editable agreement metadata for a student-owned contract.
+ */
+app.patch('/api/contracts/:contractId/metadata', async (req, res, next) => {
+  try {
+    const userId = String(req.user._id);
+    const { contractId } = req.params;
+    const incomingMetadata = req.body?.metadata || {};
+
+    if (!contractId) {
+      return res.status(400).json({
+        message: 'A contract id is required.'
+      });
+    }
+
+    const contract = await contractsCollection.findOne({
+      contractId,
+      userId
+    });
+
+    if (!contract) {
+      return res.status(404).json({
+        message: 'Contract not found for the current user.'
+      });
+    }
+
+    const existing = normalizeAgreementMetadata(contract.agreementMetadata);
+
+    const normalizeString = (value, fallback = '') => {
+      if (value === null || value === undefined) {
+        return fallback;
+      }
+      return String(value).trim();
+    };
+
+    const deliverables = Array.isArray(incomingMetadata.deliverables)
+      ? incomingMetadata.deliverables
+          .map((item) => normalizeString(item))
+          .filter(Boolean)
+      : existing.deliverables;
+
+    const amendments = Array.isArray(incomingMetadata.amendments)
+      ? incomingMetadata.amendments
+          .map((amendment) => ({
+            date: normalizeString(amendment?.date),
+            notes: normalizeString(amendment?.notes)
+          }))
+          .filter((amendment) => amendment.date || amendment.notes)
+      : existing.amendments;
+
+    const metadata = {
+      athleteName: normalizeString(
+        incomingMetadata.athleteName,
+        existing.athleteName
+      ),
+      brandPayer: normalizeString(
+        incomingMetadata.brandPayer,
+        existing.brandPayer
+      ),
+      contractValue: normalizeString(
+        incomingMetadata.contractValue,
+        existing.contractValue
+      ),
+      startDate: normalizeString(
+        incomingMetadata.startDate,
+        existing.startDate
+      ),
+      endDate: normalizeString(
+        incomingMetadata.endDate,
+        existing.endDate
+      ),
+      deliverables,
+      paymentStatus: normalizeString(
+        incomingMetadata.paymentStatus,
+        existing.paymentStatus
+      ),
+      disclosureStatus: normalizeString(
+        incomingMetadata.disclosureStatus,
+        existing.disclosureStatus
+      ),
+      amendments
+    };
+
+    const now = new Date();
+
+    await contractsCollection.updateOne(
+      { contractId, userId },
+      {
+        $set: {
+          agreementMetadata: metadata,
+          agreementMetadataVersion: AGREEMENT_METADATA_VERSION,
+          updatedAt: now
+        }
+      }
+    );
+
+    const updatedContract = await contractsCollection.findOne({
+      contractId,
+      userId
+    });
+
+    return res.json({
+      message: 'Agreement details saved successfully.',
+      contract: serializeContract(updatedContract)
     });
   } catch (error) {
     next(error);
@@ -975,6 +1211,20 @@ app.patch('/api/compliance/requests/:requestId', async (req, res, next) => {
       }
     );
 
+    await contractsCollection.updateOne(
+      {
+        contractId: documentRequest.contractId,
+        userId: documentRequest.studentUserId
+      },
+      {
+        $set: {
+          'agreementMetadata.disclosureStatus':
+            nextStatus === 'accepted' ? 'Approved' : 'Rejected',
+          updatedAt: now
+        }
+      }
+    );
+
     const updatedRequest = await documentRequestsCollection.findOne({ requestId });
 
     const needsChanges = reviewedGuidelines.filter(
@@ -1245,6 +1495,11 @@ app.post('/api/compliance/accounts', async (req, res, next) => {
   }
 });
 
+
+function buildUnsupportedSchoolEmailMessage() {
+  return 'Use a supported school email address.';
+}
+
 app.post('/api/auth/register', async (req, res) => {
   const { email, password, role } = req.body || {};
 
@@ -1262,8 +1517,13 @@ app.post('/api/auth/register', async (req, res) => {
 
   const normalizedEmail = String(email).toLowerCase().trim();
   const normalizedRole = normalizeRole(role);
-  // the school directory is optional now, any .edu email can register
   const resolvedSchool = resolveSchoolFromEmail(normalizedEmail);
+
+  if (!resolvedSchool) {
+    return res.status(400).json({
+      message: buildUnsupportedSchoolEmailMessage()
+    });
+  }
 
   const existingUser = await usersCollection.findOne({ email: normalizedEmail });
   if (existingUser) {
@@ -1317,6 +1577,12 @@ app.post('/api/auth/login', async (req, res) => {
   const normalizedEmail = String(email).toLowerCase().trim();
   const expectedRole = normalizeRole(role);
   const resolvedSchool = resolveSchoolFromEmail(normalizedEmail);
+
+  if (!resolvedSchool) {
+    return res.status(403).json({
+      message: buildUnsupportedSchoolEmailMessage()
+    });
+  }
 
   const user = await usersCollection.findOne({ email: normalizedEmail });
 
@@ -1441,32 +1707,17 @@ app.delete('/api/contracts/:contractId', async (req, res, next) => {
 async function start() {
   await fs.mkdir(uploadsRoot, { recursive: true });
   await fs.mkdir(rosterUploadsRoot, { recursive: true });
-  await client.connect();
-  const db = client.db(DB_NAME);
-  usersCollection = db.collection('users');
-  contractsCollection = db.collection('contracts');
-  rostersCollection = db.collection('rosters');
-  documentRequestsCollection = db.collection('documentRequests');
-  auditLogsCollection = db.collection('auditLogs');
-  messagesCollection = db.collection('messages');
-  notificationsCollection = db.collection('notifications');
-
-  await usersCollection.createIndex({ email: 1 }, { unique: true });
-  await messagesCollection.createIndex({ recipientEmail: 1, createdAt: -1 });
-  await messagesCollection.createIndex({ senderUserId: 1, createdAt: -1 });
-  await notificationsCollection.createIndex({ recipientUserId: 1, createdAt: -1 });
-  await notificationsCollection.createIndex({ notificationId: 1 }, { unique: true });
-  await contractsCollection.createIndex({ userId: 1, createdAt: -1 });
-  await contractsCollection.createIndex({ userId: 1, lastAccessedAt: -1 });
-  await contractsCollection.createIndex({ contractId: 1, userId: 1 }, { unique: true });
-  await rostersCollection.createIndex({ userId: 1, updatedAt: -1 });
-  await rostersCollection.createIndex({ userId: 1, school: 1, sport: 1, year: 1 }, { unique: true });
-  await documentRequestsCollection.createIndex({ requestId: 1 }, { unique: true });
-  await documentRequestsCollection.createIndex({ studentUserId: 1, submittedAt: -1 });
-  await documentRequestsCollection.createIndex({ studentSchool: 1, status: 1, submittedAt: -1 });
-  await documentRequestsCollection.createIndex({ studentUserId: 1, contractId: 1 }, { unique: true });
-  await auditLogsCollection.createIndex({ createdAt: -1 });
-  await auditLogsCollection.createIndex({ userId: 1, createdAt: -1 });
+  await pool.query('SELECT 1');
+  await initializeDatabase(pool);
+  ({
+    usersCollection,
+    contractsCollection,
+    rostersCollection,
+    documentRequestsCollection,
+    auditLogsCollection,
+    messagesCollection,
+    notificationsCollection
+  } = createCollections(pool));
 
   // Contract analysis endpoint (must be after collections are initialized)
   app.get('/api/contracts/:contractId/analysis', async (req, res, next) => {
