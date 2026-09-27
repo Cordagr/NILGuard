@@ -206,10 +206,6 @@ function ComplianceOfficerDashboardPage() {
     }
   };
 
-  const reviewedRequests = requests.filter(
-    (request) => request.status !== 'pending'
-  );
-
   return (
     <div className={`student-dashboard-container ${isInboxOpen ? 'inbox-overlay-open' : ''}`}>
       <header className="student-dashboard-header">

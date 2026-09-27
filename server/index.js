@@ -3,7 +3,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
-import { MongoClient, ObjectId } from 'mongodb';
+import pg from 'pg';
 import multer from 'multer';
 import fs from 'fs/promises';
 import path from 'path';
@@ -14,14 +14,14 @@ import { resolveSchoolFromEmail } from './ncaaSchoolDirectory.js';
 import { isEduEmail, isStrongPassword } from './utils/validation.js';
 import { signToken, setAuthCookie, clearAuthCookie } from './utils/jwt.js';
 import { makeRequireAuth } from './middleware/auth.js';
+import { createCollections, initializeDatabase } from './db.js';
 
 dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.PORT || 5000);
-const MONGODB_URI = process.env.MONGODB_URI;
-const DB_NAME = process.env.MONGODB_DB_NAME || 'nilguard';
 const AGREEMENT_METADATA_VERSION = 2;
+const DATABASE_URL = process.env.DATABASE_URL;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsRoot = path.join(__dirname, 'uploads', 'contracts');
@@ -101,8 +101,8 @@ const rosterUpload = multer({
   }
 });
 
-if (!MONGODB_URI) {
-  throw new Error('Missing MONGODB_URI. Add it to your environment variables.');
+if (!DATABASE_URL) {
+  throw new Error('Missing DATABASE_URL. Add it to your environment variables.');
 }
 
 app.use(
@@ -114,7 +114,11 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
-const client = new MongoClient(MONGODB_URI);
+const { Pool } = pg;
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined
+});
 let usersCollection;
 let contractsCollection;
 let rostersCollection;
@@ -1700,32 +1704,17 @@ app.delete('/api/contracts/:contractId', async (req, res, next) => {
 async function start() {
   await fs.mkdir(uploadsRoot, { recursive: true });
   await fs.mkdir(rosterUploadsRoot, { recursive: true });
-  await client.connect();
-  const db = client.db(DB_NAME);
-  usersCollection = db.collection('users');
-  contractsCollection = db.collection('contracts');
-  rostersCollection = db.collection('rosters');
-  documentRequestsCollection = db.collection('documentRequests');
-  auditLogsCollection = db.collection('auditLogs');
-  messagesCollection = db.collection('messages');
-  notificationsCollection = db.collection('notifications');
-
-  await usersCollection.createIndex({ email: 1 }, { unique: true });
-  await messagesCollection.createIndex({ recipientEmail: 1, createdAt: -1 });
-  await messagesCollection.createIndex({ senderUserId: 1, createdAt: -1 });
-  await notificationsCollection.createIndex({ recipientUserId: 1, createdAt: -1 });
-  await notificationsCollection.createIndex({ notificationId: 1 }, { unique: true });
-  await contractsCollection.createIndex({ userId: 1, createdAt: -1 });
-  await contractsCollection.createIndex({ userId: 1, lastAccessedAt: -1 });
-  await contractsCollection.createIndex({ contractId: 1, userId: 1 }, { unique: true });
-  await rostersCollection.createIndex({ userId: 1, updatedAt: -1 });
-  await rostersCollection.createIndex({ userId: 1, school: 1, sport: 1, year: 1 }, { unique: true });
-  await documentRequestsCollection.createIndex({ requestId: 1 }, { unique: true });
-  await documentRequestsCollection.createIndex({ studentUserId: 1, submittedAt: -1 });
-  await documentRequestsCollection.createIndex({ studentSchool: 1, status: 1, submittedAt: -1 });
-  await documentRequestsCollection.createIndex({ studentUserId: 1, contractId: 1 }, { unique: true });
-  await auditLogsCollection.createIndex({ createdAt: -1 });
-  await auditLogsCollection.createIndex({ userId: 1, createdAt: -1 });
+  await pool.query('SELECT 1');
+  await initializeDatabase(pool);
+  ({
+    usersCollection,
+    contractsCollection,
+    rostersCollection,
+    documentRequestsCollection,
+    auditLogsCollection,
+    messagesCollection,
+    notificationsCollection
+  } = createCollections(pool));
 
   // Contract analysis endpoint (must be after collections are initialized)
   app.get('/api/contracts/:contractId/analysis', async (req, res, next) => {
