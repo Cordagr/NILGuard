@@ -8,8 +8,11 @@ import multer from 'multer';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { analyzeContractPdf } from './contractClassifier.js';
+import { analyzeContractWithAi } from './contractAnalyzer.js';
+import { getAiConfig } from './aiClient.js';
+import { RUBRIC_VERSION } from './analysisRubric.js';
 import { resolveSchoolFromEmail } from './ncaaSchoolDirectory.js';
 import { isEduEmail, isStrongPassword } from './utils/validation.js';
 import { signToken, setAuthCookie, clearAuthCookie } from './utils/jwt.js';
@@ -1751,11 +1754,81 @@ async function start() {
       }
       const fileBuffer = await fs.readFile(contract.storedFilePath);
 
-      // Analyze the contract
+      // Keep the existing rule-based report
       const analysis = await analyzeContractPdf(fileBuffer, contract.fileName);
-
-      // Use rule-based compliance findings from analysis
       const findings = analysis.findings || [];
+
+      const aiConfig = getAiConfig();
+      const fileHash = createHash('sha256').update(fileBuffer).digest('hex');
+      const savedAiAnalysis = contract.aiAnalysisCache;
+      const forceRefresh = req.query.refresh === 'true';
+      const hasCachedAnalysis =
+        savedAiAnalysis &&
+        savedAiAnalysis.fileHash === fileHash &&
+        savedAiAnalysis.model === aiConfig.model &&
+        savedAiAnalysis.rubricVersion === RUBRIC_VERSION;
+
+      let aiStatus = 'unavailable';
+      let aiMessage = '';
+      let aiAnalysis = null;
+      let aiCacheHit = false;
+
+      if (!aiConfig.enabled) {
+        aiMessage = 'AI_API_KEY is not configured. The rule-based report is still available.';
+      } else if (hasCachedAnalysis && !forceRefresh) {
+        aiStatus = 'completed';
+        aiAnalysis = savedAiAnalysis.analysis;
+        aiCacheHit = true;
+      } else {
+        const aiStartedAt = Date.now();
+
+        try {
+          const result = await analyzeContractWithAi(fileBuffer, contract.fileName, {
+            school: contract.school,
+            division: contract.ncaaDivision,
+            stateName: contract.schoolStateName
+          });
+
+          aiStatus = result.aiStatus;
+          aiMessage = result.message || '';
+          aiAnalysis = result.analysis || null;
+
+          if (aiAnalysis) {
+            const cacheEntry = {
+              fileHash: fileHash,
+              model: aiConfig.model,
+              rubricVersion: RUBRIC_VERSION,
+              savedAt: new Date(),
+              analysis: aiAnalysis
+            };
+
+            try {
+              await contractsCollection.updateOne(
+                { contractId: contractId, userId: userId },
+                { $set: { aiAnalysisCache: cacheEntry } }
+              );
+            } catch (cacheError) {
+              console.warn('AI result could not be cached:', {
+                contractId: contractId,
+                message: cacheError.message
+              });
+            }
+          }
+        } catch (error) {
+          aiStatus = 'failed';
+          aiMessage = error.message || 'The AI analysis failed.';
+        }
+
+        console.log('AI contract analysis finished:', {
+          contractId: contractId,
+          userId: userId,
+          model: aiConfig.model,
+          status: aiStatus,
+          cacheHit: false,
+          elapsedMs: Date.now() - aiStartedAt,
+          findingCount: aiAnalysis?.findings?.length || 0
+        });
+      }
 
       res.json({
         contract: serializeContract(contract),
@@ -1772,7 +1845,11 @@ async function start() {
           stateName: contract.schoolStateName
         },
         applicableRules: [],
-        findings
+        findings,
+        aiStatus: aiStatus,
+        aiMessage: aiMessage,
+        aiCacheHit: aiCacheHit,
+        aiAnalysis: aiAnalysis
       });
     } catch (error) {
       next(error);
