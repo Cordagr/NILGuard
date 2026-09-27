@@ -288,6 +288,7 @@ function StudentDashboardPage() {
   const { user: currentUser, logout } = useAuth();
 
   const menuRef = useRef(null);
+  const inboxRef = useRef(null);
   const fileInputRef = useRef(null);
 
   const [menuOpen, setMenuOpen] = useState(false);
