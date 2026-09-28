@@ -8,12 +8,14 @@ export async function deleteContract(user, contractId) {
   return parseJsonResponse(response);
 }
 // Fetch contract analysis for a given contractId
-export async function getContractAnalysis(user, contractId) {
+export async function getContractAnalysis(user, contractId, options = {}) {
   const userId = getUserId(user);
   if (!contractId) {
     throw new Error('No contract ID provided for analysis.');
   }
- const response = await fetch(`${API_BASE_URL}/contracts/${contractId}/analysis`, {
+
+  const refreshQuery = options.refresh ? '?refresh=true' : '';
+  const response = await fetch(`${API_BASE_URL}/contracts/${contractId}/analysis${refreshQuery}`, {
     credentials: 'include'
  });
   return parseJsonResponse(response);

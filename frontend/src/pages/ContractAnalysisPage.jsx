@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Document, Page, pdfjs } from 'react-pdf';
@@ -22,6 +22,25 @@ function formatDateTime(value) {
     dateStyle: 'medium',
     timeStyle: 'short'
   }).format(new Date(value));
+}
+
+function formatElapsedTime(totalSeconds) {
+  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+  const seconds = String(totalSeconds % 60).padStart(2, '0');
+
+  return `${minutes}:${seconds}`;
+}
+
+function getAiStatusLabel(status) {
+  const labels = {
+    completed: 'AI review complete',
+    failed: 'AI review failed',
+    unavailable: 'AI review unavailable',
+    unreadable: 'PDF text unavailable',
+    not_a_contract: 'Document not identified as a contract'
+  };
+
+  return labels[status] || 'AI review status';
 }
 
 function getSeverityLabel(severity) {
@@ -118,10 +137,35 @@ function renderPdfHighlightedText(text, tokens) {
   }).join('');
 }
 
+function getEvidenceQuote(finding) {
+  const referenceQuote = finding?.references
+    ?.flatMap((reference) => reference.highlightedText || [])
+    .find(Boolean);
+
+  return String(finding?.evidence?.quote || referenceQuote || '').trim();
+}
+
+function getPdfHighlightTokens(finding) {
+  const quote = getEvidenceQuote(finding);
+  const commonWords = new Set([
+    'about', 'after', 'also', 'been', 'between', 'from', 'have', 'into',
+    'must', 'shall', 'that', 'their', 'there', 'these', 'this', 'those',
+    'under', 'were', 'will', 'with', 'would'
+  ]);
+  const words = quote.match(/[A-Za-z0-9][A-Za-z0-9'’-]*/g) || [];
+
+  return [...new Set(words
+    .filter((word) => word.length >= 4 && !commonWords.has(word.toLowerCase()))
+    .map((word) => word.trim()))]
+    .slice(0, 12)
+    .sort((left, right) => right.length - left.length);
+}
+
 function ContractAnalysisPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
+  const currentUserId = currentUser?.id;
   const contractId = searchParams.get('contractId') || '';
   const fileName = searchParams.get('fileName') || 'Selected Contract';
   const mode = searchParams.get('mode') || 'analyze';
@@ -130,13 +174,24 @@ function ContractAnalysisPage() {
   const [findings, setFindings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+  const [aiStatus, setAiStatus] = useState('loading');
+  const [aiMessage, setAiMessage] = useState('');
+  const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [aiCacheHit, setAiCacheHit] = useState(false);
+  const [isRefreshingAi, setIsRefreshingAi] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [requestStartedAt, setRequestStartedAt] = useState(null);
   const [selectedFindingId, setSelectedFindingId] = useState('');
+  const [selectedAiFindingId, setSelectedAiFindingId] = useState('');
   const [pdfPageCount, setPdfPageCount] = useState(0);
   const [pdfLoadError, setPdfLoadError] = useState('');
   const [pdfZoom, setPdfZoom] = useState(1);
+  const [pdfContainerWidth, setPdfContainerWidth] = useState(540);
+  const requestIdRef = useRef(0);
+  const pdfContainerRef = useRef(null);
 
-  useEffect(() => {
-    if (!currentUser?.id) {
+  const loadAnalysis = useCallback(async ({ refresh = false } = {}) => {
+    if (!currentUserId) {
       navigate('/login');
       return;
     }
@@ -147,50 +202,141 @@ function ContractAnalysisPage() {
       return;
     }
 
-    let isMounted = true;
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+    const startedAt = Date.now();
 
-    const loadAnalysis = async () => {
+    if (refresh) {
+      setIsRefreshingAi(true);
+    } else {
       setIsLoading(true);
       setErrorMessage('');
+      setAiStatus('loading');
+    }
 
-      try {
-        const response = await getContractAnalysis(currentUser, contractId);
+    setElapsedSeconds(0);
+    setRequestStartedAt(startedAt);
 
-        if (!isMounted) {
-          return;
-        }
+    try {
+      const response = await getContractAnalysis(
+        { id: currentUserId },
+        contractId,
+        { refresh }
+      );
 
-        const nextAnalysis = response.analysis || null;
-        setAnalysis(nextAnalysis);
-        setContract(response.contract || null);
+      if (requestIdRef.current !== requestId) {
+        return;
+      }
 
-        // FIX: Try response.findings first, then fall back to analysis.findings.
-        // This handles APIs that nest findings inside the analysis object.
-        const responsefindings = Array.isArray(response.findings) ? response.findings : [];
-        const analysisFingings = Array.isArray(nextAnalysis?.findings) ? nextAnalysis.findings : [];
-        const resolvedFindings = responsefindings.length > 0 ? responsefindings : analysisFingings;
-        setFindings(resolvedFindings);
+      const nextAnalysis = response.analysis || null;
+      const responseFindings = Array.isArray(response.findings) ? response.findings : [];
+      const analysisFindings = Array.isArray(nextAnalysis?.findings) ? nextAnalysis.findings : [];
+      const resolvedFindings = responseFindings.length > 0 ? responseFindings : analysisFindings;
+      const nextAiAnalysis = response.aiAnalysis || null;
+      const nextAiFindings = Array.isArray(nextAiAnalysis?.findings) ? nextAiAnalysis.findings : [];
 
-        if (resolvedFindings.length > 0) {
-          setSelectedFindingId((currentSelectedFindingId) => currentSelectedFindingId || resolvedFindings[0].id);
-        }
-      } catch (error) {
-        if (isMounted) {
-          setErrorMessage(error.message || 'Unable to load the contract analysis.');
-        }
-      } finally {
-        if (isMounted) {
+      setAnalysis(nextAnalysis);
+      setContract(response.contract || null);
+      setFindings(resolvedFindings);
+      setAiStatus(response.aiStatus || 'unavailable');
+      setAiMessage(response.aiMessage || '');
+      setAiAnalysis(nextAiAnalysis);
+      setAiCacheHit(Boolean(response.aiCacheHit));
+
+      if (resolvedFindings.length > 0) {
+        setSelectedFindingId((currentId) =>
+          resolvedFindings.some((finding) => finding.id === currentId)
+            ? currentId
+            : resolvedFindings[0].id
+        );
+      }
+
+      if (nextAiFindings.length > 0) {
+        setSelectedAiFindingId((currentId) =>
+          nextAiFindings.some((finding) => finding.id === currentId)
+            ? currentId
+            : nextAiFindings[0].id
+        );
+      } else {
+        setSelectedAiFindingId('');
+      }
+    } catch (error) {
+      if (requestIdRef.current !== requestId) {
+        return;
+      }
+
+      const message = error.message || 'Unable to load the contract analysis.';
+      console.error('[NILGuard] Contract analysis request failed', {
+        stage: refresh ? 'fresh-review' : 'initial-load',
+        message
+      });
+
+      if (refresh) {
+        setAiStatus('failed');
+        setAiMessage(message);
+      } else {
+        setErrorMessage(message);
+        setAiStatus('failed');
+        setAiMessage(message);
+      }
+    } finally {
+      if (requestIdRef.current === requestId) {
+        setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+        setRequestStartedAt(null);
+        if (refresh) {
+          setIsRefreshingAi(false);
+        } else {
           setIsLoading(false);
         }
       }
-    };
+    }
+  }, [contractId, currentUserId, navigate]);
+
+  useEffect(() => {
+    if (!currentUserId) {
+      navigate('/login');
+      return undefined;
+    }
+
+    if (!contractId) {
+      setErrorMessage('A contract id is required to open the analysis report.');
+      setIsLoading(false);
+      return undefined;
+    }
 
     loadAnalysis();
 
     return () => {
-      isMounted = false;
+      requestIdRef.current += 1;
     };
-  }, [contractId, currentUser?.id, navigate]);
+  }, [contractId, currentUserId, loadAnalysis, navigate]);
+
+  useEffect(() => {
+    if (!requestStartedAt) {
+      return undefined;
+    }
+
+    const timer = window.setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - requestStartedAt) / 1000));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [requestStartedAt]);
+
+  useEffect(() => {
+    const container = pdfContainerRef.current;
+    if (!container || typeof ResizeObserver === 'undefined') {
+      return undefined;
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      const nextWidth = Math.floor(entries[0]?.contentRect?.width || 540);
+      setPdfContainerWidth(Math.max(280, nextWidth - 16));
+    });
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
 
   const pageCopy = useMemo(() => {
     if (mode === 'view') {
@@ -207,7 +353,7 @@ function ContractAnalysisPage() {
   }, [mode]);
 
   const selectedFinding = useMemo(() => {
-    // Read from the findings state (same array used to render the list)
+    // Keep the current finding visible.
     if (!findings.length) {
       return null;
     }
@@ -215,10 +361,25 @@ function ContractAnalysisPage() {
     return findings.find((finding) => finding.id === selectedFindingId) || findings[0];
   }, [findings, selectedFindingId]);
 
+  const aiFindings = Array.isArray(aiAnalysis?.findings) ? aiAnalysis.findings : [];
+  const selectedAiFinding = useMemo(() => {
+    if (!aiFindings.length) {
+      return null;
+    }
+
+    return aiFindings.find((finding) => finding.id === selectedAiFindingId) || aiFindings[0];
+  }, [aiFindings, selectedAiFindingId]);
+  const aiEvidenceQuote = getEvidenceQuote(selectedAiFinding);
+  const pdfHighlightTokens = useMemo(
+    () => getPdfHighlightTokens(selectedAiFinding),
+    [selectedAiFinding]
+  );
+  const isAiBusy = isLoading || isRefreshingAi;
+  const canRetryAi = ['failed', 'unavailable'].includes(aiStatus) || Boolean(errorMessage);
+
   const summary = analysis?.summary || {};
 
-  // Derive metrics: prefer summary fields, fall back to computed values from the findings state
-  // so the numbers always match what is actually rendered in the list.
+  // Keep counts in sync.
   const flaggedCount = findings.filter((f) => f.status === 'flagged').length;
   const passedCount  = findings.filter((f) => f.status === 'pass').length;
 
@@ -234,13 +395,14 @@ function ContractAnalysisPage() {
     stateName:   summary.stateName
   };
 
-  const rules = analysis?.applicableRules || [];
   const highlightTokens = useMemo(() => getHighlightTokens(selectedFinding), [selectedFinding]);
-  const contractFileUrl = currentUser?.id && contractId ? getContractFileUrl(currentUser, contractId) : '';
+  const contractFileUrl = currentUserId && contractId
+    ? getContractFileUrl({ id: currentUserId }, contractId)
+    : '';
   const pdfDevicePixelRatio = typeof window !== 'undefined' ? Math.max(window.devicePixelRatio || 1, 2) : 2;
-  const pdfPageWidth = Math.round(700 * pdfZoom);
+  const pdfPageWidth = Math.round(Math.min(pdfContainerWidth, 760) * pdfZoom);
   const pdfFile = useMemo(() => {
-    if (!contractFileUrl || !currentUser?.id) {
+    if (!contractFileUrl || !currentUserId) {
       return null;
     }
 
@@ -248,12 +410,12 @@ function ContractAnalysisPage() {
       url: contractFileUrl,
       withCredentials: true
     };
-  }, [contractFileUrl, currentUser?.id]);
+  }, [contractFileUrl, currentUserId]);
 
   useEffect(() => {
     setPdfPageCount(0);
     setPdfLoadError('');
-  }, [contractFileUrl, selectedFindingId]);
+  }, [contractFileUrl]);
 
   const sortedFindings = [...findings].sort((a, b) => {
     if (a.status === b.status) return 0;
@@ -262,145 +424,304 @@ function ContractAnalysisPage() {
     return 0;
   });
 
-  // Shared values so both panels are pixel-identical in vertical start position
-  const PANEL_MARGIN_TOP = 4;
   const PANEL_PADDING = '1.2rem';
   const TITLE_STYLE = { margin: 0, marginBottom: 10, fontSize: 22 };
+  const displayedStatus = isAiBusy ? 'Review in progress' : getAiStatusLabel(aiStatus);
+  const displayedStatusClass = isAiBusy
+    ? 'loading'
+    : ['completed'].includes(aiStatus)
+      ? 'complete'
+      : ['failed', 'unavailable'].includes(aiStatus) || errorMessage
+        ? 'error'
+        : 'notice';
+  const aiSeverityCounts = aiFindings.reduce((counts, finding) => {
+    counts[finding.severity] = (counts[finding.severity] || 0) + 1;
+    return counts;
+  }, {});
 
   return (
-    <div className="analysis-container" style={{ padding: '0.5em 0.2em', minHeight: '100vh' }}>
-      <div className="analysis-back-row" style={{ marginBottom: 0 }}>
+    <div className="analysis-container">
+      <div className="analysis-back-row">
         <Link to="/dashboard/student" className="analysis-exit-link">
           Exit To Student Dashboard
         </Link>
       </div>
 
-      <header className="analysis-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginBottom: 8, marginTop: 8 }}>
-        <h1 style={{ textAlign: 'center', fontSize: 32, margin: 0 }}>{pageCopy.title}</h1>
-        <p style={{ textAlign: 'center', fontSize: 16, margin: '8px 0 0 0', maxWidth: 700 }}>{pageCopy.description}</p>
+      <header className="analysis-header">
+        <h1>{pageCopy.title}</h1>
+        <p>{pageCopy.description}</p>
       </header>
 
-      {isLoading ? (
-        <section className="analysis-results">
-          <div className="analysis-result-item">
-            <div className="analysis-result-title">Loading report</div>
-            <div className="analysis-result-description">NILGuard is reading the stored PDF and building the compliance review trail.</div>
-          </div>
-        </section>
-      ) : errorMessage ? (
-        <section className="analysis-results">
-          <div className="analysis-result-item error">
-            <div className="analysis-result-title">Analysis unavailable</div>
-            <div className="analysis-result-description">{errorMessage}</div>
-          </div>
-        </section>
-      ) : (
-        <main className="analysis-grid analysis-report-grid" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', minHeight: '80vh', width: '100%' }}>
-
-          {/* LEFT — Compliance Checks */}
-          <section className="analysis-results analysis-results-column" style={{ flex: '0 0 50%', maxWidth: '50%', minWidth: 0, marginTop: PANEL_MARGIN_TOP }}>
-            <div className="analysis-panel" style={{ padding: PANEL_PADDING, borderRadius: 8 }}>
-
-              <h2 style={TITLE_STYLE}>Compliance Checks</h2>
-
-              {/* Metrics strip — below title */}
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', background: '#fff', borderRadius: 8, boxShadow: '0 2px 8px #0001', padding: '0.5rem 1rem', marginBottom: 12 }}>
+      <main className="analysis-grid analysis-report-grid">
+        <section className="analysis-results analysis-results-column">
+          <div className="analysis-panel" style={{ padding: PANEL_PADDING, borderRadius: 8 }}>
+            <section className="analysis-ai-section" aria-labelledby="ai-review-heading">
+              <div className="analysis-ai-heading">
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Risk Score</div>
-                  <div style={{ fontWeight: 700, color: '#b85c00', fontSize: 16 }}>{metrics.riskScore}</div>
+                  <span className="analysis-ai-eyebrow">AI-assisted contract review</span>
+                  <h2 id="ai-review-heading">AI Contract Review</h2>
+                  <p>Review the model's findings and evidence before making a compliance decision.</p>
                 </div>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Flagged</div>
-                  <div style={{ fontWeight: 700, fontSize: 16 }}>{metrics.flaggedFindingCount}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Passed</div>
-                  <div style={{ fontWeight: 700, fontSize: 16 }}>{metrics.passedCheckpointCount}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Last</div>
-                  <div style={{ fontWeight: 600, fontSize: 12 }}>{contract?.lastAccessedAt ? formatDateTime(contract.lastAccessedAt) : 'N/A'}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Created</div>
-                  <div style={{ fontWeight: 600, fontSize: 12 }}>{contract?.createdAt ? formatDateTime(contract.createdAt) : 'N/A'}</div>
-                </div>
+                <span className={`analysis-ai-status ${displayedStatusClass}`} aria-live="polite">
+                  {displayedStatus}
+                </span>
               </div>
 
-              {/* Debug line — remove once confirmed working */}
-              <div style={{ fontSize: 11, color: '#aaa', marginBottom: 8 }}>
-                Showing {sortedFindings.length} finding{sortedFindings.length !== 1 ? 's' : ''} ({flaggedCount} flagged, {passedCount} passed)
-              </div>
-
-              <div className="analysis-findings-list">
-                {sortedFindings.length === 0 && (
-                  <div style={{ padding: '0.5rem', color: '#888' }}>No compliance checks found.</div>
-                )}
-                {sortedFindings.map((finding) => (
-                  <div key={finding.id} className={`analysis-finding-card ${finding.severity}`} style={{ marginBottom: 10, background: finding.status === 'pass' ? '#f6fff6' : '#fff', padding: '0.75rem', borderRadius: 6 }}>
-                    <div className="analysis-finding-header" style={{ marginBottom: 2 }}>
-                      <span className={`risk-badge ${finding.severity}`} style={{ fontSize: 12 }}>{getSeverityLabel(finding.severity)}</span>
-                      <span className={`analysis-status-pill ${finding.status}`} style={{ fontSize: 12 }}>{finding.status === 'pass' ? 'Pass' : 'Flagged'}</span>
-                    </div>
-                    <strong style={{ fontSize: 15 }}>{finding.title}</strong>
-                    <p style={{ fontSize: 13, margin: '2px 0 0 0' }}>{finding.summary}</p>
-                    {finding.references && finding.references.length > 0 && (
-                      <div style={{ marginTop: 8, background: '#f8f8f8', borderRadius: 6, padding: '0.5rem 0.75rem' }}>
-                        <div style={{ fontWeight: 600, marginBottom: 2, fontSize: 13 }}>Reference Trail</div>
-                        {finding.references.map((reference) => (
-                          <div key={reference.id} style={{ marginBottom: 6 }}>
-                            <strong>{reference.label}</strong>
-                            <div>{renderHighlightedText(reference.excerpt, getHighlightTokens({ matchedTerms: finding.matchedTerms, references: [reference] }), 'No reference excerpt available.')}</div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+              {isAiBusy ? (
+                <div className="analysis-ai-loading" role="status" aria-live="polite">
+                  <span className="analysis-loading-spinner" aria-hidden="true" />
+                  <div>
+                    <h3>{isRefreshingAi ? 'Running a fresh AI review' : 'Reviewing this agreement'}</h3>
+                    <p>The PDF stays open while NILGuard prepares the review.</p>
+                    <span className="analysis-elapsed-time">Elapsed: {formatElapsedTime(elapsedSeconds)}</span>
                   </div>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          {/* RIGHT — Contract PDF */}
-          <section className="analysis-pdf-viewer" style={{ flex: '0 0 50%', maxWidth: '50%', minWidth: 0, background: '#fff', borderRadius: 8, boxShadow: '0 2px 8px #0001', padding: PANEL_PADDING, marginTop: PANEL_MARGIN_TOP, marginBottom: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '90vh', overflow: 'auto' }}>
-
-            <h2 style={{ ...TITLE_STYLE, alignSelf: 'flex-start' }}>Contract PDF</h2>
-
-            {pdfFile ? (
-              <div style={{ width: '100%', textAlign: 'center' }}>
-                <div className="compact-toolbar" style={{ marginBottom: 8 }}>
-                  <button className="analysis-pdf-zoom-button small" onClick={() => setPdfZoom(z => Math.max(0.5, z - 0.1))} title="Zoom Out">-</button>
-                  <span className="analysis-pdf-zoom-label small">{Math.round(pdfZoom * 100)}%</span>
-                  <button className="analysis-pdf-zoom-button small" onClick={() => setPdfZoom(z => Math.min(2, z + 0.1))} title="Zoom In">+</button>
-                  <button className="analysis-pdf-reset-button small" onClick={() => setPdfZoom(1)} title="Reset Zoom">Reset</button>
                 </div>
-                <div style={{ border: '1px solid #eee', borderRadius: 8, overflow: 'auto', background: '#fafafa', padding: 6, maxHeight: '80vh' }}>
-                  <Document
-                    file={pdfFile}
-                    onLoadSuccess={({ numPages }) => setPdfPageCount(numPages)}
-                    onLoadError={err => setPdfLoadError(err.message || 'Failed to load PDF')}
-                    loading={<div style={{ padding: 24 }}>Loading PDF...</div>}
-                  >
-                    {Array.from(new Array(pdfPageCount), (el, idx) => (
-                      <Page
-                        key={`page_${idx + 1}`}
-                        pageNumber={idx + 1}
-                        width={pdfPageWidth + 200}
-                        scale={pdfZoom}
-                        renderAnnotationLayer={true}
-                        renderTextLayer={true}
-                      />
+              ) : errorMessage ? (
+                <div className="analysis-ai-message error" role="alert">
+                  <strong>Analysis could not be loaded</strong>
+                  <p>{errorMessage}</p>
+                  <button type="button" onClick={() => loadAnalysis({ refresh: true })}>
+                    Retry analysis
+                  </button>
+                </div>
+              ) : aiAnalysis ? (
+                <>
+                  {aiStatus !== 'completed' && aiMessage && (
+                    <div className="analysis-ai-message error" role="alert">
+                      <strong>The latest AI review did not finish</strong>
+                      <p>{aiMessage}</p>
+                      {aiAnalysis && <span>The previous saved review is still shown below.</span>}
+                    </div>
+                  )}
+
+                  <div className="analysis-ai-summary">
+                    <div className="analysis-ai-summary-heading">
+                      <h3>Executive Summary</h3>
+                      <span className={`risk-badge ${aiAnalysis.overallRisk || 'info'}`}>
+                        Overall risk: {getSeverityLabel(aiAnalysis.overallRisk)}
+                      </span>
+                    </div>
+                    <p>{aiAnalysis.executiveSummary || 'No summary was returned for this review.'}</p>
+                    <div className="analysis-ai-meta">
+                      {aiAnalysis.model && <span>Model: {aiAnalysis.model}</span>}
+                      {aiAnalysis.generatedAt && <span>Reviewed: {formatDateTime(aiAnalysis.generatedAt)}</span>}
+                      {aiCacheHit && <span>Using saved analysis</span>}
+                    </div>
+                  </div>
+
+                  <div className="analysis-ai-counts" aria-label="AI finding counts">
+                    <div><strong>{aiFindings.length}</strong><span>Findings</span></div>
+                    <div><strong>{aiSeverityCounts.high || 0}</strong><span>High</span></div>
+                    <div><strong>{aiSeverityCounts.medium || 0}</strong><span>Medium</span></div>
+                    <div><strong>{aiSeverityCounts.low || 0}</strong><span>Low</span></div>
+                  </div>
+
+                  <div className="analysis-ai-findings-heading">
+                    <h3>AI Findings</h3>
+                    <span>Select a finding to highlight matching words in the PDF.</span>
+                  </div>
+
+                  {aiFindings.length === 0 ? (
+                    <div className="analysis-ai-empty">
+                      No findings were returned. Review the applicable rules and full agreement before making a decision.
+                    </div>
+                  ) : (
+                    <div className="analysis-ai-findings-list">
+                      {aiFindings.map((finding) => {
+                        const quote = getEvidenceQuote(finding);
+                        const isSelected = finding.id === selectedAiFinding?.id;
+
+                        return (
+                          <button
+                            type="button"
+                            key={finding.id}
+                            className={`analysis-ai-finding ${finding.severity || 'medium'}${isSelected ? ' selected' : ''}`}
+                            onClick={() => setSelectedAiFindingId(finding.id)}
+                            aria-pressed={isSelected}
+                          >
+                            <span className="analysis-ai-finding-badges">
+                              <span className={`risk-badge ${finding.severity || 'medium'}`}>
+                                {getSeverityLabel(finding.severity)} risk
+                              </span>
+                              {finding.category && <span className="analysis-ai-category">{finding.category.replace(/_/g, ' ')}</span>}
+                              {finding.rubricId && <span className="analysis-ai-rubric">{finding.rubricId}</span>}
+                            </span>
+                            <strong className="analysis-ai-finding-title">{finding.title}</strong>
+                            {finding.summary && <span className="analysis-ai-finding-summary">{finding.summary}</span>}
+                            {quote && (
+                              <span className="analysis-ai-evidence">
+                                <b>Evidence from the agreement</b>
+                                <span>“{quote}”</span>
+                              </span>
+                            )}
+                            {finding.recommendation && (
+                              <span className="analysis-ai-recommendation">
+                                <b>Suggested review:</b> {finding.recommendation}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="analysis-ai-actions">
+                    <button
+                      type="button"
+                      className="analysis-ai-run-button"
+                      onClick={() => loadAnalysis({ refresh: true })}
+                      disabled={isAiBusy}
+                    >
+                      Run fresh AI review
+                    </button>
+                    <span>This sends the agreement for a new AI review.</span>
+                  </div>
+                </>
+              ) : (
+                <div className={`analysis-ai-message ${canRetryAi ? 'error' : 'notice'}`} role={canRetryAi ? 'alert' : 'status'}>
+                  <strong>{getAiStatusLabel(aiStatus)}</strong>
+                  <p>{aiMessage || 'The AI review is not available for this agreement.'}</p>
+                  {canRetryAi && (
+                    <button type="button" onClick={() => loadAnalysis({ refresh: true })}>
+                      Retry AI review
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <p className="analysis-ai-disclaimer">
+                Informational review only. This is not legal advice or a final compliance decision. A compliance officer must review the agreement and make the final determination.
+              </p>
+            </section>
+
+            <details className="analysis-legacy-checks">
+              <summary>
+                <span>
+                  <strong>Existing Compliance Checks</strong>
+                  <small>Rule-based screening, separate from the AI review</small>
+                </span>
+                {!isLoading && !errorMessage && (
+                  <span className="analysis-legacy-counts">{flaggedCount} flagged · {passedCount} passed</span>
+                )}
+              </summary>
+
+              {isLoading ? (
+                <div className="analysis-ai-empty">Loading the existing compliance checks…</div>
+              ) : errorMessage ? (
+                <div className="analysis-ai-empty">{errorMessage}</div>
+              ) : (
+                <div className="analysis-legacy-content">
+                  <div className="analysis-legacy-metrics">
+                    <div><span>Rule risk score</span><strong>{metrics.riskScore}</strong></div>
+                    <div><span>Flagged</span><strong>{metrics.flaggedFindingCount}</strong></div>
+                    <div><span>Passed</span><strong>{metrics.passedCheckpointCount}</strong></div>
+                    <div><span>Last accessed</span><strong>{contract?.lastAccessedAt ? formatDateTime(contract.lastAccessedAt) : 'N/A'}</strong></div>
+                    <div><span>Uploaded</span><strong>{contract?.createdAt ? formatDateTime(contract.createdAt) : 'N/A'}</strong></div>
+                  </div>
+
+                  <p className="analysis-legacy-note">
+                    These checks look for rule-related terms in the extracted text. They are not the AI findings or a legal conclusion.
+                  </p>
+
+                  <div className="analysis-findings-list">
+                    {sortedFindings.length === 0 && (
+                      <div className="analysis-ai-empty">No rule-based checks were returned.</div>
+                    )}
+                    {sortedFindings.map((finding) => (
+                      <article
+                        key={finding.id}
+                        className={`analysis-finding-card ${finding.severity}`}
+                      >
+                        <div className="analysis-finding-header">
+                          <span className={`risk-badge ${finding.severity}`}>{getSeverityLabel(finding.severity)}</span>
+                          <span className={`analysis-status-pill ${finding.status}`}>
+                            {finding.status === 'pass' ? 'Pass' : 'Flagged'}
+                          </span>
+                        </div>
+                        <strong>{finding.title}</strong>
+                        <p>{finding.summary}</p>
+                        {finding.references?.length > 0 && (
+                          <div className="analysis-legacy-reference">
+                            <strong>Reference Trail</strong>
+                            {finding.references.map((reference, index) => (
+                              <div key={reference.id || `${finding.id}-${index}`}>
+                                {reference.label && <b>{reference.label}</b>}
+                                {renderHighlightedText(
+                                  reference.excerpt,
+                                  getHighlightTokens({ matchedTerms: finding.matchedTerms, references: [reference] }),
+                                  'No reference excerpt available.'
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </article>
                     ))}
-                  </Document>
-                  {pdfLoadError && <div style={{ color: 'red', marginTop: 8 }}>{pdfLoadError}</div>}
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div style={{ color: '#888', padding: 16 }}>No contract PDF available.</div>
-            )}
-          </section>
-        </main>
-      )}
+              )}
+            </details>
+          </div>
+        </section>
+
+        <section className="analysis-pdf-viewer">
+          <div className="analysis-pdf-heading">
+            <div>
+              <h2 style={TITLE_STYLE}>Contract PDF</h2>
+              <p>{contract?.fileName || fileName}</p>
+            </div>
+            <div className="compact-toolbar">
+              <button
+                className="analysis-pdf-zoom-button small"
+                onClick={() => setPdfZoom((zoom) => Math.max(0.5, zoom - 0.1))}
+                title="Zoom out"
+                aria-label="Zoom out"
+              >−</button>
+              <span className="analysis-pdf-zoom-label small">{Math.round(pdfZoom * 100)}%</span>
+              <button
+                className="analysis-pdf-zoom-button small"
+                onClick={() => setPdfZoom((zoom) => Math.min(2, zoom + 0.1))}
+                title="Zoom in"
+                aria-label="Zoom in"
+              >+</button>
+              <button className="analysis-pdf-reset-button small" onClick={() => setPdfZoom(1)}>Reset</button>
+            </div>
+          </div>
+
+          {selectedAiFinding && aiEvidenceQuote && (
+            <div className="analysis-pdf-evidence-note">
+              <strong>Selected evidence</strong>
+              <span>{aiEvidenceQuote}</span>
+            </div>
+          )}
+
+          {pdfFile ? (
+            <div className="analysis-pdf-content" ref={pdfContainerRef}>
+              <Document
+                file={pdfFile}
+                onLoadSuccess={({ numPages }) => setPdfPageCount(numPages)}
+                onLoadError={(error) => setPdfLoadError(error.message || 'Failed to load PDF')}
+                loading={<div className="analysis-pdf-loading">Loading PDF…</div>}
+              >
+                {Array.from(new Array(pdfPageCount), (_page, index) => (
+                  <Page
+                    key={`page_${index + 1}`}
+                    pageNumber={index + 1}
+                    width={pdfPageWidth}
+                    devicePixelRatio={pdfDevicePixelRatio}
+                    renderAnnotationLayer
+                    renderTextLayer
+                    customTextRenderer={({ str }) => renderPdfHighlightedText(str, pdfHighlightTokens)}
+                  />
+                ))}
+              </Document>
+              {pdfLoadError && <div className="analysis-pdf-error" role="alert">{pdfLoadError}</div>}
+            </div>
+          ) : (
+            <div className="analysis-pdf-loading">No contract PDF is available.</div>
+          )}
+        </section>
+      </main>
     </div>
   );
 }
