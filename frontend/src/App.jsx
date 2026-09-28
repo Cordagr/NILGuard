@@ -17,7 +17,6 @@ import NILDealsQuizPage from './pages/NILDealsQuizPage.jsx';
 import Contracts101Page from './pages/Contracts101Page.jsx';
 import Contracts101QuizPage from './pages/Contracts101QuizPage.jsx';
 import ComplianceDashboardPage from './pages/ComplianceDashboardPage.jsx';
-import ComplianceOfficerDashboardPage from './pages/ComplianceOfficerDashboardPage.jsx';
 import './styles/global.css';
 import './App.css';
 
@@ -120,7 +119,7 @@ function App() {
               path="/dashboard/compliance"
               element={
                 <ProtectedRoute allowedRole="compliance">
-                  <ComplianceOfficerDashboardPage />
+                  <ComplianceDashboardPage />
                 </ProtectedRoute>
               }
             />

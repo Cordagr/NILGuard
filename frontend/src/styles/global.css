@@ -1,5 +1,6 @@
 /* Global Styles */
 @import './variables.css';
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 /* ── Cream background — locked at root level ── */
 :root {
@@ -10,8 +11,6 @@ html, body, #root, #app, .app, .App {
   background: #F5F0E8 !important;
   min-height: 100vh;
 }
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Barlow:wght@400;500&display=swap');
-
 * {
   margin: 0;
   padding: 0;
@@ -30,31 +29,29 @@ body {
   background: #F5F0E8 !important;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  line-height: 1.6;
+  line-height: 1.5;
   min-height: 100vh;
 }
 
 /* ── Typography ── */
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-family: var(--font-display-family);
   font-weight: 800;
   line-height: 1.2;
   color: #181818;
-  margin-top: 0.2em;
-  margin-bottom: 0.4em;
+  margin-top: 0;
+  margin-bottom: 0.5em;
   text-transform: uppercase;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
 }
 
 h1 {
-  /* Hero-scale title — overrides variables.css */
-  font-size: clamp(3rem, 8vw, 6rem);
+  font-size: var(--font-size-2xl);
   color: #FF4D00;
-  margin-bottom: 0.7em;
 }
 
 h2 {
-  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-size: var(--font-size-xl);
   color: #181818;
 }
 
@@ -62,11 +59,20 @@ h3 {
   font-size: var(--font-size-lg);
 }
 
+h4 {
+  font-size: var(--font-size-md);
+}
+
+h5, h6 {
+  font-size: var(--font-size-sm);
+}
+
 p {
-  font-family: 'Barlow', 'Segoe UI', Arial, sans-serif;
-  font-size: 1.08rem;
-  letter-spacing: 0.01em;
-  margin-bottom: var(--spacing-md);
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  letter-spacing: 0;
+  line-height: 1.5;
+  margin-bottom: 0.75rem;
   color: var(--text-secondary);
 }
 
@@ -86,13 +92,14 @@ a:hover {
 /* ── Buttons ── */
 button {
   cursor: pointer;
-  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
-  font-size: 1.35rem;
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
   background: #181818;
   color: #fff;
   border: none;
-  border-radius: 2em;
-  padding: 1.1em 2.8em;
+  border-radius: var(--radius-md);
+  padding: 0.6rem 1rem;
   transition: background 0.18s, color 0.18s, transform 0.12s, box-shadow 0.18s;
   display: inline-block;
   outline: none;
@@ -134,7 +141,7 @@ button {
 .analysis-header h1 {
   font-size: clamp(2rem, 5vw, 2.8rem);
   color: #181818;
-  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-family: 'Inter', Arial, sans-serif;
   font-weight: 800;
   margin-bottom: 0.2em;
   letter-spacing: 0.01em;

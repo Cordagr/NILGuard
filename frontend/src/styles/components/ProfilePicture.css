@@ -1,0 +1,30 @@
+@import url('https://fonts.googleapis.com/css?family=Monserrat');
+
+* 
+{
+    box-sizing: border-box;
+}
+
+body 
+{
+    background-color: black; 
+    color: white; 
+    position:  absolute; 
+    top: 20px;
+} 
+
+.profile-picture-container 
+{
+    display: grid; 
+    min-height: 100vh; 
+    background-color: black; 
+}
+
+.profile-picture-description 
+{
+    font-family: 'Monserrat', sans-serif; 
+    font-size: clamp(2rem, 5vw, 3.8rem); 
+    font-weight: 400;
+    color: white;
+}
+
