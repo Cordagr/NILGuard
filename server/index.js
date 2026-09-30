@@ -108,9 +108,33 @@ if (!DATABASE_URL) {
   throw new Error('Missing DATABASE_URL. Add it to your environment variables.');
 }
 
+const configuredCorsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    origin: (origin, callback) => {
+      if (!origin || configuredCorsOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      let isLocalDevelopmentOrigin = false;
+      if (process.env.NODE_ENV !== 'production') {
+        try {
+          const parsedOrigin = new URL(origin);
+          isLocalDevelopmentOrigin =
+            parsedOrigin.protocol === 'http:' &&
+            ['localhost', '127.0.0.1'].includes(parsedOrigin.hostname);
+        } catch {
+          isLocalDevelopmentOrigin = false;
+        }
+      }
+
+      callback(null, isLocalDevelopmentOrigin);
+    },
     credentials: true
   })
 );

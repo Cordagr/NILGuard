@@ -1,10 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Barlow:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 .student-profile-page {
   min-height: 100vh;
   padding: 0 30px 80px;
   background: #F5F0E8;
-  font-family: 'Barlow', sans-serif;
+  font-family: 'Inter', sans-serif;
 }
 
 .student-profile-header {
@@ -35,7 +35,7 @@
 
 /* Title font */
 .student-profile-heading h1 {
-  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-family: 'Inter', Arial, sans-serif;
   font-size: clamp(2rem, 5vw, 3.8rem);
   font-weight: 900;
   text-transform: uppercase;
@@ -73,7 +73,7 @@
 }
 
 .student-profile-label {
-  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -100,7 +100,7 @@
   border-radius: 2em;
   padding: 14px 20px;
   font-size: 1rem;
-  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-family: 'Inter', Arial, sans-serif;
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.04em;

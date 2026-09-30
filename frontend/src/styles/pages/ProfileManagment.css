@@ -1,0 +1,25 @@
+body 
+{
+    background-color: white; 
+    color: black; 
+}
+
+center 
+{
+    text-align:center
+}
+
+.profile-management-container
+{
+   display:grid; 
+   min-height: 100vh; 
+   background-color: white; 
+}
+
+.profile-management-description
+{
+  font-family: 'Monserrat', sans-serif; 
+  font-size: clamp(2rem, 5vw, 3.8rem);
+  font-weight: 400; 
+  color: white;
+}
