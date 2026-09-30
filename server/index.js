@@ -22,7 +22,7 @@ dotenv.config();
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 const app = express();
-const PORT = Number(process.env.PORT || 5000);
+const PORT = Number(process.env.PORT || 5001);
 const AGREEMENT_METADATA_VERSION = 2;
 const DATABASE_URL = process.env.DATABASE_URL;
 const __filename = fileURLToPath(import.meta.url);
@@ -539,6 +539,16 @@ function serializeRoster(roster) {
   };
 }
 
+function serializeAthlete(athlete) {
+  return {
+    studentId: athlete.studentId,
+    firstName: athlete.firstName,
+    lastName: athlete.lastName,
+    school: athlete.school,
+    assignments: athlete.assignments || []
+  };
+}
+
 async function deleteRosterFileIfUnused(storedFilePath) {
   if (!storedFilePath) {
     return;
@@ -601,6 +611,157 @@ app.get('/api/rosters', async (req, res, next) => {
 
     res.json({
       rosters: rosters.map(serializeRoster)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/rosters/athletes', async (req, res, next) => {
+  try {
+    const user = req.user;
+
+    assertUserRole(user, 'coach');
+
+    const userId = String(user._id);
+
+    const rosters = await rostersCollection
+      .find({ userId })
+      .sort({ school: 1, sport: 1, year: 1 })
+      .toArray();
+
+    const athleteMap = new Map();
+
+    rosters.forEach((roster) => {
+      const players = Array.isArray(roster.players) ? roster.players : [];
+
+      players.forEach((player) => {
+        const studentId = String(player.studentId || '').trim();
+
+        if (!studentId) {
+          return;
+        }
+
+        if (!athleteMap.has(studentId)) {
+          athleteMap.set(studentId, {
+            studentId,
+            firstName: String(player.firstName || '').trim(),
+            lastName: String(player.lastName || '').trim(),
+            school: roster.school,
+            assignments: []
+          });
+        }
+
+        const athlete = athleteMap.get(studentId);
+
+        const alreadyAssigned = athlete.assignments.some(
+          (assignment) =>
+            assignment.sport === roster.sport &&
+            assignment.year === roster.year
+        );
+
+        if (!alreadyAssigned) {
+          athlete.assignments.push({
+            rosterId: roster.rosterId,
+            sport: roster.sport,
+            year: roster.year
+          });
+        }
+      });
+    });
+
+    const athletes = Array.from(athleteMap.values()).sort((a, b) => {
+      const lastNameComparison = a.lastName.localeCompare(
+        b.lastName,
+        'en',
+        { sensitivity: 'base' }
+      );
+
+      if (lastNameComparison !== 0) {
+        return lastNameComparison;
+      }
+
+      return a.firstName.localeCompare(
+        b.firstName,
+        'en',
+        { sensitivity: 'base' }
+      );
+    });
+
+    return res.json({
+      athletes: athletes.map(serializeAthlete)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/rosters/athletes/:studentId', async (req, res, next) => {
+  try {
+    const user = req.user;
+
+    assertUserRole(user, 'coach');
+
+    const userId = String(user._id);
+    const studentId = String(req.params.studentId || '').trim();
+
+    if (!studentId) {
+      return res.status(400).json({
+        message: 'A student ID is required.'
+      });
+    }
+
+    const rosters = await rostersCollection
+      .find({ userId })
+      .sort({ school: 1, sport: 1, year: 1 })
+      .toArray();
+
+    let athlete = null;
+
+    rosters.forEach((roster) => {
+      const players = Array.isArray(roster.players) ? roster.players : [];
+
+      const matchingPlayer = players.find(
+        (player) => String(player.studentId || '').trim() === studentId
+      );
+
+      if (!matchingPlayer) {
+        return;
+      }
+
+      if (!athlete) {
+        athlete = {
+          studentId,
+          firstName: String(matchingPlayer.firstName || '').trim(),
+          lastName: String(matchingPlayer.lastName || '').trim(),
+          school: roster.school,
+          assignments: []
+        };
+      }
+
+      const alreadyAssigned = athlete.assignments.some(
+        (assignment) =>
+          assignment.sport === roster.sport &&
+          assignment.year === roster.year
+      );
+
+      if (!alreadyAssigned) {
+        athlete.assignments.push({
+          rosterId: roster.rosterId,
+          sport: roster.sport,
+          year: roster.year
+        });
+      }
+    });
+
+    if (!athlete) {
+      return res.status(404).json({
+        message: 'Athlete was not found in your assigned rosters.'
+      });
+    }
+
+    return res.json({
+      athlete: serializeAthlete(athlete)
     });
   } catch (error) {
     next(error);
