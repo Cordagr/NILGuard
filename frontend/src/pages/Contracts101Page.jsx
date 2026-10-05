@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import logo from '../assets/NILGUARD.png';
 import '../styles/pages/Contracts101.css';
 
 const lessons = [
@@ -224,6 +225,9 @@ function Contracts101Page() {
       <header className="contracts101-header">
         <div className="contracts101-header-content">
           <div>
+            <div className="learning-logo-wrap">
+              <img src={logo} alt="NILGuard Logo" className="learning-logo" />
+            </div>
             <p className="contracts101-eyebrow">
               NILGUARD LEARNING CENTER
             </p>

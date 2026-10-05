@@ -269,8 +269,8 @@ function ContractAnalysisPage() {
 
   return (
     <div className="analysis-container" style={{ padding: '0.5em 0.2em', minHeight: '100vh' }}>
-      <div className="analysis-back-row" style={{ marginBottom: 0 }}>
-        <Link to="/dashboard/student" className="analysis-exit-link">
+      <div className="analysis-back-row contract-action-row" style={{ marginBottom: 0 }}>
+        <Link to="/dashboard/student" className="contract-action-link btn-97 analysis-exit-link">
           Exit To Student Dashboard
         </Link>
       </div>

@@ -1,6 +1,7 @@
 ``
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import logo from '../assets/NILGUARD.png';
 import '../styles/pages/MoneyBasics.css';
 
 const lessons = [
@@ -426,6 +427,9 @@ function MoneyBasicsPage() {
         <div className="money-basics-header-content">
 
           <div>
+            <div className="learning-logo-wrap">
+              <img src={logo} alt="NILGuard Logo" className="learning-logo" />
+            </div>
             <p className="money-basics-eyebrow">
               NILGUARD LEARNING CENTER
             </p>

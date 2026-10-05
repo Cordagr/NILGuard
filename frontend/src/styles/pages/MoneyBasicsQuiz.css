@@ -1,9 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
 .money-quiz-page {
   min-height: 100vh;
   background: #f5f7fb;
   color: #1f2937;
+  font-family: var(--font-family);
 }
 
 .money-quiz-header {
@@ -458,4 +457,3 @@
   font-weight: 700;
 }
 }
-

@@ -21,6 +21,7 @@ import {
   listComplianceMessages,
   listComplianceNotifications,
   listComplianceRequests,
+  markComplianceMessagesRead,
   markComplianceNotificationRead,
   sendComplianceMessage,
   submitComplianceRequest
@@ -74,6 +75,22 @@ function formatDate(value) {
 
   return new Intl.DateTimeFormat('en-US', {
     dateStyle: 'medium'
+  }).format(date);
+}
+
+function formatComplianceDeadline(value) {
+  if (!value) {
+    return 'Not set';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'Not set';
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'medium',
+    timeZone: 'UTC'
   }).format(date);
 }
 
@@ -290,7 +307,6 @@ function StudentDashboardPage() {
   const { user: currentUser, logout } = useAuth();
 
   const menuRef = useRef(null);
-  const inboxRef = useRef(null);
   const sortMenuRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -478,6 +494,24 @@ function StudentDashboardPage() {
     }
   };
 
+  const handleSelectConversation = async (conversationId) => {
+    setSelectedConversationId((previous) => previous === conversationId ? '' : conversationId);
+    setConversationReply('');
+    if (conversationId === selectedConversationId) return;
+
+    try {
+      await markComplianceMessagesRead(conversationId);
+      setMessages((previous) => previous.map((message) =>
+        message.requestId === conversationId &&
+        message.recipientUserId === String(currentUser?.id)
+          ? { ...message, isRead: true }
+          : message
+      ));
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to mark messages as read.');
+    }
+  };
+
   const handleSendNewMessage = async () => {
     if (!newMessage.requestId || !newMessage.body.trim()) return;
 
@@ -509,10 +543,6 @@ function StudentDashboardPage() {
         !menuRef.current.contains(event.target)
       ) {
         setMenuOpen(false);
-      }
-
-      if (inboxRef.current && !inboxRef.current.contains(event.target)) {
-        setInboxOpen(false);
       }
 
       if (sortMenuRef.current && !sortMenuRef.current.contains(event.target)) {
@@ -1097,25 +1127,36 @@ function StudentDashboardPage() {
           ) : null}
         </div>
 
-        <div className="profile-menu" ref={inboxRef}>
+        <div className="profile-menu">
           <button
             type="button"
             className="profile-menu-trigger inbox-trigger"
-            onClick={() => setInboxOpen((previous) => !previous)}
+            onClick={() => setInboxOpen(true)}
             aria-label="Open inbox"
+            aria-expanded={inboxOpen}
           >
             <img className="inbox-icon" src={InboxIcon} alt="" aria-hidden="true" />
             <span>Inbox</span>
-            {messages.filter((message) => !message.isRead).length + notifications.filter((notification) => !notification.isRead).length > 0 ? (
+            {messages.filter((message) => !message.isRead && message.recipientUserId === String(currentUser?.id)).length + notifications.filter((notification) => !notification.isRead).length > 0 ? (
               <span className="inbox-unread-badge">
-                {messages.filter((message) => !message.isRead).length + notifications.filter((notification) => !notification.isRead).length}
+                {messages.filter((message) => !message.isRead && message.recipientUserId === String(currentUser?.id)).length + notifications.filter((notification) => !notification.isRead).length}
               </span>
             ) : null}
           </button>
 
           {inboxOpen ? (
             <div className="profile-menu-dropdown student-inbox-dropdown">
-              <div className="student-inbox-heading">Compliance Inbox</div>
+              <div className="student-inbox-heading">
+                <button
+                  type="button"
+                  className="student-inbox-close"
+                  onClick={() => setInboxOpen(false)}
+                  aria-label="Close inbox"
+                  title="Close inbox"
+                >
+                  ×
+                </button>
+              </div>
               {notifications.length > 0 ? (
                 <div className="student-notification-list">
                   {notifications.map((notification) => (
@@ -1180,11 +1221,7 @@ function StudentDashboardPage() {
                         className="inbox-conversation"
                         key={conversation.id}
                         aria-expanded={selectedConversationId === conversation.id}
-                        onClick={() =>
-                          setSelectedConversationId((previous) =>
-                            previous === conversation.id ? '' : conversation.id
-                          )
-                        }
+                        onClick={() => handleSelectConversation(conversation.id)}
                       >
                         <strong>{conversation.officerEmail}</strong>
                         <span>{conversation.messages.length} messages</span>
@@ -2623,7 +2660,7 @@ function StudentDashboardPage() {
                         <p>{guideline.summary}</p>
                         <div className="student-guideline-feedback">
                           <span>
-                            Due: {guideline.dueAt ? formatDate(guideline.dueAt) : 'Not set'}
+                            Due: {formatComplianceDeadline(guideline.dueAt)}
                           </span>
                           <span>
                             Reviewed: {guideline.reviewedAt ? formatDate(guideline.reviewedAt) : 'Not reviewed'}

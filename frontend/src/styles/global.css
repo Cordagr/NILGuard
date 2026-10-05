@@ -147,6 +147,24 @@ button {
   letter-spacing: 0.01em;
 }
 
+/* ── Learning module header logo (source image has wide padding) ── */
+.learning-logo-wrap {
+  width: 170px;
+  height: 64px;
+  margin-bottom: 0.5rem;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.learning-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform: scale(2);
+}
+
 /* ── Decorative blob behind upload area ── */
 .upload-decor {
   position: absolute;

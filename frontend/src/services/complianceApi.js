@@ -58,6 +58,23 @@ export async function updateComplianceRequestStatus(user, requestId, status, gui
   return parseJsonResponse(response);
 }
 
+export async function saveComplianceGuidelines(user, requestId, guidelines) {
+  getUserId(user);
+  const response = await fetch(
+    `${API_BASE_URL}/compliance/requests/${encodeURIComponent(requestId)}/guidelines`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include',
+      body: JSON.stringify({ guidelines })
+    }
+  );
+
+  return parseJsonResponse(response);
+}
+
 export function getComplianceRequestFileUrl(user, requestId) {
   const userId = getUserId(user);
   const searchParams = new URLSearchParams({ userId });
@@ -98,6 +115,18 @@ export async function sendComplianceMessage(requestId, subject, body) {
     credentials: 'include',
     body: JSON.stringify({ requestId, subject, body })
   });
+
+  return parseJsonResponse(response);
+}
+
+export async function markComplianceMessagesRead(requestId) {
+  const response = await fetch(
+    `${API_BASE_URL}/compliance/messages/${encodeURIComponent(requestId)}/read`,
+    {
+      method: 'PATCH',
+      credentials: 'include'
+    }
+  );
 
   return parseJsonResponse(response);
 }

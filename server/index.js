@@ -25,6 +25,10 @@ const app = express();
 const PORT = Number(process.env.PORT || 5000);
 const AGREEMENT_METADATA_VERSION = 2;
 const DATABASE_URL = process.env.DATABASE_URL;
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsRoot = path.join(__dirname, 'uploads', 'contracts');
@@ -1188,6 +1192,10 @@ app.patch('/api/compliance/requests/:requestId', async (req, res, next) => {
         guidelineValidationMessage = `Feedback is required for ${guideline.title}.`;
       }
 
+      if (!submittedDueAt) {
+        guidelineValidationMessage = `A student deadline is required for ${guideline.title}.`;
+      }
+
       if (submittedDueAt && Number.isNaN(submittedDueAt.getTime())) {
         guidelineValidationMessage = `A valid due date is required for ${guideline.title}.`;
       }
@@ -1286,6 +1294,147 @@ app.patch('/api/compliance/requests/:requestId', async (req, res, next) => {
   }
 });
 
+app.patch('/api/compliance/requests/:requestId/guidelines', async (req, res, next) => {
+  try {
+    const user = req.user;
+    const userId = String(user._id);
+    assertUserRole(user, 'compliance');
+
+    const documentRequest = await documentRequestsCollection.findOne({
+      requestId: req.params.requestId,
+      assignedComplianceUserId: userId
+    });
+
+    if (!documentRequest) {
+      return res.status(404).json({ message: 'Compliance request not found for the current officer.' });
+    }
+
+    if (documentRequest.status !== 'pending') {
+      return res.status(409).json({ message: 'Guidelines can only be changed while the contract is pending.' });
+    }
+
+    const submittedGuidelines = req.body?.guidelines;
+    if (!Array.isArray(submittedGuidelines) || submittedGuidelines.length === 0 || submittedGuidelines.length > 25) {
+      return res.status(400).json({ message: 'Provide between 1 and 25 NIL guideline conditions.' });
+    }
+
+    const existingGuidelines = documentRequest.guidelines?.length
+      ? documentRequest.guidelines
+      : buildGuidelineReviews([], null);
+    const seenIds = new Set();
+    const now = new Date();
+    const guidelines = [];
+
+    for (const submitted of submittedGuidelines) {
+      if (!submitted || typeof submitted !== 'object' || Array.isArray(submitted)) {
+        return res.status(400).json({ message: 'Each guideline condition must be an object.' });
+      }
+
+      const title = String(submitted?.title || '').trim();
+      const summary = String(submitted?.summary || '').trim();
+      const feedback = String(submitted?.feedback || '').trim();
+      const decision = String(submitted?.decision || 'pending').trim().toLowerCase();
+      const dueAtText = String(submitted?.dueAt || '').trim();
+      const dueAt = dueAtText ? new Date(dueAtText) : null;
+
+      if (!title || title.length > 120) {
+        return res.status(400).json({ message: 'Each guideline needs a title of 1 to 120 characters.' });
+      }
+      if (!summary || summary.length > 2000) {
+        return res.status(400).json({ message: `Provide a condition description of 1 to 2000 characters for "${title}".` });
+      }
+      if (!dueAt || Number.isNaN(dueAt.getTime())) {
+        return res.status(400).json({ message: `Choose a valid student deadline for "${title}".` });
+      }
+      if (!['pending', 'pass', 'needs_changes'].includes(decision)) {
+        return res.status(400).json({ message: `Choose a valid review status for "${title}".` });
+      }
+      if (decision === 'needs_changes' && !feedback) {
+        return res.status(400).json({ message: `Feedback is required when "${title}" needs changes.` });
+      }
+      if (feedback.length > 2000) {
+        return res.status(400).json({ message: `Feedback for "${title}" must be 2000 characters or fewer.` });
+      }
+
+      const prior = existingGuidelines.find((item) => item.id === submitted.id);
+      const id = prior?.id || `GUIDE-${randomUUID()}`;
+      if (seenIds.has(id)) {
+        return res.status(400).json({ message: 'Each guideline must have a unique id.' });
+      }
+      seenIds.add(id);
+
+      const contentChanged = Boolean(prior) && (
+        prior.title !== title ||
+        prior.summary !== summary ||
+        new Date(prior.dueAt || 0).getTime() !== dueAt.getTime()
+      );
+      const resolvedDecision = contentChanged ? 'pending' : decision;
+      const reviewedAt = resolvedDecision === 'pending'
+        ? null
+        : (
+          prior?.decision === resolvedDecision && prior.feedback === feedback && !contentChanged
+            ? prior.reviewedAt || now
+            : now
+        );
+
+      guidelines.push({
+        ...(prior || {}),
+        id,
+        title,
+        summary,
+        aiStatus: prior?.aiStatus || 'pending',
+        decision: resolvedDecision,
+        feedback,
+        dueAt,
+        reviewedAt
+      });
+    }
+
+    await documentRequestsCollection.updateOne(
+      { requestId: documentRequest.requestId, assignedComplianceUserId: userId },
+      { $set: { guidelines, updatedAt: now } }
+    );
+
+    const updatedRequest = await documentRequestsCollection.findOne({ requestId: documentRequest.requestId });
+    const guidelineSummary = guidelines.map((guideline) => {
+      const dueDate = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(guideline.dueAt);
+      const feedbackLine = guideline.feedback ? ` Feedback: ${guideline.feedback}` : '';
+      return `• ${guideline.title} — ${guideline.decision === 'needs_changes' ? 'Needs changes' : guideline.decision}; due ${dueDate}.${feedbackLine}`;
+    }).join('\n');
+
+    await messagesCollection.insertOne({
+      messageId: `MSG-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`,
+      requestId: documentRequest.requestId,
+      contractId: documentRequest.contractId,
+      senderUserId: userId,
+      senderEmail: user.email,
+      senderSchool: user.school || null,
+      recipientEmail: documentRequest.studentEmail,
+      recipientUserId: documentRequest.studentUserId,
+      subject: 'NIL guideline review updated',
+      body: `The NIL guideline conditions for ${documentRequest.contractFileName} have been updated:\n\n${guidelineSummary}`,
+      isRead: false,
+      createdAt: now
+    });
+
+    await createStudentNotification({
+      requestId: documentRequest.requestId,
+      contractId: documentRequest.contractId,
+      studentUserId: documentRequest.studentUserId,
+      type: 'guidelines_updated',
+      title: 'NIL guideline conditions updated',
+      body: `Review the updated conditions, deadlines, and officer feedback for ${documentRequest.contractFileName}.`
+    });
+
+    return res.json({
+      message: 'NIL guideline conditions saved and sent to the student inbox.',
+      request: serializeDocumentRequest(updatedRequest)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get('/api/compliance/requests/:requestId/file', async (req, res, next) => {
   try {
     const user = req.user;
@@ -1339,6 +1488,7 @@ app.get('/api/compliance/messages', async (req, res, next) => {
   try {
     const user = req.user;
     const userId = String(user._id);
+    assertUserRole(user, 'student', 'compliance');
 
     const assignedRequestQuery = user.role === 'compliance'
       ? { assignedComplianceUserId: userId }
@@ -1351,6 +1501,37 @@ app.get('/api/compliance/messages', async (req, res, next) => {
       .toArray();
 
     return res.json({ messages: messages.map(serializeMessage) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/api/compliance/messages/:requestId/read', async (req, res, next) => {
+  try {
+    const user = req.user;
+    const userId = String(user._id);
+    assertUserRole(user, 'student', 'compliance');
+
+    const request = user.role === 'compliance'
+      ? await documentRequestsCollection.findOne({
+        requestId: req.params.requestId,
+        assignedComplianceUserId: userId
+      })
+      : await documentRequestsCollection.findOne({
+        requestId: req.params.requestId,
+        studentUserId: userId
+      });
+
+    if (!request) {
+      return res.status(404).json({ message: 'Compliance conversation not found for the current user.' });
+    }
+
+    await messagesCollection.updateMany(
+      { requestId: request.requestId, recipientUserId: userId },
+      { $set: { isRead: true, readAt: new Date() } }
+    );
+
+    return res.json({ message: 'Messages marked as read.' });
   } catch (error) {
     next(error);
   }

@@ -49,7 +49,6 @@ function ComplianceOfficerDashboardPage() {
 
   const menuRef = useRef(null);
   const [isInboxOpen, setIsInboxOpen] = useState(false);
-  const inboxRef = useRef(null);
   const [messages, setMessages] = useState([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
   const [messagesError, setMessagesError] = useState('');
@@ -230,11 +229,11 @@ function ComplianceOfficerDashboardPage() {
         {currentUser?.email ? (
           <span style={{ marginRight: '0.75rem', fontSize: '0.9rem', color: '#555' }}>{currentUser.email}</span>
         ) : null}
-        <div className="profile-menu" ref={inboxRef}>
+        <div className="profile-menu">
           <button
             type="button"
             className="profile-menu-trigger inbox-trigger"
-            onClick={() => setIsInboxOpen((prev) => !prev)}
+            onClick={() => setIsInboxOpen(true)}
             aria-label="Open inbox"
           >
             <span className="inbox-icon" aria-hidden="true" />
@@ -248,7 +247,17 @@ function ComplianceOfficerDashboardPage() {
 
           {isInboxOpen && (
             <div className="profile-menu-dropdown student-inbox-dropdown">
-              <div className="student-inbox-heading">Student Messages</div>
+              <div className="student-inbox-heading">
+                <button
+                  type="button"
+                  className="student-inbox-close"
+                  onClick={() => setIsInboxOpen(false)}
+                  aria-label="Close inbox"
+                  title="Close inbox"
+                >
+                  ×
+                </button>
+              </div>
               <div className="student-inbox-compose">
                 <select
                   value={newMessage.requestId}
@@ -582,4 +591,3 @@ function ComplianceOfficerDashboardPage() {
 }
 
 export default ComplianceOfficerDashboardPage;
-

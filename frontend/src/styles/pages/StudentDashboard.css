@@ -255,6 +255,10 @@
 }
 
 .student-inbox-heading {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 3.25rem;
   padding: 0.85rem 1rem;
   border-bottom: 1px solid #F0E6D8;
   font-family: 'Inter', sans-serif;
@@ -262,6 +266,33 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.student-inbox-dropdown .student-inbox-close {
+  display: grid;
+  place-items: center;
+  flex: 0 0 2rem;
+  width: 2rem;
+  min-width: 2rem;
+  height: 2rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #181818;
+  font-family: Arial, sans-serif;
+  font-size: 1.5rem;
+  font-weight: 400;
+  line-height: 1;
+  text-align: center;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.student-inbox-dropdown .student-inbox-close:hover {
+  background: #F5F0E8;
+  color: #181818;
 }
 
 .student-inbox-empty,
@@ -892,6 +923,17 @@ main.student-dashboard-content,
   margin: 0;
 }
 
+.contract-review-guidance {
+  max-width: 32rem;
+  margin: 0.45rem auto 0;
+  color: #777;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  text-align: center;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 .contracts-error {
   color: #c0392b;
   font-weight: 500;
@@ -1000,12 +1042,6 @@ main.student-dashboard-content,
     left: 0;
     bottom: 0;
     margin-top: 0;
-  }
-
-  .contracts-column:not(.past-contracts-column) .contracts-column-header::after {
-    content: '';
-    display: block;
-    height: 1.2em;
   }
 }
 
@@ -1645,25 +1681,26 @@ main.student-dashboard-content,
 .dashboard-summary-panel {
   display: inline-flex;
   align-items: center;
-  gap: 1rem;
-  background: #FF4D00;
+  gap: 0.85rem;
+  background: #181818;
   color: #fff;
-  border-radius: 2em;
-  padding: 0.9em 2em;
+  border-radius: 0;
+  padding: 0.6rem 1rem;
   font-family: 'Inter', sans-serif;
 }
 
 .dashboard-summary-panel strong {
-  font-size: 2.2rem;
-  font-weight: 900;
+  font-size: 1.4rem;
+  font-weight: 800;
   line-height: 1;
+  color: #FF4D00;
 }
 
 .dashboard-summary-panel span {
-  font-size: 0.95rem;
-  font-weight: 500;
-  opacity: 0.9;
-  max-width: 260px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
   line-height: 1.3;
 }
 
@@ -1672,6 +1709,94 @@ main.student-dashboard-content,
   margin: 0.35rem 0 0;
   color: #666;
   font-size: 0.86rem;
+}
+
+.officer-guideline-editor {
+  display: grid;
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid #d8c8b5;
+  background: #fffaf3;
+}
+
+.officer-guideline-editor-heading,
+.officer-guideline-item-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.officer-guideline-editor-heading h4 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.officer-guideline-editor-heading p {
+  margin: 0;
+  color: #777;
+  font-size: 0.82rem;
+}
+
+.officer-guideline-item {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid #eadcc9;
+  background: #fff;
+}
+
+.officer-guideline-item label {
+  display: grid;
+  gap: 0.35rem;
+  color: #555;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.officer-guideline-item input,
+.officer-guideline-item textarea,
+.officer-guideline-item select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #d8c8b5;
+  border-radius: 4px;
+  padding: 0.55rem;
+  color: #181818;
+  background: #fff;
+  font: inherit;
+}
+
+.officer-guideline-item textarea {
+  resize: vertical;
+}
+
+.officer-guideline-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.officer-guideline-remove {
+  padding: 0.3rem 0.55rem;
+  background: transparent;
+  color: #8b2f1f;
+  font-size: 0.75rem;
+}
+
+.officer-guideline-remove:hover {
+  background: #fff0e8;
+}
+
+@media (max-width: 600px) {
+  .officer-guideline-editor-heading {
+    flex-direction: column;
+  }
+
+  .officer-guideline-fields {
+    grid-template-columns: 1fr;
+  }
 }
 
 .inbox-thread {
