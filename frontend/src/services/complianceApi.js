@@ -44,19 +44,33 @@ export async function submitComplianceRequest(user, contractId, complianceEmail)
   return parseJsonResponse(response);
 }
 
-export async function updateComplianceRequestStatus(user, requestId, status, guidelines) {
+
+export async function updateComplianceRequestStatus(
+  user,
+  requestId,
+  status,
+  guidelines,
+  rejectionReason = ''
+) {
   const userId = getUserId(user);
- const response = await fetch(`${API_BASE_URL}/compliance/requests/${requestId}`, {
- method: 'PATCH',
- headers: {
+
+  const response = await fetch(`${API_BASE_URL}/compliance/requests/${requestId}`, {
+    method: 'PATCH',
+    headers: {
       'Content-Type': 'application/json'
- },
+    },
     credentials: 'include',
- body: JSON.stringify({ userId, status, guidelines })
- });
+    body: JSON.stringify({
+      userId,
+      status,
+      guidelines,
+      rejectionReason
+    })
+  });
 
   return parseJsonResponse(response);
 }
+
 
 export function getComplianceRequestFileUrl(user, requestId) {
   const userId = getUserId(user);
@@ -89,14 +103,14 @@ export async function markComplianceNotificationRead(notificationId) {
   return parseJsonResponse(response);
 }
 
-export async function sendComplianceMessage(requestId, subject, body) {
+export async function sendComplianceMessage(requestId, subject, body, recipientEmail = '') {
   const response = await fetch(`${API_BASE_URL}/compliance/messages`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
     credentials: 'include',
-    body: JSON.stringify({ requestId, subject, body })
+    body: JSON.stringify({ requestId, subject, body, recipientEmail })
   });
 
   return parseJsonResponse(response);

@@ -4,8 +4,13 @@ import { useAuth } from '../context/AuthContext';
 import '../styles/pages/StudentDashboard.css';
 import logo from '../assets/NILGUARD.png';
 import {
+  createAccountByCompliance,
   getComplianceRequestFileUrl,
+  listComplianceMessages,
+  listComplianceNotifications,
   listComplianceRequests,
+  markComplianceNotificationRead,
+  sendComplianceMessage,
   updateComplianceRequestStatus
 } from '../services/complianceApi';
 import ProfileIcon from '../assets/ProfileIcon.png';
@@ -51,6 +56,8 @@ function ComplianceOfficerDashboardPage() {
   const [isInboxOpen, setIsInboxOpen] = useState(false);
   const inboxRef = useRef(null);
   const [messages, setMessages] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
   const [messagesError, setMessagesError] = useState('');
   const [selectedConversationId, setSelectedConversationId] = useState('');
@@ -70,7 +77,9 @@ function ComplianceOfficerDashboardPage() {
   const currentUser = useAuth().user || { role: 'compliance', school: '', ncaaDivision: '' };
   const pendingRequests = requests.filter((request) => request.status === 'pending');
   const reviewedRequests = requests.filter((request) => request.status !== 'pending');
-  const unreadMessageCount = messages.filter((item) => !item.isRead).length;
+  const unreadMessageCount =
+    messages.filter((item) => !item.isRead).length +
+    notifications.filter((item) => !item.isRead).length;
 
   const conversations = Object.values(messages.reduce((groups, message) => {
     const conversationId = message.requestId || message.contractId || message.id;
@@ -130,6 +139,7 @@ function ComplianceOfficerDashboardPage() {
     document.addEventListener('mousedown', handleClickOutside);
 
     fetchRequests();
+    fetchNotifications();
 
     return () => {
       document.removeEventListener(
@@ -138,6 +148,31 @@ function ComplianceOfficerDashboardPage() {
       );
     };
   }, []);
+
+  const fetchNotifications = async () => {
+    setIsLoadingNotifications(true);
+    try {
+      const response = await listComplianceNotifications();
+      setNotifications(response.notifications || []);
+    } catch (error) {
+      setMessagesError(error.message || 'Unable to load notifications.');
+    } finally {
+      setIsLoadingNotifications(false);
+    }
+  };
+
+  const handleOpenNotification = async (notification) => {
+    if (notification.isRead) return;
+
+    try {
+      await markComplianceNotificationRead(notification.id);
+      setNotifications((previous) => previous.map((item) =>
+        item.id === notification.id ? { ...item, isRead: true } : item
+      ));
+    } catch (error) {
+      setMessagesError(error.message || 'Unable to mark notification as read.');
+    }
+  };
 
   const handleRequestStatus = async (requestId, status) => {
     setUpdatingRequestId(requestId);
@@ -163,6 +198,35 @@ function ComplianceOfficerDashboardPage() {
       );
     } finally {
       setUpdatingRequestId('');
+    }
+  };
+
+
+  const handleSendReply = async (conversation) => {
+    const body = conversationReply.trim();
+
+    if (!body || !conversation?.id) return;
+
+    setSendingMessageId(conversation.id);
+    setMessagesError('');
+
+    try {
+      const firstMessage = conversation.messages[0];
+
+      await sendComplianceMessage(
+        conversation.id,
+        `Re: ${firstMessage?.subject || 'Contract message'}`,
+        body
+      );
+
+      setConversationReply('');
+      await fetchMessages();
+    } catch (error) {
+      setMessagesError(
+        error.message || 'Unable to send reply.'
+      );
+    } finally {
+      setSendingMessageId('');
     }
   };
 
@@ -248,6 +312,27 @@ function ComplianceOfficerDashboardPage() {
 
           {isInboxOpen && (
             <div className="profile-menu-dropdown student-inbox-dropdown">
+              <div className="student-inbox-heading">Compliance Notifications</div>
+              {isLoadingNotifications ? (
+                <div className="student-inbox-empty">Loading notifications...</div>
+              ) : notifications.length > 0 ? (
+                <div className="student-notification-list">
+                  {notifications.map((notification) => (
+                    <button
+                      type="button"
+                      className={`student-notification ${notification.isRead ? '' : 'student-notification-unread'}`}
+                      key={notification.id}
+                      onClick={() => handleOpenNotification(notification)}
+                    >
+                      <strong>{notification.title}</strong>
+                      <span>{notification.body}</span>
+                      <small>{formatDateTime(notification.createdAt)}</small>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="student-inbox-empty">No notifications yet.</div>
+              )}
               <div className="student-inbox-heading">Student Messages</div>
               <div className="student-inbox-compose">
                 <select
@@ -270,14 +355,15 @@ function ComplianceOfficerDashboardPage() {
                   rows="3"
                   value={newMessage.body}
                   onChange={(event) => setNewMessage((previous) => ({ ...previous, body: event.target.value }))}
-                  placeholder="Message student and press Enter"
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      event.preventDefault();
-                      handleSendNewMessage();
-                    }
-                  }}
+                  placeholder="Message student..."
                 />
+                <button
+                  type="button"
+                  disabled={isSendingNewMessage || !newMessage.requestId || !newMessage.body.trim()}
+                  onClick={handleSendNewMessage}
+                >
+                  {isSendingNewMessage ? 'Sending...' : 'Send Message'}
+                </button>
               </div>
               {messagesError ? (
                 <div style={{ padding: '1em 1.4em', fontSize: '0.85rem', color: '#c0392b' }}>{messagesError}</div>
@@ -319,15 +405,16 @@ function ComplianceOfficerDashboardPage() {
                     className="inbox-message-reply"
                     value={conversationReply}
                     onChange={(event) => setConversationReply(event.target.value)}
-                    placeholder="Reply and press Enter"
+                    placeholder="Reply..."
                     rows={2}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' && !event.shiftKey) {
-                        event.preventDefault();
-                        handleSendReply(activeConversation);
-                      }
-                    }}
                   />
+                  <button
+                    type="button"
+                    disabled={Boolean(sendingMessageId) || !conversationReply.trim()}
+                    onClick={() => handleSendReply(activeConversation)}
+                  >
+                    {sendingMessageId ? 'Sending...' : 'Send Reply'}
+                  </button>
                 </div>
               ) : null}
             </div>
