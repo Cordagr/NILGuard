@@ -1,0 +1,306 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+.athlete-profile-page {
+  min-height: 100vh;
+  padding: 40px 32px;
+  background: #F5F0E8;
+  color: #181818;
+  font-family: 'Inter', sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.profile-container {
+  width: 100%;
+  max-width: 1000px;
+}
+
+/* ── Back Button ── */
+.profile-back-btn {
+  display: inline-flex;
+  align-items: center;
+  background: #181818;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  margin-bottom: 24px;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.profile-back-btn:hover {
+  background: #FF4D00;
+  transform: translateX(-4px);
+}
+
+/* ── Header Card & Banner ── */
+.profile-header-card {
+  background: #ffffff;
+  border-radius: 18px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.05);
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.profile-banner {
+  height: 140px;
+  background: linear-gradient(135deg, #FF4D00 0%, #ff7a40 100%);
+  width: 100%;
+}
+
+.profile-header-content {
+  padding: 0 40px 40px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  position: relative;
+  margin-top: -50px;
+}
+
+.profile-avatar-large {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: #181818;
+  color: #ffffff;
+  border: 6px solid #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  font-weight: 900;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  flex-shrink: 0;
+}
+
+.profile-header-text {
+  flex: 1;
+  margin-left: 24px;
+  padding-bottom: 8px;
+}
+
+.profile-header-text h1 {
+  margin: 0 0 4px 0;
+  font-size: 32px;
+  font-weight: 900;
+  color: #0f172a;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+}
+
+.profile-school {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.profile-header-actions {
+  padding-bottom: 12px;
+}
+
+.action-btn.primary {
+  background: #FF4D00;
+  color: #fff;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 30px;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.action-btn.primary:hover {
+  background: #181818;
+}
+
+/* ── Grid Layout ── */
+.profile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 24px;
+}
+
+.profile-card {
+  background: #ffffff;
+  border-radius: 18px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.05);
+  padding: 32px;
+  margin-bottom: 24px;
+}
+
+.profile-section-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #111827;
+  margin: 0 0 20px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 2px solid #F5F0E8;
+  padding-bottom: 12px;
+}
+
+/* ── Left Column Elements ── */
+.assignments-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.assignment-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  background: #fdfcfb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.assignment-sport {
+  font-weight: 700;
+  color: #111827;
+  font-size: 15px;
+}
+
+.assignment-year {
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.contact-info-row {
+  font-size: 15px;
+  color: #4b5563;
+  margin-bottom: 12px;
+}
+
+.contact-info-row strong {
+  color: #111827;
+  display: inline-block;
+  width: 60px;
+}
+
+/* ── Right Column Elements ── */
+.status-widget {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+}
+
+.status-indicator.good {
+  width: 12px;
+  height: 12px;
+  background: #22c55e;
+  border-radius: 50%;
+  margin-top: 6px;
+  box-shadow: 0 0 0 4px #dcfce7;
+}
+
+.status-text h4 {
+  margin: 0 0 4px 0;
+  color: #166534;
+  font-size: 16px;
+}
+
+.status-text p {
+  margin: 0;
+  color: #15803d;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.contract-placeholder-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.contract-item {
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  border-left: 4px solid #FF4D00;
+}
+
+.contract-brand {
+  font-weight: 700;
+  color: #111827;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.contract-date {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.view-all-btn {
+  background: transparent;
+  border: none;
+  color: #FF4D00;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+  text-transform: uppercase;
+}
+
+.view-all-btn:hover {
+  text-decoration: underline;
+}
+
+/* ── Status Messages ── */
+.profile-loading {
+  text-align: center;
+  padding: 60px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.profile-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  padding: 24px;
+  color: #991b1b;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* ── Responsive ── */
+@media (max-width: 800px) {
+  .profile-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .profile-header-content {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 0 20px 30px;
+  }
+  
+  .profile-header-text {
+    margin: 16px 0 24px 0;
+  }
+}
