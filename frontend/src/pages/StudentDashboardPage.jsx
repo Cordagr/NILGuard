@@ -2253,7 +2253,7 @@ function StudentDashboardPage() {
 
       {/* COMPLETE HISTORICAL RECORD */}
 
-      {selectedHistoricalContract ? (
+      {selectedHistoricalContract && !metadataDialogContractId ? (
         <div
           className="dashboard-dialog-backdrop"
           role="presentation"
