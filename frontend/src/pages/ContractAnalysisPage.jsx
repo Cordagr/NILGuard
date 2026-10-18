@@ -238,7 +238,7 @@ function ContractAnalysisPage() {
   const highlightTokens = useMemo(() => getHighlightTokens(selectedFinding), [selectedFinding]);
   const contractFileUrl = currentUser?.id && contractId ? getContractFileUrl(currentUser, contractId) : '';
   const pdfDevicePixelRatio = typeof window !== 'undefined' ? Math.max(window.devicePixelRatio || 1, 2) : 2;
-  const pdfPageWidth = Math.round(700 * pdfZoom);
+  const pdfPageWidth = 600;
   const pdfFile = useMemo(() => {
     if (!contractFileUrl || !currentUser?.id) {
       return null;
@@ -270,8 +270,10 @@ function ContractAnalysisPage() {
   return (
     <div className="analysis-container" style={{ padding: '0.5em 0.2em', minHeight: '100vh' }}>
       <div className="analysis-back-row" style={{ marginBottom: 0 }}>
-        <Link to="/dashboard/student" className="analysis-exit-link">
-          Exit To Student Dashboard
+        <Link
+          to="/dashboard/student"
+          className="dashboard-secondary-button btn-97 analysis-exit-link">
+            ← Back to Student Dashboard
         </Link>
       </div>
 
@@ -295,10 +297,10 @@ function ContractAnalysisPage() {
           </div>
         </section>
       ) : (
-        <main className="analysis-grid analysis-report-grid" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', minHeight: '80vh', width: '100%' }}>
+        <main className="analysis-grid analysis-report-grid" style={{ display: 'grid', gap: 8, alignItems: 'flex-start', minHeight: '80vh', width: '100%' }}>
 
           {/* LEFT — Compliance Checks */}
-          <section className="analysis-results analysis-results-column" style={{ flex: '0 0 50%', maxWidth: '50%', minWidth: 0, marginTop: PANEL_MARGIN_TOP }}>
+          <section className="analysis-results analysis-results-column" style={{ flex: '0 0 50%', maxWidth: '100%', minWidth: 0, marginTop: PANEL_MARGIN_TOP }}>
             <div className="analysis-panel" style={{ padding: PANEL_PADDING, borderRadius: 8 }}>
 
               <h2 style={TITLE_STYLE}>Compliance Checks</h2>
@@ -362,7 +364,7 @@ function ContractAnalysisPage() {
           </section>
 
           {/* RIGHT — Contract PDF */}
-          <section className="analysis-pdf-viewer" style={{ flex: '0 0 50%', maxWidth: '50%', minWidth: 0, background: '#fff', borderRadius: 8, boxShadow: '0 2px 8px #0001', padding: PANEL_PADDING, marginTop: PANEL_MARGIN_TOP, marginBottom: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '90vh', overflow: 'auto' }}>
+          <section className="analysis-pdf-viewer" style={{ flex: '0 0 50%', maxWidth: '100%', minWidth: 0, background: '#fff', borderRadius: 8, boxShadow: '0 2px 8px #0001', padding: PANEL_PADDING, marginTop: PANEL_MARGIN_TOP, marginBottom: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '90vh', overflow: 'auto' }}>
 
             <h2 style={{ ...TITLE_STYLE, alignSelf: 'flex-start' }}>Contract PDF</h2>
 
@@ -385,7 +387,7 @@ function ContractAnalysisPage() {
                       <Page
                         key={`page_${idx + 1}`}
                         pageNumber={idx + 1}
-                        width={pdfPageWidth + 200}
+                        width={pdfPageWidth}
                         scale={pdfZoom}
                         renderAnnotationLayer={true}
                         renderTextLayer={true}

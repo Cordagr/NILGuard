@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import '../styles/pages/Register.css';
 import logo from '../assets/NILGUARD.png';
@@ -18,9 +18,8 @@ function RegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const selectedRole = useMemo(
-    () => getNormalizedRole(searchParams.get('role')),
-    [searchParams]
+  const [selectedRole, setSelectedRole] = useState(
+    () => getNormalizedRole(searchParams.get('role'))
   );
 
   const handleChange = (e) => {
@@ -65,17 +64,27 @@ function RegisterPage() {
         </div>
 
         <form className="register-form" onSubmit={handleSubmit}>
-          {selectedRole && (
-            <div className="form-group">
-              <label className="form-label">Role</label>
-              <input
-                type="text"
-                className="form-input"
-                value={ROLE_LABELS[selectedRole]}
-                disabled
-              />
-            </div>
-          )}
+          <div className="form-group">
+            <label className="form-label" htmlFor="register-role">
+              Role
+            </label>
+            <select
+              id="register-role"
+              className="form-input"
+              value={selectedRole || ''}
+              onChange={(e) => setSelectedRole(getNormalizedRole(e.target.value))}
+              required
+            >
+              <option value="" disabled>Select your role</option>
+              {Object.entries(ROLE_LABELS)
+                .filter(([role]) => role !== 'school')
+                .map(([role, label]) => (
+                  <option key={role} value={role}>
+                    {label}
+                  </option>
+                ))}
+            </select>
+          </div>
 
           <p className="register-hint">
             Use your official university .edu email. NILGuard assigns your school and NCAA division from the email domain.

@@ -6,6 +6,20 @@
 !.env.example
 
 # =========================
+# Timestamped Backup Files
+# =========================
+*.before-*
+*.bak
+*.backup
+*.orig
+*.rej
+*.pre-
+*.messaging-
+*~
+*.messaging-backup
+*.pre-inbox-*
+
+# =========================
 # Dependencies
 # =========================
 node_modules/

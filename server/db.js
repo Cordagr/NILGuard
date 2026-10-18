@@ -50,20 +50,60 @@ function compileFilter(filter = {}) {
   const clauses = [];
   const values = [];
 
-  for (const [key, expected] of Object.entries(filter)) {
-    const path = key.split('.').map((segment) => `'${segment.replaceAll("'", "''")}'`);
+  function addClause(key, expected) {
+    const path = key.split('.').map(
+      (segment) => `'${segment.replaceAll("'", "''")}'`
+    );
     const expression = key === '_id'
       ? 'id'
       : `${path.slice(0, -1).reduce((sql, segment) => `${sql}->${segment}`, 'data')}->>${path[path.length - 1]}`;
 
-    if (expected && typeof expected === 'object' && !Array.isArray(expected) && '$in' in expected) {
+    if (
+      expected &&
+      typeof expected === 'object' &&
+      !Array.isArray(expected) &&
+      '$in' in expected
+    ) {
       values.push(expected.$in.map(String));
       clauses.push(`${expression} = ANY($${values.length}::text[])`);
-      continue;
+      return;
     }
 
     values.push(expected === null || expected === undefined ? null : String(expected));
     clauses.push(`${expression} IS NOT DISTINCT FROM $${values.length}::text`);
+  }
+
+  for (const [key, expected] of Object.entries(filter)) {
+    if (key === '$or') {
+      if (!Array.isArray(expected) || expected.length === 0) {
+        throw new Error('$or filter must be a non-empty array.');
+      }
+
+      const alternatives = [];
+
+      for (const branch of expected) {
+        const branchClauses = [];
+        const outerClauses = clauses.splice(0, clauses.length);
+
+        for (const [branchKey, branchValue] of Object.entries(branch)) {
+          addClause(branchKey, branchValue);
+        }
+
+        branchClauses.push(...clauses.splice(0, clauses.length));
+        clauses.push(...outerClauses);
+
+        if (branchClauses.length === 0) {
+          throw new Error('$or branches must contain at least one condition.');
+        }
+
+        alternatives.push(`(${branchClauses.join(' AND ')})`);
+      }
+
+      clauses.push(`(${alternatives.join(' OR ')})`);
+      continue;
+    }
+
+    addClause(key, expected);
   }
 
   return {
@@ -71,7 +111,6 @@ function compileFilter(filter = {}) {
     values
   };
 }
-
 function applyUpdate(document, update) {
   const next = structuredClone(document);
 
