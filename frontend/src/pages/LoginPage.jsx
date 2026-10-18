@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import '../styles/pages/Login.css';
 import logo from '../assets/NILGUARD.png';
@@ -15,9 +15,8 @@ function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const selectedRole = useMemo(
-    () => getNormalizedRole(searchParams.get('role')),
-    [searchParams]
+  const [selectedRole, setSelectedRole] = useState(
+    () => getNormalizedRole(searchParams.get('role'))
   );
 
   const noticeMessage = searchParams.get('reason') === 'timeout'
@@ -50,17 +49,26 @@ function LoginPage() {
         </div>
 
         <form className="login-form" onSubmit={handleSubmit}>
-          {selectedRole && (
-            <div className="form-group">
-              <label className="form-label">Role</label>
-              <input
-                type="text"
-                className="form-input"
-                value={ROLE_LABELS[selectedRole]}
-                disabled
-              />
-            </div>
-          )}
+          <div className="form-group">
+            <label className="form-label" htmlFor="login-role">
+              Role
+            </label>
+            <select
+              id="login-role"
+              className="form-input"
+              value={selectedRole}
+              onChange={(e) => setSelectedRole(getNormalizedRole(e.target.value))}
+              required
+            >
+              {Object.entries(ROLE_LABELS)
+                .filter(([role]) => role !== 'school')
+                .map(([role, label]) => (
+                  <option key={role} value={role}>
+                    {label}
+                  </option>
+                ))}
+            </select>
+          </div>
 
           {noticeMessage && (
             <p className="login-hint">{noticeMessage}</p>

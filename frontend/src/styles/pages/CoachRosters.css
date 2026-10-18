@@ -1,11 +1,11 @@
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Barlow:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 .coach-page {
   min-height: 100vh;
   padding: 0 32px 40px;
   background: #F5F0E8;
   color: #181818;
-  font-family: 'Barlow', sans-serif;
+  font-family: 'Inter', sans-serif;
 }
 
 /* ── Header ── */
@@ -52,7 +52,7 @@
 }
 
 .coach-header-title {
-  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-family: 'Inter', Arial, sans-serif;
   font-size: clamp(2rem, 5vw, 3.8rem);
   font-weight: 900;
   text-transform: uppercase;
@@ -63,7 +63,7 @@
 }
 
 .coach-header-identity {
-  font-family: 'Barlow', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 0.78rem;
   font-weight: 500;
   text-transform: uppercase;
@@ -101,7 +101,7 @@
   border: none;
   background: #FF4D00;
   color: #fff;
-  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 1rem;
   font-weight: 900;
   text-transform: uppercase;
@@ -149,7 +149,7 @@
   border: none;
   background: #FF4D00;
   color: #fff;
-  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 1.15rem;
   font-weight: 900;
   text-transform: uppercase;
@@ -440,4 +440,97 @@
     gap: 8px;
     font-size: 13px;
   }
+}
+
+.roster-players-panel {
+  padding: 16px;
+  border-top: 1px solid #e5e7eb;
+  background: #fafafa;
+}
+
+.roster-players-panel h3 {
+  margin: 0 0 12px;
+  font-size: 18px;
+  color: #111827;
+}
+
+.roster-players-panel p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.roster-players-list {
+  display: grid;
+  gap: 8px;
+}
+
+.roster-player {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  color: #181818;
+}
+
+.roster-player-id {
+  font-size: 12px;
+  color: #6b7280;
+}
+/* Athlete-first directory */
+.athlete-search-label {
+  display: block;
+  margin-top: 18px;
+  font-weight: 700;
+  color: #374151;
+}
+
+.athlete-search-input {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 8px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  font: inherit;
+}
+
+.athlete-directory-list {
+  display: grid;
+  gap: 10px;
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.athlete-directory-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.athlete-directory-identity h3 {
+  margin: 0 0 5px;
+  color: #111827;
+  font-size: 17px;
+}
+
+.athlete-directory-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  color: #4b5563;
+  font-size: 13px;
+}
+
+.athlete-rosters-heading {
+  margin-top: 28px !important;
 }

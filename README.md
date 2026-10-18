@@ -60,57 +60,31 @@ a
 - Roles: `student`, `coach`, `school`, and `compliance` (contract reviewers use the compliance role).
 - Sessions use a JWT stored in an httpOnly cookie that expires after 30 minutes. The user id always comes from the session, never from the request body or headers.
 - After 3 failed login attempts the account locks for 15 minutes.
-- Register, login, failed logins, and lockouts are written to an `auditLogs` collection in MongoDB.
+- Register, login, failed logins, and lockouts are written to the PostgreSQL `audit_logs` table.
 - All `/api/contracts`, `/api/rosters`, and `/api/compliance` endpoints require a valid session.
 
 ## Local Setup
 
-1. MongoDB: any local instance works, for example `docker run -d -p 27017:27017 --name nilguard-mongo mongo:7`.
-2. Copy `.env.example` to `.env` in the project root and set the required local values:
-   - `MONGODB_URI=mongodb://localhost:27017`
-   - `JWT_SECRET=<any long random string>`
-   - Optional: `PORT`, `CORS_ORIGIN`, `JWT_EXPIRES_IN`
-3. Backend: `npm install` then `npm run server` (runs on port 5000).
-4. Frontend: `cd frontend`, `npm install`, then `npm run dev` (runs on port 5173).
+Requirements: Node.js 18 or later, npm, and PostgreSQL 14 or later. Docker Desktop is the easiest way to run PostgreSQL locally.
 
-## AI Contract Analysis (Backend)
-
-The contract analysis endpoint keeps the existing rule-based report and adds an AI-generated analysis. The current frontend does not display the AI result yet.
-
-### Configure the AI provider
-
-Set the provider key in the project-root `.env` file:
-
-```env
-AI_API_KEY=your_api_key_here
-```
-
-Do not put a real API key in `.env.example`, source code, or a commit. The root `.env` file is for local secrets and should remain untracked. The backend uses an OpenAI-compatible Chat Completions API. Optional settings are:
-
-```env
-AI_BASE_URL=https://api.openai.com/v1
-AI_MODEL=gpt-6-luna
-```
-
-`AI_BASE_URL` defaults to the OpenAI API URL shown above, and `AI_MODEL` defaults to `gpt-6-luna`. Use the base URL and model required by your provider if they differ. Restart the backend after changing `.env`.
-
-### Run an analysis
-
-1. Start MongoDB and configure the project-root `.env` file.
-2. Start the backend with `npm run server`, then sign in to NILGuard and upload a contract PDF.
-3. While signed in, request the contract's analysis endpoint:
-
-   ```text
-   GET http://localhost:5000/api/contracts/{contractId}/analysis
+1. Start PostgreSQL once:
+   ```powershell
+   docker run --name nilguard-postgres -e POSTGRES_USER=nilguard -e POSTGRES_PASSWORD=nilguard_dev_password -e POSTGRES_DB=nilguard -p 5432:5432 -d postgres:16
    ```
+   On later starts, use `docker start nilguard-postgres`.
+2. Copy `.env.example` to `.env` in the project root. Set `JWT_SECRET` to a long random value. The example `DATABASE_URL` matches the Docker command above; keep `DATABASE_SSL=false` for local development.
+3. Install and start the backend from the project root:
+   ```powershell
+   npm install
+   npm run server
+   ```
+   The server listens on `http://localhost:5000` and creates its PostgreSQL tables and indexes at startup.
+4. In a second terminal, start the frontend:
+   ```powershell
+   cd frontend
+   npm install
+   npm run dev
+   ```
+   Open the Vite URL shown in the terminal, normally `http://localhost:5173`.
 
-   The request needs the normal authenticated session cookie, and the contract must belong to the signed-in account. The response retains the existing `analysis`, `summary`, and `findings` fields, and adds:
-
-   - `aiStatus`: whether the AI analysis completed, failed, or is unavailable.
-   - `aiMessage`: a short status or error message.
-   - `aiCacheHit`: whether a saved result was reused.
-   - `aiAnalysis`: the structured AI report, or `null` if no report is available.
-
-The first analysis can take a few minutes. Results are cached by PDF content, model, and rubric version. Add `?refresh=true` to request a fresh analysis; this makes another provider request and may incur usage charges. If `AI_API_KEY` is not configured, the endpoint still returns the existing rule-based report and marks AI as unavailable.
-
-Note: the SRS describes PostgreSQL, but the current implementation uses MongoDB.
+Application records are stored in PostgreSQL JSONB tables. Uploaded contract PDFs and roster CSVs remain in `server/uploads/` on the local filesystem. Existing MongoDB records are not imported automatically; a fresh PostgreSQL database starts empty. For a hosted PostgreSQL service, set `DATABASE_URL` to its connection string and set `DATABASE_SSL=true` when the provider requires TLS.

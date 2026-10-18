@@ -1,4 +1,3 @@
-import { ObjectId } from 'mongodb';
 import { verifyToken } from '../utils/jwt.js';
 
 // checks the session cookie and attaches the logged in user to the request
@@ -22,12 +21,12 @@ export function makeRequireAuth(getUsersCollection, recordAudit) {
 
       const userId = payload?.userId;
 
-      if (!userId || !ObjectId.isValid(userId)) {
+      if (!userId) {
         recordAudit('unauthorized', { ip: req.ip });
         return res.status(401).json({ message: 'Invalid session.' });
       }
 
-      const user = await getUsersCollection().findOne({ _id: new ObjectId(userId) });
+      const user = await getUsersCollection().findOne({ _id: String(userId) });
 
       if (!user) {
         recordAudit('unauthorized', { ip: req.ip });

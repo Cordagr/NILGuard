@@ -5,6 +5,8 @@ import { useAuth } from '../context/AuthContext';
 import '../styles/pages/StudentDashboard.css';
 
 import logo from '../assets/NILGUARD.png';
+import FilterIcon from '../assets/filter.png';
+import InboxIcon from '../assets/inbox.png';
 import ProfileIcon from '../assets/ProfileIcon.png';
 
 import {
@@ -106,6 +108,33 @@ function getMetadataStorageKey(userId, contractId) {
   return `nilguard_contract_metadata_${userId}_${contractId}`;
 }
 
+function normalizeDateInput(value) {
+  if (!value) return '';
+
+  const text = String(value).trim();
+
+  // Already in the format required by <input type="date">
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    return text;
+  }
+
+  // ISO date/time or another string beginning with YYYY-MM-DD
+  const isoMatch = text.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoMatch) {
+    return isoMatch[1];
+  }
+
+  // Handle dates such as "Oct 1, 2026"
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
 function getContractMetadata(userId, contractId) {
   try {
     const raw = localStorage.getItem(
@@ -132,8 +161,8 @@ function getContractMetadata(userId, contractId) {
       athleteName: parsed.athleteName || '',
       brandPayer: parsed.brandPayer || '',
       contractValue: parsed.contractValue || '',
-      startDate: parsed.startDate || '',
-      endDate: parsed.endDate || '',
+      startDate: normalizeDateInput(parsed.startDate),
+      endDate: normalizeDateInput(parsed.endDate),
       deliverables: Array.isArray(parsed.deliverables)
         ? parsed.deliverables
         : [],
@@ -288,6 +317,8 @@ function StudentDashboardPage() {
   const { user: currentUser, logout } = useAuth();
 
   const menuRef = useRef(null);
+  const inboxRef = useRef(null);
+  const sortMenuRef = useRef(null);
   const fileInputRef = useRef(null);
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -298,6 +329,7 @@ function StudentDashboardPage() {
   const [conversationReply, setConversationReply] = useState('');
   const [sendingMessageId, setSendingMessageId] = useState('');
   const [newMessage, setNewMessage] = useState({ requestId: '', subject: '', body: '' });
+  const [recipientComplianceEmail, setRecipientComplianceEmail] = useState('');
   const [isSendingNewMessage, setIsSendingNewMessage] = useState(false);
 
   const [contracts, setContracts] = useState([]);
@@ -333,8 +365,23 @@ function StudentDashboardPage() {
   const [successMessage, setSuccessMessage] =
     useState('');
 
+  useEffect(() => {
+    if (!successMessage) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(
+      () => setSuccessMessage(''),
+      35000
+    );
+
+    return () => window.clearTimeout(timeoutId);
+  }, [successMessage]);
+
   const [sortMode, setSortMode] =
     useState('lastAccessedAt');
+  const [isSortMenuOpen, setIsSortMenuOpen] =
+    useState(false);
 
   const [selectedHistoricalContractId, setSelectedHistoricalContractId] =
     useState('');
@@ -361,6 +408,33 @@ function StudentDashboardPage() {
   const [metadataVersion, setMetadataVersion] = useState(0);
 
   const [isSavingMetadata, setIsSavingMetadata] = useState(false);
+  const fetchComplianceRequests = async () => {
+    if (!currentUser?.id) {
+      return;
+    }
+
+    setIsLoadingHistory(true);
+
+    try {
+      const response = await listComplianceRequests(currentUser);
+      setComplianceRequests(response.requests || []);
+    } catch (error) {
+      setErrorMessage(
+        error.message || 'Unable to load compliance history.'
+      );
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  const fetchMessages = async () => {
+    try {
+      const response = await listComplianceMessages();
+      setMessages(response.messages || []);
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to load inbox messages.');
+    }
+  };
 
   const fetchContracts = async (
     nextSortMode = sortMode
@@ -390,43 +464,6 @@ function StudentDashboardPage() {
       );
     } finally {
       setIsLoadingContracts(false);
-    }
-  };
-
-  const fetchComplianceRequests = async () => {
-    if (!currentUser?.id) {
-      return;
-    }
-
-    setIsLoadingHistory(true);
-
-    try {
-      const response =
-        await listComplianceRequests(currentUser);
-
-      setComplianceRequests(
-        response.requests || []
-      );
-    } catch (error) {
-      setErrorMessage(
-        error.message ||
-          'Unable to load compliance history.'
-      );
-    } finally {
-      setIsLoadingHistory(false);
-    }
-
-    setIsLoadingHistory(true);
-
-    try {
-      const response =
-        await listComplianceRequests(currentUser);
-
-      setComplianceRequests(
-        response.requests || []
-      );
-    } catch (error) {
-      setErrorMessage(error.message || 'Unable to load inbox messages.');
     }
   };
 
@@ -474,11 +511,19 @@ function StudentDashboardPage() {
 
     setIsSendingNewMessage(true);
     try {
+      const recipientEmail = recipientComplianceEmail.trim().toLowerCase();
+      if (!recipientEmail) {
+        setErrorMessage('Enter the compliance officer email address.');
+        return;
+      }
+
       await sendComplianceMessage(
         newMessage.requestId,
         newMessage.subject,
-        newMessage.body
+        newMessage.body,
+        recipientEmail
       );
+      setRecipientComplianceEmail('');
       setNewMessage({ requestId: '', subject: '', body: '' });
       await fetchMessages();
     } catch (error) {
@@ -505,6 +550,10 @@ function StudentDashboardPage() {
       if (inboxRef.current && !inboxRef.current.contains(event.target)) {
         setInboxOpen(false);
       }
+
+      if (sortMenuRef.current && !sortMenuRef.current.contains(event.target)) {
+        setIsSortMenuOpen(false);
+      }
     };
 
     document.addEventListener(
@@ -525,10 +574,9 @@ function StudentDashboardPage() {
     };
   }, [navigate]);
 
-  const handleSortChange = async (event) => {
-    const nextSortMode = event.target.value;
-
+  const handleSortChange = async (nextSortMode) => {
     setSortMode(nextSortMode);
+    setIsSortMenuOpen(false);
 
     await fetchContracts(nextSortMode);
   };
@@ -602,7 +650,7 @@ function StudentDashboardPage() {
       }
 
       setSuccessMessage(
-        'Contract uploaded successfully. Add its agreement details from the Historical NIL Agreements section.'
+        'Contract uploaded successfully.'
       );
 
       await fetchContracts(sortMode);
@@ -954,6 +1002,37 @@ function StudentDashboardPage() {
   };
 
   const historicalContracts = contracts;
+  const contractProgress = contracts.reduce(
+    (summary, contract) => {
+      const request = getComplianceRequestForContract(
+        complianceRequests,
+        contract.id
+      );
+
+      summary.total += 1;
+
+      if (!request) {
+        summary.notSubmitted += 1;
+      } else if (request.status === 'accepted') {
+        summary.approved += 1;
+      } else if (request.status === 'rejected') {
+        summary.rejected += 1;
+      } else {
+        summary.inReview += 1;
+      }
+
+      return summary;
+    },
+    {
+      total: 0,
+      notSubmitted: 0,
+      inReview: 0,
+      approved: 0,
+      rejected: 0
+    }
+  );
+  const isLoadingContractProgress =
+    isLoadingContracts || isLoadingHistory;
 
   const conversations = Object.values(messages.reduce((groups, message) => {
     const conversationId = message.requestId || message.contractId || message.id;
@@ -1010,6 +1089,28 @@ function StudentDashboardPage() {
 
   return (
     <div className={`student-dashboard-container ${inboxOpen ? 'inbox-overlay-open' : ''}`}>
+      {successMessage && (
+        <div
+          className="contract-success-toast"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <span className="contract-success-toast-icon" aria-hidden="true">
+            &#10003;
+          </span>
+          <p>{successMessage}</p>
+          <button
+            type="button"
+            className="contract-success-toast-dismiss"
+            aria-label="Dismiss success message"
+            onClick={() => setSuccessMessage('')}
+          >
+            &times;
+          </button>
+        </div>
+      )}
+
       <header className="student-dashboard-header">
         <div className="student-dashboard-header-logo-wrap">
           <img
@@ -1039,7 +1140,7 @@ function StudentDashboardPage() {
             onClick={() => setInboxOpen((previous) => !previous)}
             aria-label="Open inbox"
           >
-            <span className="inbox-icon" aria-hidden="true" />
+            <img className="inbox-icon" src={InboxIcon} alt="" aria-hidden="true" />
             <span>Inbox</span>
             {messages.filter((message) => !message.isRead).length + notifications.filter((notification) => !notification.isRead).length > 0 ? (
               <span className="inbox-unread-badge">
@@ -1082,6 +1183,13 @@ function StudentDashboardPage() {
                   ))}
                 </select>
                 <input
+                  type="email"
+                  placeholder="Compliance officer email"
+                  value={recipientComplianceEmail}
+                  onChange={(event) => setRecipientComplianceEmail(event.target.value)}
+                  required
+                />
+                <input
                   type="text"
                   placeholder="Subject"
                   value={newMessage.subject}
@@ -1090,19 +1198,22 @@ function StudentDashboardPage() {
                   }
                 />
                 <textarea
+                  style={{ resize: 'none' }}
                   rows="3"
-                  placeholder="Message compliance and press Enter"
+                  placeholder="Message compliance..."
                   value={newMessage.body}
                   onChange={(event) =>
                     setNewMessage((previous) => ({ ...previous, body: event.target.value }))
                   }
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      event.preventDefault();
-                      handleSendNewMessage();
-                    }
-                  }}
                 />
+
+                <button
+                  type="button"
+                  disabled={isSendingNewMessage}
+                  onClick={handleSendNewMessage}
+                >
+                  {isSendingNewMessage ? 'Sending...' : 'Send Message'}
+                </button>
               </div>
               {conversations.length === 0 ? (
                 <div className="student-inbox-empty">No messages yet.</div>
@@ -1147,18 +1258,28 @@ function StudentDashboardPage() {
                         ))}
                       </div>
                       <textarea
+                        style={{ resize: 'none' }}
                         className="inbox-message-reply"
                         rows="2"
-                        placeholder="Reply and press Enter"
+                        placeholder="Write a Reply..."
                         value={conversationReply}
                         onChange={(event) => setConversationReply(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' && !event.shiftKey) {
-                            event.preventDefault();
-                            handleSendReply(activeConversation);
-                          }
-                        }}
                       />
+                      <button
+                        style={{ 
+                          border: '1px solid',
+                          borderRadius: '40px',
+                          margin: '5px 10px 10px 10px',
+                          width: '90%'
+                          
+                        }}
+                        type="button"
+                        disabled={!conversationReply.trim() || Boolean(sendingMessageId)}
+                        onClick={() => handleSendReply(activeConversation)}
+                      >
+                        {sendingMessageId ? 'Sending...' : 'Send Reply'}
+                      </button>
+
                     </div>
                   ) : null}
                 </>
@@ -1190,8 +1311,8 @@ function StudentDashboardPage() {
                 height: 32,
                 borderRadius: '50%',
                 objectFit: 'cover',
-                border: '2px solid #222',
-                background: '#fff'
+                border: '2px solid #d8c8b5',
+                background: '#F5F0E8'
               }}
             />
           </button>
@@ -1213,7 +1334,27 @@ function StudentDashboardPage() {
       </header>
 
       <main className="student-dashboard-content">
+
+        <section className="education-dashboard-entry">
+  <div>
+    <h2>Education & Financial Literacy</h2>
+    <p>
+      Learn about managing your money, evaluating NIL opportunities,
+      and understanding important contract terms.
+    </p>
+  </div>
+
+  <button
+    type="button"
+    className="dashboard-secondary-button btn-97"
+    onClick={() => navigate('/student/education')}
+  >
+    Start Learning
+  </button>
+</section>
+
         {/* UPLOAD TOOLBAR */}
+
 
         <div className="contracts-toolbar">
           <div className="active-contracts-actions-block">
@@ -1230,7 +1371,7 @@ function StudentDashboardPage() {
 
               <button
                 type="button"
-                className="upload-button"
+                className="upload-button btn-97"
                 onClick={handleUploadClick}
                 disabled={isUploading}
               >
@@ -1244,10 +1385,6 @@ function StudentDashboardPage() {
               <p className="contracts-feedback contracts-error">
                 {errorMessage}
               </p>
-            ) : successMessage ? (
-              <p className="contracts-feedback contracts-success">
-                {successMessage}
-              </p>
             ) : (
               <p className="contracts-feedback">
                 PDF uploads only, up to 12 MB per
@@ -1257,28 +1394,68 @@ function StudentDashboardPage() {
             )}
           </div>
 
-          <label className="contracts-sort-label contracts-sort-toolbar">
-            Sort Current Contracts
-
-            <select
-              className="contracts-sort-select"
-              value={sortMode}
-              onChange={handleSortChange}
+          <div className="contracts-sort-menu" ref={sortMenuRef}>
+            <button
+              type="button"
+              className="contracts-filter-button"
+              aria-label="Filter current contracts"
+              aria-expanded={isSortMenuOpen}
+              aria-controls="contracts-sort-options"
+              onClick={() => setIsSortMenuOpen((open) => !open)}
             >
-              {Object.entries(
-                sortOptions
-              ).map(
-                ([value, option]) => (
-                  <option
+              <img src={FilterIcon} alt="" aria-hidden="true" />
+            </button>
+            {isSortMenuOpen && (
+              <div
+                id="contracts-sort-options"
+                className="contracts-sort-popover"
+                role="group"
+                aria-label="Sort current contracts"
+              >
+                <span className="contracts-sort-popover-title">Filter by</span>
+                {Object.entries(sortOptions).map(([value, option]) => (
+                  <button
                     key={value}
-                    value={value}
+                    type="button"
+                    className={`contracts-sort-option ${sortMode === value ? 'is-selected' : ''}`}
+                    aria-pressed={sortMode === value}
+                    onClick={() => handleSortChange(value)}
                   >
                     {option.label}
-                  </option>
-                )
-              )}
-            </select>
-          </label>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <details className="contracts-progress-summary">
+            <summary className="contracts-progress-toggle">
+              <span>Your NIL Progress</span>
+              <span className="contracts-progress-toggle-label">View summary</span>
+            </summary>
+            <div className="contracts-progress-stats">
+              <div className="contracts-progress-stat contracts-progress-stat-tracked">
+                <strong>{isLoadingContractProgress ? '...' : contractProgress.total}</strong>
+                <span>Tracked</span>
+              </div>
+              <div className="contracts-progress-stat contracts-progress-stat-not-submitted">
+                <strong>{isLoadingContractProgress ? '...' : contractProgress.notSubmitted}</strong>
+                <span>Not Submitted</span>
+              </div>
+              <div className="contracts-progress-stat contracts-progress-stat-review">
+                <strong>{isLoadingContractProgress ? '...' : contractProgress.inReview}</strong>
+                <span>In Review</span>
+              </div>
+              <div className="contracts-progress-stat contracts-progress-stat-approved">
+                <strong>{isLoadingContractProgress ? '...' : contractProgress.approved}</strong>
+                <span>Approved</span>
+              </div>
+              <div className="contracts-progress-stat contracts-progress-stat-rejected">
+                <strong>{isLoadingContractProgress ? '...' : contractProgress.rejected}</strong>
+                <span>Rejected</span>
+              </div>
+            </div>
+          </details>
         </div>
 
         {/* ACTIVE CONTRACTS */}
@@ -1296,8 +1473,20 @@ function StudentDashboardPage() {
                 Loading your contracts...
               </div>
             ) : contracts.length === 0 ? (
-              <div className="contract-card">
-                No contracts uploaded yet.
+              <div className="contract-card contract-empty-state">
+                <span className="contract-empty-mark" aria-hidden="true">+</span>
+                <div className="contract-empty-copy">
+                  <strong>Your next deal starts here.</strong>
+                  <p>Upload a NIL contract PDF to add it to your dashboard and start a compliance review.</p>
+                </div>
+                <button
+                  type="button"
+                  className="dashboard-secondary-button"
+                  onClick={handleUploadClick}
+                  disabled={isUploading}
+                >
+                  Upload a Contract
+                </button>
               </div>
             ) : (
               contracts.map(
@@ -1374,7 +1563,7 @@ function StudentDashboardPage() {
                       <div className="contract-action-row">
                         <button
                           type="button"
-                          className="contract-action-link"
+                          className="contract-action-link btn-97"
                           onClick={() =>
                             handleOpenContract(
                               contract.id
@@ -1386,19 +1575,19 @@ function StudentDashboardPage() {
 
                         <button
                           type="button"
-                          className="dashboard-secondary-button"
+                          className="dashboard-secondary-button btn-97"
                           onClick={() =>
                             openMetadataDialog(
                               contract
                             )
                           }
                         >
-                          Agreement Details
+                          Edit Agreement
                         </button>
 
                         <button
                           type="button"
-                          className="dashboard-secondary-button"
+                          className="dashboard-secondary-button btn-97"
                           onClick={() =>
                             setSelectedHistoricalContractId(
                               contract.id
@@ -1410,7 +1599,7 @@ function StudentDashboardPage() {
 
                         <button
                           type="button"
-                          className="dashboard-secondary-button"
+                          className="dashboard-secondary-button btn-97"
                           onClick={() =>
                             navigate(
                               `/contracts/analyze?contractId=${contract.id}&fileName=${encodeURIComponent(
@@ -1424,7 +1613,7 @@ function StudentDashboardPage() {
 
                         <button
                           type="button"
-                          className="dashboard-secondary-button"
+                          className="dashboard-secondary-button btn-97"
                           onClick={() =>
                             openSendDialog(
                               contract.id
@@ -1443,7 +1632,7 @@ function StudentDashboardPage() {
 
                         <button
                           type="button"
-                          className="dashboard-secondary-button dashboard-delete-button"
+                          className="dashboard-secondary-button dashboard-delete-button btn-97"
                           style={{
                             color: '#b00020',
                             borderColor:
@@ -1474,20 +1663,14 @@ function StudentDashboardPage() {
           </div>
         </section>
 
-        {/* HISTORICAL AGREEMENTS */}
+        {/* HISTORICAL CONTRACTS */}
 
         <section className="contracts-column past-contracts-column">
           <div className="contracts-column-header">
             <h2>
-              Historical NIL Agreements
+              Historical NIL Contracts
             </h2>
 
-            <span>
-              {historicalContracts.length}{' '}
-              {historicalContracts.length === 1
-                ? 'agreement'
-                : 'agreements'}
-            </span>
           </div>
 
           <div className="contracts-list">
@@ -1498,9 +1681,11 @@ function StudentDashboardPage() {
               </div>
             ) : historicalContracts.length ===
               0 ? (
-              <div className="contract-card">
-                No historical NIL agreements
-                yet.
+              <div className="contract-card contract-empty-state contract-empty-history">
+                <div className="contract-empty-copy">
+                  <strong>Your timeline is ready to grow.</strong>
+                  <p>Your uploaded contracts and their review history will appear here.</p>
+                </div>
               </div>
             ) : (
               historicalContracts.map(
@@ -1625,7 +1810,7 @@ function StudentDashboardPage() {
                       <div className="contract-action-row">
                         <button
                           type="button"
-                          className="dashboard-secondary-button dashboard-accept-button"
+                          className="dashboard-secondary-button btn-97"
                           onClick={() =>
                             setSelectedHistoricalContractId(
                               contract.id
@@ -1637,7 +1822,7 @@ function StudentDashboardPage() {
 
                         <button
                           type="button"
-                          className="contract-action-link"
+                          className="contract-action-link btn-97"
                           onClick={() =>
                             handleOpenContract(
                               contract.id
@@ -1649,7 +1834,7 @@ function StudentDashboardPage() {
 
                         <button
                           type="button"
-                          className="dashboard-secondary-button"
+                          className="dashboard-secondary-button btn-97"
                           onClick={() =>
                             openMetadataDialog(
                               contract
@@ -1757,7 +1942,7 @@ function StudentDashboardPage() {
             }}
           >
             <h2 id="agreement-details-title">
-              Agreement Details
+              Edit Agreement
             </h2>
 
             <p className="dashboard-dialog-copy">
@@ -2124,7 +2309,7 @@ function StudentDashboardPage() {
 
       {/* COMPLETE HISTORICAL RECORD */}
 
-      {selectedHistoricalContract ? (
+      {selectedHistoricalContract && !metadataDialogContractId ? (
         <div
           className="dashboard-dialog-backdrop"
           role="presentation"
@@ -2477,6 +2662,13 @@ function StudentDashboardPage() {
                   </p>
                 ) : null}
 
+                {selectedComplianceRequest.rejectionReason ? (
+                  <p>
+                    <strong>Rejection reason:</strong>{' '}
+                    {selectedComplianceRequest.rejectionReason}
+                  </p>
+                ) : null}
+
                 <h4 className="compliance-tasks-heading">Compliance Tasks</h4>
 
                 {selectedComplianceRequest.guidelines?.length ? (
@@ -2537,17 +2729,20 @@ function StudentDashboardPage() {
                 Open Original PDF
               </button>
 
+              
               <button
                 type="button"
                 className="dashboard-secondary-button"
-                onClick={() =>
-                  openMetadataDialog(
-                    selectedHistoricalContract
-                  )
-                }
+                onClick={() => {
+                  const contract = selectedHistoricalContract;
+
+                  setSelectedHistoricalContractId('');
+                  openMetadataDialog(contract);
+                }}
               >
                 Edit Agreement
               </button>
+
 
               <button
                 type="button"

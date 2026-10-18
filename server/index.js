@@ -2,8 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
+import dns from 'dns';
 import bcrypt from 'bcryptjs';
-import { MongoClient, ObjectId } from 'mongodb';
+import pg from 'pg';
 import multer from 'multer';
 import fs from 'fs/promises';
 import path from 'path';
@@ -17,14 +18,16 @@ import { resolveSchoolFromEmail } from './ncaaSchoolDirectory.js';
 import { isEduEmail, isStrongPassword } from './utils/validation.js';
 import { signToken, setAuthCookie, clearAuthCookie } from './utils/jwt.js';
 import { makeRequireAuth } from './middleware/auth.js';
+import { createCollections, initializeDatabase } from './db.js';
 
 dotenv.config();
 
+dns.setServers(['8.8.8.8', '1.1.1.1']);
+
 const app = express();
-const PORT = Number(process.env.PORT || 5000);
-const MONGODB_URI = process.env.MONGODB_URI;
-const DB_NAME = process.env.MONGODB_DB_NAME || 'nilguard';
+const PORT = Number(process.env.PORT || 5001);
 const AGREEMENT_METADATA_VERSION = 2;
+const DATABASE_URL = process.env.DATABASE_URL;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsRoot = path.join(__dirname, 'uploads', 'contracts');
@@ -104,20 +107,48 @@ const rosterUpload = multer({
   }
 });
 
-if (!MONGODB_URI) {
-  throw new Error('Missing MONGODB_URI. Add it to your environment variables.');
+if (!DATABASE_URL) {
+  throw new Error('Missing DATABASE_URL. Add it to your environment variables.');
 }
+
+const configuredCorsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    origin: (origin, callback) => {
+      if (!origin || configuredCorsOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      let isLocalDevelopmentOrigin = false;
+      if (process.env.NODE_ENV !== 'production') {
+        try {
+          const parsedOrigin = new URL(origin);
+          isLocalDevelopmentOrigin =
+            parsedOrigin.protocol === 'http:' &&
+            ['localhost', '127.0.0.1'].includes(parsedOrigin.hostname);
+        } catch {
+          isLocalDevelopmentOrigin = false;
+        }
+      }
+
+      callback(null, isLocalDevelopmentOrigin);
+    },
     credentials: true
   })
 );
 app.use(express.json());
 app.use(cookieParser());
 
-const client = new MongoClient(MONGODB_URI);
+const { Pool } = pg;
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined
+});
 let usersCollection;
 let contractsCollection;
 let rostersCollection;
@@ -319,6 +350,15 @@ function serializeDocumentRequest(documentRequest) {
     assignedComplianceUserId: documentRequest.assignedComplianceUserId || null,
     assignedComplianceEmail: documentRequest.assignedComplianceEmail || null,
     status: documentRequest.status,
+    rejectionReason: documentRequest.rejectionReason || '',
+    reviewHistory: (documentRequest.reviewHistory || []).map((entry) => ({
+      outcome: entry.outcome,
+      rejectionReason: entry.rejectionReason || '',
+      reviewedAt: entry.reviewedAt || entry.at || null,
+      reviewedBy: entry.reviewedBy || null,
+      reviewerEmail: entry.reviewerEmail || null,
+      guidelines: entry.guidelines || []
+    })),
     submittedAt: documentRequest.submittedAt,
     updatedAt: documentRequest.updatedAt,
     reviewedAt: documentRequest.reviewedAt || null,
@@ -363,17 +403,28 @@ function serializeNotification(notification) {
   };
 }
 
-async function createStudentNotification({ requestId, contractId, studentUserId, type, title, body }) {
+async function createUserNotification({ requestId, contractId, recipientUserId, type, title, body }) {
   await notificationsCollection.insertOne({
     notificationId: `NOT-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`,
     requestId,
     contractId,
-    recipientUserId: String(studentUserId),
+    recipientUserId: String(recipientUserId),
     type,
     title,
     body,
     isRead: false,
     createdAt: new Date()
+  });
+}
+
+async function createStudentNotification({ requestId, contractId, studentUserId, type, title, body }) {
+  return createUserNotification({
+    requestId,
+    contractId,
+    recipientUserId: studentUserId,
+    type,
+    title,
+    body
   });
 }
 
@@ -528,10 +579,27 @@ function serializeRoster(roster) {
     sport: roster.sport,
     year: roster.year,
     playerCount: roster.playerCount,
+    players: Array.isArray(roster.players)
+      ? roster.players.map((player) => ({
+          studentId: player.studentId,
+          firstName: player.firstName,
+          lastName: player.lastName
+        }))
+      : [],
     fileName: roster.sourceFileName,
     hasSourceFile: Boolean(roster.storedFilePath),
     createdAt: roster.createdAt,
     updatedAt: roster.updatedAt
+  };
+}
+
+function serializeAthlete(athlete) {
+  return {
+    studentId: athlete.studentId,
+    firstName: athlete.firstName,
+    lastName: athlete.lastName,
+    school: athlete.school,
+    assignments: athlete.assignments || []
   };
 }
 
@@ -603,6 +671,157 @@ app.get('/api/rosters', async (req, res, next) => {
   }
 });
 
+app.get('/api/rosters/athletes', async (req, res, next) => {
+  try {
+    const user = req.user;
+
+    assertUserRole(user, 'coach');
+
+    const userId = String(user._id);
+
+    const rosters = await rostersCollection
+      .find({ userId })
+      .sort({ school: 1, sport: 1, year: 1 })
+      .toArray();
+
+    const athleteMap = new Map();
+
+    rosters.forEach((roster) => {
+      const players = Array.isArray(roster.players) ? roster.players : [];
+
+      players.forEach((player) => {
+        const studentId = String(player.studentId || '').trim();
+
+        if (!studentId) {
+          return;
+        }
+
+        if (!athleteMap.has(studentId)) {
+          athleteMap.set(studentId, {
+            studentId,
+            firstName: String(player.firstName || '').trim(),
+            lastName: String(player.lastName || '').trim(),
+            school: roster.school,
+            assignments: []
+          });
+        }
+
+        const athlete = athleteMap.get(studentId);
+
+        const alreadyAssigned = athlete.assignments.some(
+          (assignment) =>
+            assignment.sport === roster.sport &&
+            assignment.year === roster.year
+        );
+
+        if (!alreadyAssigned) {
+          athlete.assignments.push({
+            rosterId: roster.rosterId,
+            sport: roster.sport,
+            year: roster.year
+          });
+        }
+      });
+    });
+
+    const athletes = Array.from(athleteMap.values()).sort((a, b) => {
+      const lastNameComparison = a.lastName.localeCompare(
+        b.lastName,
+        'en',
+        { sensitivity: 'base' }
+      );
+
+      if (lastNameComparison !== 0) {
+        return lastNameComparison;
+      }
+
+      return a.firstName.localeCompare(
+        b.firstName,
+        'en',
+        { sensitivity: 'base' }
+      );
+    });
+
+    return res.json({
+      athletes: athletes.map(serializeAthlete)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/rosters/athletes/:studentId', async (req, res, next) => {
+  try {
+    const user = req.user;
+
+    assertUserRole(user, 'coach');
+
+    const userId = String(user._id);
+    const studentId = String(req.params.studentId || '').trim();
+
+    if (!studentId) {
+      return res.status(400).json({
+        message: 'A student ID is required.'
+      });
+    }
+
+    const rosters = await rostersCollection
+      .find({ userId })
+      .sort({ school: 1, sport: 1, year: 1 })
+      .toArray();
+
+    let athlete = null;
+
+    rosters.forEach((roster) => {
+      const players = Array.isArray(roster.players) ? roster.players : [];
+
+      const matchingPlayer = players.find(
+        (player) => String(player.studentId || '').trim() === studentId
+      );
+
+      if (!matchingPlayer) {
+        return;
+      }
+
+      if (!athlete) {
+        athlete = {
+          studentId,
+          firstName: String(matchingPlayer.firstName || '').trim(),
+          lastName: String(matchingPlayer.lastName || '').trim(),
+          school: roster.school,
+          assignments: []
+        };
+      }
+
+      const alreadyAssigned = athlete.assignments.some(
+        (assignment) =>
+          assignment.sport === roster.sport &&
+          assignment.year === roster.year
+      );
+
+      if (!alreadyAssigned) {
+        athlete.assignments.push({
+          rosterId: roster.rosterId,
+          sport: roster.sport,
+          year: roster.year
+        });
+      }
+    });
+
+    if (!athlete) {
+      return res.status(404).json({
+        message: 'Athlete was not found in your assigned rosters.'
+      });
+    }
+
+    return res.json({
+      athlete: serializeAthlete(athlete)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post('/api/rosters', rosterUpload.single('file'), async (req, res, next) => {
   try {
     const user = req.user;
@@ -615,18 +834,25 @@ app.post('/api/rosters', rosterUpload.single('file'), async (req, res, next) => 
 
     const rosterGroups = buildRosterGroups(file.buffer.toString('utf8'));
 
-    if (user.school) {
-      const normalizedAssignedSchool = user.school.toLowerCase().trim();
-      const hasMismatchedSchool = rosterGroups.some(
-        (rosterGroup) => rosterGroup.school.toLowerCase().trim() !== normalizedAssignedSchool
-      );
-
-      if (hasMismatchedSchool) {
-        return res.status(403).json({
-          message: `Roster uploads for this account must match the assigned school: ${user.school}.`
-        });
-      }
+    
+    if (typeof user.school !== 'string' || !user.school.trim()) {
+      return res.status(403).json({
+        message: 'Your account must have an assigned school before uploading rosters.'
+      });
     }
+
+    const normalizedAssignedSchool = user.school.toLowerCase().trim();
+    const hasMismatchedSchool = rosterGroups.some(
+      (rosterGroup) =>
+        rosterGroup.school.toLowerCase().trim() !== normalizedAssignedSchool
+    );
+
+    if (hasMismatchedSchool) {
+      return res.status(403).json({
+        message: `Roster uploads for this account must match the assigned school: ${user.school}.`
+      });
+    }
+
 
     const now = new Date();
     const savedRosters = [];
@@ -899,6 +1125,8 @@ app.patch('/api/contracts/:contractId/metadata', async (req, res, next) => {
     };
 
     const now = new Date();
+    const metadataChanged =
+      JSON.stringify(existing) !== JSON.stringify(metadata);
 
     await contractsCollection.updateOne(
       { contractId, userId },
@@ -910,6 +1138,98 @@ app.patch('/api/contracts/:contractId/metadata', async (req, res, next) => {
         }
       }
     );
+
+    // Metadata edits on a submitted contract must be reviewed by its assigned officer.
+    const documentRequest = await documentRequestsCollection.findOne({
+      contractId,
+      studentUserId: userId
+    });
+
+    if (metadataChanged && documentRequest) {
+      const previousStatus = documentRequest.status || 'pending';
+      const wasReviewed = ['accepted', 'rejected'].includes(previousStatus);
+      const reviewHistory = [...(documentRequest.reviewHistory || [])];
+      if (
+        wasReviewed &&
+        !reviewHistory.some(
+          (entry) =>
+            entry.outcome === previousStatus &&
+            String(entry.reviewedAt || entry.at || '') ===
+              String(documentRequest.reviewedAt || '')
+        )
+      ) {
+        reviewHistory.push({
+          outcome: previousStatus,
+          rejectionReason: documentRequest.rejectionReason || '',
+          reviewedAt: documentRequest.reviewedAt || now,
+          reviewedBy: documentRequest.reviewedBy || null,
+          reviewerEmail: documentRequest.reviewerEmail || null,
+          guidelines: documentRequest.guidelines || []
+        });
+      }
+
+      const timeline = [
+        ...(documentRequest.timeline || []),
+        {
+          type: 'agreement_details_updated',
+          at: now,
+          actorUserId: userId,
+          actorEmail: req.user.email,
+          previousStatus
+        }
+      ];
+
+      const requestUpdate = {
+        reviewHistory,
+        updatedAt: now,
+        timeline
+      };
+
+      if (wasReviewed) {
+        requestUpdate.status = 'pending';
+        requestUpdate.reviewedAt = null;
+        requestUpdate.reviewedBy = null;
+        requestUpdate.reviewerEmail = null;
+        requestUpdate.rejectionReason = '';
+
+        // Clear prior guideline decisions so the revised details are reviewed afresh.
+        requestUpdate.guidelines = buildGuidelineReviews(
+          contract.aiScreening?.findings || [],
+          null
+        );
+      }
+
+      await documentRequestsCollection.updateOne(
+        { requestId: documentRequest.requestId },
+        { $set: requestUpdate }
+      );
+
+      if (documentRequest.assignedComplianceUserId) {
+        await createUserNotification({
+          requestId: documentRequest.requestId,
+          contractId,
+          recipientUserId: documentRequest.assignedComplianceUserId,
+          type: 'agreement_details_updated',
+          title: wasReviewed
+            ? 'Agreement details changed — review required'
+            : 'Agreement details updated',
+          body: `${req.user.email} saved changes to the agreement details for "${contract.fileName}".${wasReviewed ? ' The request has returned to pending review.' : ' Please review the updated details.'}`
+        });
+      }
+
+      await createStudentNotification({
+        requestId: documentRequest.requestId,
+        contractId,
+        studentUserId: userId,
+        type: 'agreement_details_updated',
+        title: wasReviewed
+          ? 'Updated agreement submitted for review'
+          : 'Agreement details updated',
+        body: wasReviewed
+          ? 'Your updated agreement details were sent to compliance for another review.'
+          : 'Your saved agreement details were updated. Your compliance officer has been notified.'
+      });
+    }
 
     const updatedContract = await contractsCollection.findOne({
       contractId,
@@ -1106,6 +1426,15 @@ app.post('/api/compliance/requests', async (req, res, next) => {
       body: `Your contract was submitted to ${complianceOfficer.email} for review.`
     });
 
+    await createUserNotification({
+      requestId,
+      contractId,
+      recipientUserId: complianceOfficer._id.toString(),
+      type: existingRequest ? 'contract_resubmitted' : 'contract_submitted',
+      title: existingRequest ? 'Contract resubmitted for review' : 'New contract submitted',
+      body: `${user.email} ${existingRequest ? 'resubmitted' : 'submitted'} "${contract.fileName}" for review.`
+    });
+
     return res.status(existingRequest ? 200 : 201).json({
       message: `Document submitted to ${complianceOfficer.email} for review.`,
       request: serializeDocumentRequest(savedRequest)
@@ -1124,6 +1453,7 @@ app.patch('/api/compliance/requests/:requestId', async (req, res, next) => {
     const { requestId } = req.params;
     const nextStatus = String(req.body?.status || '').trim().toLowerCase();
     const submittedGuidelines = Array.isArray(req.body?.guidelines) ? req.body.guidelines : [];
+    const rejectionReason = String(req.body?.rejectionReason || '').trim();
 
     if (!['accepted', 'rejected'].includes(nextStatus)) {
       return res.status(400).json({ message: 'Status must be accepted or rejected.' });
@@ -1181,14 +1511,37 @@ app.patch('/api/compliance/requests/:requestId', async (req, res, next) => {
       return res.status(400).json({ message: 'A contract can only be accepted when every NIL guideline passes.' });
     }
 
+    if (
+      nextStatus === 'rejected' &&
+      reviewedGuidelines.every((guideline) => guideline.decision === 'pass') &&
+      !rejectionReason
+    ) {
+      return res.status(400).json({
+        message: 'Please provide a rejection reason when all NIL guidelines pass.'
+      });
+    }
+
     const now = new Date();
+    const reviewHistory = [
+      ...(documentRequest.reviewHistory || []),
+      {
+        outcome: nextStatus,
+        rejectionReason: nextStatus === 'rejected' ? rejectionReason : '',
+        reviewedAt: now,
+        reviewedBy: userId,
+        reviewerEmail: user.email,
+        guidelines: reviewedGuidelines
+      }
+    ];
 
     await documentRequestsCollection.updateOne(
       { requestId },
       {
         $set: {
+          reviewHistory,
           status: nextStatus,
           guidelines: reviewedGuidelines,
+          rejectionReason: nextStatus === 'rejected' ? rejectionReason : '',
           reviewedAt: now,
           reviewedBy: userId,
           reviewerEmail: user.email,
@@ -1312,13 +1665,33 @@ app.get('/api/compliance/messages', async (req, res, next) => {
     const user = req.user;
     const userId = String(user._id);
 
-    const assignedRequestQuery = user.role === 'compliance'
-      ? { assignedComplianceUserId: userId }
-      : { studentUserId: userId };
-    const assignedRequests = await documentRequestsCollection.find(assignedRequestQuery).project({ requestId: 1 }).toArray();
-    const requestIds = assignedRequests.map((request) => request.requestId);
+    let messageQuery;
+
+    if (user.role === 'compliance') {
+      messageQuery = {
+        $or: [
+          { senderUserId: userId },
+          { recipientUserId: userId }
+        ]
+      };
+    } else {
+      const studentRequests = await documentRequestsCollection
+        .find({ studentUserId: userId })
+        .project({ requestId: 1 })
+        .toArray();
+      const requestIds = studentRequests.map((request) => request.requestId);
+
+      messageQuery = {
+        requestId: { $in: requestIds },
+        $or: [
+          { senderUserId: userId },
+          { recipientUserId: userId }
+        ]
+      };
+    }
+
     const messages = await messagesCollection
-      .find({ requestId: { $in: requestIds } })
+      .find(messageQuery)
       .sort({ createdAt: -1 })
       .toArray();
 
@@ -1331,7 +1704,7 @@ app.get('/api/compliance/messages', async (req, res, next) => {
 app.get('/api/compliance/notifications', async (req, res, next) => {
   try {
     const userId = String(req.user._id);
-    assertUserRole(req.user, 'student');
+    assertUserRole(req.user, 'student', 'compliance');
     const notifications = await notificationsCollection
       .find({ recipientUserId: userId })
       .sort({ createdAt: -1 })
@@ -1350,7 +1723,7 @@ app.get('/api/compliance/notifications', async (req, res, next) => {
 app.patch('/api/compliance/notifications/:notificationId/read', async (req, res, next) => {
   try {
     const userId = String(req.user._id);
-    assertUserRole(req.user, 'student');
+    assertUserRole(req.user, 'student', 'compliance');
     await notificationsCollection.updateOne(
       { notificationId: req.params.notificationId, recipientUserId: userId },
       { $set: { isRead: true, readAt: new Date() } }
@@ -1370,31 +1743,74 @@ app.post('/api/compliance/messages', async (req, res, next) => {
     const requestId = String(req.body?.requestId || '').trim();
     const subject = String(req.body?.subject || '').trim();
     const body = String(req.body?.body || '').trim();
+    const requestedRecipientEmail = String(req.body?.recipientEmail || '').trim().toLowerCase();
 
     if (!requestId) {
       return res.status(400).json({ message: 'A contract request is required for messaging.' });
     }
-
     if (!body) {
       return res.status(400).json({ message: 'A message body is required.' });
     }
 
-    const request = user.role === 'compliance'
-      ? await documentRequestsCollection.findOne({ requestId, assignedComplianceUserId: userId })
-      : await documentRequestsCollection.findOne({ requestId, studentUserId: userId });
+    let request;
+    let recipientUserId;
+    let recipientEmail;
 
-    if (!request) {
-      return res.status(403).json({ message: 'You can only message users assigned to this contract.' });
+    if (user.role === 'student') {
+      request = await documentRequestsCollection.findOne({
+        requestId,
+        studentUserId: userId
+      });
+
+      if (!request) {
+        return res.status(403).json({ message: 'You can only message users about your own contracts.' });
+      }
+      if (!requestedRecipientEmail) {
+        return res.status(400).json({ message: 'Enter the compliance officer email address.' });
+      }
+
+      const officer = await usersCollection.findOne({
+        email: requestedRecipientEmail,
+        role: 'compliance',
+        school: user.school
+      });
+
+      if (!officer) {
+        return res.status(404).json({
+          message: 'No compliance officer account with that email was found for your school.'
+        });
+      }
+
+      recipientUserId = String(officer._id);
+      recipientEmail = officer.email;
+    } else {
+      request = await documentRequestsCollection.findOne({ requestId });
+
+      if (!request) {
+        return res.status(404).json({ message: 'Contract request not found.' });
+      }
+
+      const hasConversationAccess = await messagesCollection.findOne({
+        requestId,
+        $or: [
+          { senderUserId: userId },
+          { recipientUserId: userId }
+        ]
+      });
+
+      if (request.assignedComplianceUserId !== userId && !hasConversationAccess) {
+        return res.status(403).json({
+          message: 'You can only reply to conversations addressed to you or contracts assigned to you.'
+        });
+      }
+
+      recipientUserId = String(request.studentUserId);
+      recipientEmail = request.studentEmail;
     }
 
-    const recipientUserId = user.role === 'compliance' ? request.studentUserId : request.assignedComplianceUserId;
-    const recipientEmail = user.role === 'compliance' ? request.studentEmail : request.assignedComplianceEmail;
-
-    const messageId = `MSG-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`;
     const now = new Date();
-
     await messagesCollection.insertOne({
-      messageId,
+      messageId: `MSG-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`,
       requestId,
       contractId: request.contractId,
       senderUserId: userId,
@@ -1416,6 +1832,15 @@ app.post('/api/compliance/messages', async (req, res, next) => {
         type: 'officer_message',
         title: 'New message from compliance',
         body: subject || 'You received a new compliance message.'
+      });
+    } else {
+      await createUserNotification({
+        requestId,
+        contractId: request.contractId,
+        recipientUserId,
+        type: 'student_message',
+        title: 'New student message',
+        body: `${user.email} sent you a message about "${request.contractFileName || 'a contract'}".`
       });
     }
 
@@ -1703,32 +2128,17 @@ app.delete('/api/contracts/:contractId', async (req, res, next) => {
 async function start() {
   await fs.mkdir(uploadsRoot, { recursive: true });
   await fs.mkdir(rosterUploadsRoot, { recursive: true });
-  await client.connect();
-  const db = client.db(DB_NAME);
-  usersCollection = db.collection('users');
-  contractsCollection = db.collection('contracts');
-  rostersCollection = db.collection('rosters');
-  documentRequestsCollection = db.collection('documentRequests');
-  auditLogsCollection = db.collection('auditLogs');
-  messagesCollection = db.collection('messages');
-  notificationsCollection = db.collection('notifications');
-
-  await usersCollection.createIndex({ email: 1 }, { unique: true });
-  await messagesCollection.createIndex({ recipientEmail: 1, createdAt: -1 });
-  await messagesCollection.createIndex({ senderUserId: 1, createdAt: -1 });
-  await notificationsCollection.createIndex({ recipientUserId: 1, createdAt: -1 });
-  await notificationsCollection.createIndex({ notificationId: 1 }, { unique: true });
-  await contractsCollection.createIndex({ userId: 1, createdAt: -1 });
-  await contractsCollection.createIndex({ userId: 1, lastAccessedAt: -1 });
-  await contractsCollection.createIndex({ contractId: 1, userId: 1 }, { unique: true });
-  await rostersCollection.createIndex({ userId: 1, updatedAt: -1 });
-  await rostersCollection.createIndex({ userId: 1, school: 1, sport: 1, year: 1 }, { unique: true });
-  await documentRequestsCollection.createIndex({ requestId: 1 }, { unique: true });
-  await documentRequestsCollection.createIndex({ studentUserId: 1, submittedAt: -1 });
-  await documentRequestsCollection.createIndex({ studentSchool: 1, status: 1, submittedAt: -1 });
-  await documentRequestsCollection.createIndex({ studentUserId: 1, contractId: 1 }, { unique: true });
-  await auditLogsCollection.createIndex({ createdAt: -1 });
-  await auditLogsCollection.createIndex({ userId: 1, createdAt: -1 });
+  await pool.query('SELECT 1');
+  await initializeDatabase(pool);
+  ({
+    usersCollection,
+    contractsCollection,
+    rostersCollection,
+    documentRequestsCollection,
+    auditLogsCollection,
+    messagesCollection,
+    notificationsCollection
+  } = createCollections(pool));
 
   // Contract analysis endpoint (must be after collections are initialized)
   app.get('/api/contracts/:contractId/analysis', async (req, res, next) => {
