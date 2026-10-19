@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import logo from '../assets/NILGUARD.png';
 import '../styles/pages/NILDeals.css';
 
 const lessons = [
@@ -321,6 +322,9 @@ function NILDealsPage() {
       <header className="nil-deals-header">
         <div className="nil-deals-header-content">
           <div>
+            <div className="learning-logo-wrap">
+              <img src={logo} alt="NILGuard Logo" className="learning-logo" />
+            </div>
             <p className="nil-deals-eyebrow">
               NILGUARD LEARNING CENTER
             </p>

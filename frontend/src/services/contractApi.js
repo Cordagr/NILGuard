@@ -142,7 +142,8 @@ export async function saveContractMetadata(
 
 export async function getContractAnalysis(
   user,
-  contractId
+  contractId,
+  options = {}
 ) {
   const userId = getUserId(user);
 
@@ -152,8 +153,9 @@ export async function getContractAnalysis(
     );
   }
 
+  const refreshQuery = options.refresh ? '?refresh=true' : '';
   const response = await fetch(
-    `${API_BASE_URL}/contracts/${contractId}/analysis`,
+    `${API_BASE_URL}/contracts/${contractId}/analysis${refreshQuery}`,
     {
       credentials: 'include',
       headers: {

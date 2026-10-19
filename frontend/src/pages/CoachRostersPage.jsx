@@ -110,8 +110,8 @@ function formatTimestamp(value) {
 }
 
 function CoachRostersPage() {
+  const [expandedRosterIds, setExpandedRosterIds] = useState([]);
   const [rosters, setRosters] = useState([]);
-  const [athletes, setAthletes] = useState([]);
   const [isLoadingRosters, setIsLoadingRosters] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [deletingRosterId, setDeletingRosterId] = useState('');
@@ -121,6 +121,31 @@ function CoachRostersPage() {
   const navigate = useNavigate();
   const { user: currentUser, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [athleteSearch, setAthleteSearch] = useState('');
+
+  const athletes = rosters.flatMap((roster) =>
+    (roster.players || []).map((player) => ({
+      ...player,
+      school: roster.school,
+      sport: roster.sport,
+      year: roster.year,
+      rosterId: roster.id
+    }))
+  );
+
+  const normalizedAthleteSearch = athleteSearch.trim().toLowerCase();
+  const filteredAthletes = athletes.filter((athlete) =>
+    [
+      athlete.firstName,
+      athlete.lastName,
+      athlete.studentId,
+      athlete.school,
+      athlete.sport,
+      athlete.year
+    ].some((value) =>
+      String(value || '').toLowerCase().includes(normalizedAthleteSearch)
+    )
+  );
 
   const fetchRosters = async () => {
     if (!currentUser?.id) {
@@ -372,8 +397,55 @@ function CoachRostersPage() {
         </section>
 
         <section className="coach-right-column coach-panel">
-          
-          <h2>Current Rosters</h2>
+          <h2>Athlete Directory</h2>
+          <p className="coach-panel-subtext">
+            Browse individual student-athletes across your uploaded rosters.
+          </p>
+
+          <label className="athlete-search-label" htmlFor="athlete-directory-search">
+            Search athletes
+          </label>
+          <input
+            id="athlete-directory-search"
+            className="athlete-search-input"
+            type="search"
+            value={athleteSearch}
+            onChange={(event) => setAthleteSearch(event.target.value)}
+            placeholder="Search by name, student ID, sport, or year"
+          />
+
+          <div className="athlete-directory-list">
+            {isLoadingRosters ? (
+              <div className="roster-empty-state">Loading athletes...</div>
+            ) : filteredAthletes.length === 0 ? (
+              <div className="roster-empty-state">
+                {athletes.length === 0
+                  ? 'No athletes found. Upload a roster CSV to get started.'
+                  : 'No athletes match your search.'}
+              </div>
+            ) : (
+              filteredAthletes.map((athlete, index) => (
+                <article
+                  className="athlete-directory-card"
+                  key={`${athlete.rosterId}-${athlete.studentId}-${index}`}
+                >
+                  <div className="athlete-directory-identity">
+                    <h3>{athlete.firstName} {athlete.lastName}</h3>
+                    <span className="roster-player-id">
+                      Student ID: {athlete.studentId}
+                    </span>
+                  </div>
+                  <div className="athlete-directory-details">
+                    <span><strong>Sport:</strong> {athlete.sport}</span>
+                    <span><strong>Year:</strong> {athlete.year}</span>
+                    <span><strong>School:</strong> {athlete.school}</span>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+
+          <h2 className="athlete-rosters-heading">Current Rosters</h2>
           <p className="coach-panel-subtext">Uploaded by current coach</p>
 
           <div className="roster-list-card" style={{ marginBottom: '40px' }}>
@@ -385,42 +457,95 @@ function CoachRostersPage() {
               <span>Actions</span>
             </div>
 
-            {isLoadingRosters ? <div className="roster-empty-state">Loading rosters...</div> : null}
+            {isLoadingRosters ? (
+              <div className="roster-empty-state">Loading rosters...</div>
+            ) : null}
             {!isLoadingRosters && rosters.length === 0 ? (
               <div className="roster-empty-state">No roster groups uploaded yet.</div>
             ) : null}
             {!isLoadingRosters
               ? rosters.map((roster) => (
-                  <div className="roster-item" key={roster.id}>
-                    <div>
-                      <div className="roster-school">{roster.school}</div>
-                      <div className="roster-file-name">{roster.fileName || 'Uploaded roster CSV'}</div>
-                      <div className="roster-updated">Updated {formatTimestamp(roster.updatedAt)}</div>
+                  <React.Fragment key={roster.id}>
+                    <div className="roster-item">
+                      <div>
+                        <div className="roster-school">{roster.school}</div>
+                        <div className="roster-file-name">
+                          {roster.fileName || 'Uploaded roster CSV'}
+                        </div>
+                        <div className="roster-updated">
+                          Updated {formatTimestamp(roster.updatedAt)}
+                        </div>
+                      </div>
+                      <span>{roster.year}</span>
+                      <span className="roster-sport">{roster.sport}</span>
+                      <span>{roster.playerCount}</span>
+                      <div className="roster-actions">
+                        <button
+                          type="button"
+                          className="roster-action-button"
+                          onClick={() =>
+                            setExpandedRosterIds((previous) =>
+                              previous.includes(roster.id)
+                                ? previous.filter((id) => id !== roster.id)
+                                : [...previous, roster.id]
+                            )
+                          }
+                          aria-expanded={expandedRosterIds.includes(roster.id)}
+                        >
+                          {expandedRosterIds.includes(roster.id)
+                            ? 'Hide Athletes'
+                            : 'View Athletes'}
+                        </button>
+                        <button
+                          type="button"
+                          className="roster-action-button roster-open-button"
+                          onClick={() => handleOpenRosterFile(roster.id)}
+                          disabled={!roster.hasSourceFile}
+                        >
+                          <span>Open CSV</span>
+                          <span className="roster-open-lock" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" focusable="false">
+                              <path
+                                d="M17 9h-1V7a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-6 0V7a1 1 0 0 1 2 0v2Zm1 7.75A1.75 1.75 0 1 1 13.75 15 1.75 1.75 0 0 1 12 16.75Z"
+                                fill="currentColor"
+                              />
+                            </svg>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className="roster-action-button roster-delete-button"
+                          onClick={() => handleDeleteRoster(roster)}
+                          disabled={deletingRosterId === roster.id}
+                        >
+                          {deletingRosterId === roster.id ? 'Deleting...' : 'Delete'}
+                        </button>
+                      </div>
                     </div>
-                    <span>{roster.year}</span>
-                    <span className="roster-sport">{roster.sport}</span>
-                    <span>{roster.playerCount}</span>
-                    <div className="roster-actions">
-                      <button
-                        type="button"
-                        className="roster-action-button roster-open-button"
-                        onClick={() => handleOpenRosterFile(roster.id)}
-                        disabled={!roster.hasSourceFile}
-                      >
-                        <span>Open CSV</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="roster-action-button roster-delete-button"
-                        onClick={() => handleDeleteRoster(roster)}
-                        disabled={deletingRosterId === roster.id}
-                      >
-                        {deletingRosterId === roster.id ? 'Deleting...' : 'Delete'}
-                      </button>
-                    </div>
-                  </div>
+
+                    {expandedRosterIds.includes(roster.id) && (
+                      <div className="roster-players-panel">
+                        <h3>Athletes ({roster.players?.length || 0})</h3>
+                        {!roster.players?.length ? (
+                          <p>No athlete records found in this roster.</p>
+                        ) : (
+                          <div className="roster-players-list">
+                            {roster.players.map((player) => (
+                              <div className="roster-player" key={player.studentId}>
+                                <span>{player.firstName} {player.lastName}</span>
+                                <span className="roster-player-id">
+                                  ID: {player.studentId}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </React.Fragment>
                 ))
               : null}
+
           </div>
 
           <h2>Your Assigned Teams</h2>
