@@ -534,3 +534,63 @@
 .athlete-rosters-heading {
   margin-top: 28px !important;
 }
+
+/* Coach dashboard refresh: all overrides are scoped to this page. */
+.coach-page { padding: 24px clamp(16px, 3vw, 48px) 48px; background: #f7f8fa; }
+.coach-page .coach-header { padding: 0 0 24px; align-items: center; gap: 20px; border-bottom: 1px solid #e3e6eb; }
+.coach-page .coach-logo { height: 76px; }
+.coach-page .coach-header-title-block { text-align: left; }
+.coach-page .coach-header-title { font-size: clamp(24px, 3vw, 36px); text-transform: none; letter-spacing: -1px; line-height: 1.2; }
+.coach-page .coach-header-identity { color: #a93b0a; font-size: 11px; letter-spacing: 1px; }
+.coach-page .coach-header-actions { padding: 0; min-width: 0; }
+.coach-page .coach-header-actions > span { overflow-wrap: anywhere; }
+.coach-overview { display: grid; grid-template-columns: minmax(0, 1fr) 150px 170px; gap: 24px; margin: 28px 0; padding: 28px; border-radius: 20px; background: #20252d; color: white; position: relative; overflow: hidden; border-left: 5px solid #ff5b16; }
+.coach-page .coach-eyebrow { display: block; font-size: 10px; font-weight: 800; letter-spacing: 1.6px; color: #aa3c10; margin-bottom: 10px; }
+.coach-overview .coach-eyebrow { color: #ffb18a; }
+.coach-page .coach-welcome h2 { color: white; text-transform: none; font-size: clamp(22px, 2.5vw, 30px); letter-spacing: -.7px; margin: 0 0 8px; }
+.coach-page .coach-welcome p { color: #c4ccd8; font-size: 14px; margin: 0; }
+.coach-stat { border-left: 1px solid #4b515a; padding-left: 24px; align-self: center; }
+.coach-stat span { display: block; color: #c4ccd8; font-size: 12px; }
+.coach-stat strong { display: block; font-size: 38px; line-height: 1.4; }
+.coach-page .coach-layout { grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 24px; padding: 0; align-items: start; }
+.coach-page .coach-panel { min-width: 0; padding: 28px; border-radius: 18px; box-shadow: 0 4px 16px #16203306; }
+.coach-page .coach-panel h2 { font-size: 25px; text-transform: none; letter-spacing: -.6px; }
+.coach-page .coach-panel-subtext { font-size: 14px; color: #586473; line-height: 1.7; }
+.coach-page .coach-assignment-note { padding: 12px 14px; border-radius: 10px; background: #fff5ed; color: #794321; font-size: 12px; }
+.coach-page .upload-roster-btn { max-width: none; height: 50px; font-size: 14px; border-radius: 10px; text-transform: none; letter-spacing: 0; background: #c94308; box-shadow: 0 4px 12px #c9430820; margin-top: 18px; }
+.coach-page .upload-roster-btn:hover:not(:disabled) { background: #aa3505; }
+.coach-page .roster-feedback { font-size: 12px; overflow-wrap: anywhere; }
+.coach-page .roster-error { color: #b91c1c; }
+.coach-page .roster-success { color: #166534; }
+.coach-page .sample-csv-card { min-height: 0; background: #fafbfc; }
+.coach-page .sample-csv-head { font-size: 14px; background: #f1f4f7; padding: 12px 14px; }
+.coach-page .sample-csv-row { font-size: 11px; overflow-wrap: anywhere; padding: 10px 14px; }
+.coach-page .sample-csv-links { gap: 8px; }
+.coach-page .interactive-link { padding: 8px 10px; border: 1px solid #dee3ea; border-radius: 8px; font-size: 11px; color: #485566; overflow-wrap: anywhere; }
+.coach-page .interactive-link:hover { background: #fff5ed; border-color: #c94308; color: #aa3505; }
+.coach-page .roster-list-card { overflow-x: auto; }
+.coach-page .roster-list-header, .coach-page .roster-item { grid-template-columns: minmax(140px, 1.4fr) 50px minmax(80px, .8fr) 50px 90px; min-width: 480px; gap: 10px; font-size: 12px; }
+.coach-page .roster-list-header { font-size: 10px; background: #f1f4f7; color: #586473; }
+.coach-page .roster-school { color: #26364a; }
+.coach-page .roster-action-button { border-radius: 8px; font-size: 11px; }
+.coach-page .roster-action-button:hover:not(:disabled) { background: #fff5ed; border-color: #c94308; }
+.coach-page .roster-delete-button:hover:not(:disabled) { background: #fff1f2; border-color: #b91c1c; }
+.coach-page .coach-empty { text-align: center; padding: 38px 20px; }
+.coach-empty-icon { display: grid; place-items: center; margin: 0 auto 14px; width: 48px; height: 48px; background: #fff0e5; color: #aa3505; font-size: 26px; border-radius: 14px; }
+.coach-empty strong { display: block; color: #26364a; font-size: 16px; }
+.coach-page .coach-empty p { font-size: 13px; margin: 8px 0 18px; color: #586473; }
+.coach-page button:focus-visible, .coach-page a:focus-visible { outline: 3px solid #b9470f; outline-offset: 4px; }
+@media (max-width: 1100px) { .coach-page .coach-layout { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 700px) {
+  .coach-page .coach-header { flex-wrap: wrap; flex-direction: row; }
+  .coach-page .coach-header-title-block { flex-basis: calc(100% - 140px); }
+  .coach-page .coach-header-actions { width: 100%; justify-content: space-between; }
+  .coach-overview { grid-template-columns: 1fr 1fr; padding: 22px; gap: 20px; }
+  .coach-welcome { grid-column: 1 / -1; }
+  .coach-stat { padding-left: 16px; }
+  .coach-page .coach-panel { padding: 20px; }
+}
+@media (prefers-reduced-motion: reduce) { .coach-page *, .coach-page *::before, .coach-page *::after { transition: none !important; } }
+
+.coach-page .athlete-search-input:focus-visible { outline: 3px solid #b9470f; outline-offset: 3px; }
+.coach-page .roster-actions { flex-wrap: wrap; }
