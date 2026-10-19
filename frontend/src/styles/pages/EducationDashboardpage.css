@@ -1,11 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
-
 .education-page {
   min-height: 100vh;
   background: #f5f6f8;
   color: #1f2937;
   padding: 0;
+  font-family: var(--font-family);
 }
 
 .education-header {
@@ -101,8 +99,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.6rem;
   margin-bottom: 1.25rem;
+}
+
+.education-module-icon img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
 }
 
 .education-module-content {

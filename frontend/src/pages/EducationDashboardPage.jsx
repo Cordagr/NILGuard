@@ -2,6 +2,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import logo from '../assets/NILGUARD.png';
+import moneyIcon from '../assets/moneyModule.png';
+import dealIcon from '../assets/dealModule.png';
+import contractIcon from '../assets/contractModule.png';
 import '../styles/pages/EducationDashboardpage.css';
 
 function EducationDashboardPage() {
@@ -224,6 +228,9 @@ return (
     <div className="education-page">
       <header className="education-header">
         <div>
+          <div className="learning-logo-wrap">
+            <img src={logo} alt="NILGuard Logo" className="learning-logo" />
+          </div>
           <p className="education-eyebrow">NILGUARD LEARNING CENTER</p>
 
           <h1>Education & Financial Literacy</h1>
@@ -257,7 +264,9 @@ return (
 
           {/* MODULE 1 */}
           <article className="education-module-card">
-            <div className="education-module-icon">💰</div>
+            <div className="education-module-icon">
+              <img src={moneyIcon} alt="" />
+            </div>
 
             <div className="education-module-content">
               <span className="education-module-label">MODULE 1</span>
@@ -345,7 +354,9 @@ return (
 
           {/* MODULE 2 */}
           <article className="education-module-card">
-            <div className="education-module-icon">🤝</div>
+            <div className="education-module-icon">
+              <img src={dealIcon} alt="" />
+            </div>
 
             <div className="education-module-content">
               <span className="education-module-label">MODULE 2</span>
@@ -430,7 +441,9 @@ return (
 
           {/* MODULE 3 */}
           <article className="education-module-card">
-            <div className="education-module-icon">📄</div>
+            <div className="education-module-icon">
+              <img src={contractIcon} alt="" />
+            </div>
 
             <div className="education-module-content">
               <span className="education-module-label">MODULE 3</span>

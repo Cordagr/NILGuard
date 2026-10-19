@@ -1,9 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
 .money-basics-page {
   min-height: 100vh;
   background: #f5f6f8;
   color: #202124;
+  font-family: var(--font-family);
 }
 
 /* HEADER */

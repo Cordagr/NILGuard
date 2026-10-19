@@ -6,14 +6,29 @@ import logo from '../assets/NILGUARD.png';
 import {
   getComplianceRequestFileUrl,
   listComplianceMessages,
-  listComplianceNotifications,
   listComplianceRequests,
-  markComplianceNotificationRead,
+  markComplianceMessagesRead,
+  saveComplianceGuidelines,
   sendComplianceMessage,
   updateComplianceRequestStatus
 } from '../services/complianceApi';
+import InboxIcon from '../assets/inbox.png';
 import ProfileIcon from '../assets/ProfileIcon.png';
 import inboxIcon from '../assets/inbox.png';
+
+function toInputDate(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+}
+
+function makeGuidelineDrafts(request) {
+  return (request.guidelines || []).map((guideline) => ({
+    ...guideline,
+    decision: guideline.decision || 'pending',
+    dueAt: toInputDate(guideline.dueAt || request.reviewDueAt)
+  }));
+}
 
 function formatDateTime(value) {
   if (!value) {
@@ -36,6 +51,18 @@ function ComplianceDashboardPage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [processingRequestId, setProcessingRequestId] = useState('');
+  const [editingRequestId, setEditingRequestId] = useState('');
+  const [guidelineDrafts, setGuidelineDrafts] = useState({});
+  const [savingGuidelinesId, setSavingGuidelinesId] = useState('');
+  const [messages, setMessages] = useState([]);
+  const [isInboxOpen, setIsInboxOpen] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [messagesError, setMessagesError] = useState('');
+  const [selectedConversationId, setSelectedConversationId] = useState('');
+  const [conversationReply, setConversationReply] = useState('');
+  const [sendingMessageId, setSendingMessageId] = useState('');
+  const [newMessage, setNewMessage] = useState({ requestId: '', subject: '', body: '' });
+  const [isSendingNewMessage, setIsSendingNewMessage] = useState(false);
   const menuRef = useRef(null);
   const inboxRef = useRef(null);
   const [isInboxOpen, setIsInboxOpen] = useState(false);
@@ -125,6 +152,131 @@ function ComplianceDashboardPage() {
     }
   };
 
+  const openGuidelineEditor = (request) => {
+    setGuidelineDrafts((previous) => ({
+      ...previous,
+      [request.id]: makeGuidelineDrafts(request)
+    }));
+    setEditingRequestId(request.id);
+    setErrorMessage('');
+    setSuccessMessage('');
+  };
+
+  const updateGuideline = (requestId, index, key, value) => {
+    setGuidelineDrafts((previous) => ({
+      ...previous,
+      [requestId]: previous[requestId].map((guideline, guidelineIndex) =>
+        guidelineIndex === index
+          ? { ...guideline, [key]: value }
+          : guideline
+      )
+    }));
+  };
+
+  const addGuideline = (requestId) => {
+    setGuidelineDrafts((previous) => ({
+      ...previous,
+      [requestId]: [
+        ...previous[requestId],
+        {
+          id: `new-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          title: '',
+          summary: '',
+          decision: 'pending',
+          feedback: '',
+          dueAt: ''
+        }
+      ]
+    }));
+  };
+
+  const removeGuideline = (requestId, index) => {
+    setGuidelineDrafts((previous) => ({
+      ...previous,
+      [requestId]: previous[requestId].filter((_, guidelineIndex) => guidelineIndex !== index)
+    }));
+  };
+
+  const handleSaveGuidelines = async (requestId) => {
+    setSavingGuidelinesId(requestId);
+    setErrorMessage('');
+    setSuccessMessage('');
+    try {
+      const response = await saveComplianceGuidelines(
+        currentUser,
+        requestId,
+        guidelineDrafts[requestId]
+      );
+      setRequests((previous) =>
+        previous.map((request) => request.id === requestId ? response.request : request)
+      );
+      setGuidelineDrafts((previous) => ({
+        ...previous,
+        [requestId]: makeGuidelineDrafts(response.request)
+      }));
+      setEditingRequestId('');
+      setSuccessMessage(response.message || 'Guideline conditions saved.');
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to save guideline conditions.');
+    } finally {
+      setSavingGuidelinesId('');
+    }
+  };
+
+  const handleSelectConversation = async (conversationId) => {
+    setSelectedConversationId((previous) => previous === conversationId ? '' : conversationId);
+    setConversationReply('');
+    if (conversationId === selectedConversationId) return;
+    try {
+      await markComplianceMessagesRead(conversationId);
+      setMessages((previous) => previous.map((message) =>
+        message.requestId === conversationId &&
+        message.recipientUserId === String(currentUser?.id)
+          ? { ...message, isRead: true }
+          : message
+      ));
+    } catch (error) {
+      setMessagesError(error.message || 'Unable to mark messages as read.');
+    }
+  };
+
+  const handleSendNewMessage = async () => {
+    if (!newMessage.requestId || !newMessage.body.trim()) {
+      setMessagesError('Choose a contract and enter a message.');
+      return;
+    }
+
+    setIsSendingNewMessage(true);
+    setMessagesError('');
+    try {
+      await sendComplianceMessage(newMessage.requestId, newMessage.subject, newMessage.body);
+      setNewMessage({ requestId: '', subject: '', body: '' });
+      await fetchMessages();
+    } catch (error) {
+      setMessagesError(error.message || 'Unable to send message.');
+    } finally {
+      setIsSendingNewMessage(false);
+    }
+  };
+
+  const handleSendReply = async (conversation) => {
+    const body = conversationReply.trim();
+    if (!body) return;
+
+    setSendingMessageId(conversation.id);
+    setMessagesError('');
+    try {
+      const subject = conversation.messages[0]?.subject || 'Re: contract review';
+      await sendComplianceMessage(conversation.id, `Re: ${subject}`, body);
+      setConversationReply('');
+      await fetchMessages();
+    } catch (error) {
+      setMessagesError(error.message || 'Unable to send reply.');
+    } finally {
+      setSendingMessageId('');
+    }
+  };
+
   useEffect(() => {
     if (!currentUser?.id) {
       navigate('/login');
@@ -142,12 +294,19 @@ function ComplianceDashboardPage() {
 
     document.addEventListener('mousedown', handleClickOutside);
     fetchRequests();
-    fetchInbox();
+    fetchMessages();
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [navigate]);
+
+  useEffect(() => {
+    if (!isInboxOpen) return undefined;
+    fetchMessages(true);
+    const intervalId = window.setInterval(() => fetchMessages(), 15000);
+    return () => window.clearInterval(intervalId);
+  }, [isInboxOpen]);
 
   const pendingRequests = useMemo(
     () => requests.filter((request) => request.status === 'pending'),
@@ -158,6 +317,48 @@ function ComplianceDashboardPage() {
     () => requests.filter((request) => request.status !== 'pending'),
     [requests]
   );
+  const unreadMessageCount = messages.filter(
+    (message) => !message.isRead && message.recipientUserId === String(currentUser?.id)
+  ).length;
+  const conversations = useMemo(() => {
+    const groups = messages.reduce((result, message) => {
+      const conversationId = message.requestId || message.contractId || message.id;
+      if (!result[conversationId]) {
+        result[conversationId] = {
+          id: conversationId,
+          studentEmail: message.senderUserId === String(currentUser?.id)
+            ? message.recipientEmail
+            : message.senderEmail,
+          messages: []
+        };
+      }
+      result[conversationId].messages.push(message);
+      return result;
+    }, {});
+
+    return Object.values(groups).map((conversation) => ({
+      ...conversation,
+      messages: conversation.messages.sort(
+        (left, right) => new Date(left.createdAt) - new Date(right.createdAt)
+      )
+    }));
+  }, [messages, currentUser?.id]);
+  const activeConversation = conversations.find(
+    (conversation) => conversation.id === selectedConversationId
+  );
+
+  const fetchMessages = async (showLoading = false) => {
+    if (showLoading) setIsLoadingMessages(true);
+    setMessagesError('');
+    try {
+      const response = await listComplianceMessages();
+      setMessages(response.messages || []);
+    } catch (error) {
+      setMessagesError(error.message || 'Unable to load inbox messages.');
+    } finally {
+      if (showLoading) setIsLoadingMessages(false);
+    }
+  };
 
   const handleOpenDocument = (requestId) => {
     setErrorMessage('');
@@ -210,20 +411,20 @@ function ComplianceDashboardPage() {
     setSuccessMessage('');
 
     try {
+      const request = requests.find((item) => item.id === requestId);
       const response = await updateComplianceRequestStatus(
         currentUser,
         requestId,
         status,
-        guidelines,
-        rejectionReason
+        request?.guidelines
       );
-
       setSuccessMessage(response.message || `Request ${status}.`);
       setRequests((previousRequests) =>
         previousRequests.map((request) =>
           request.id === requestId ? response.request : request
         )
       );
+      setEditingRequestId('');
     } catch (error) {
       setErrorMessage(error.message || 'Unable to update the request status.');
     } finally {
@@ -246,90 +447,148 @@ function ComplianceDashboardPage() {
           ) : null}
         </div>
 
-        <div className="profile-menu" ref={inboxRef}>
+        <div className="profile-menu">
           <button
             type="button"
-            className="profile-menu-trigger inbox-trigger compliance-inbox-trigger"
-            onClick={() => setIsInboxOpen((previous) => !previous)}
-            aria-label="Open compliance inbox"
+            className="profile-menu-trigger inbox-trigger"
+            onClick={() => setIsInboxOpen(true)}
+            aria-label="Open inbox"
             aria-expanded={isInboxOpen}
           >
-            <img src={inboxIcon} alt="" aria-hidden="true" className="compliance-inbox-icon" />
+            <img className="inbox-icon" src={InboxIcon} alt="" aria-hidden="true" />
             <span>Inbox</span>
-            {unreadCount > 0 ? <span className="inbox-unread-badge">{unreadCount}</span> : null}
+            {unreadMessageCount > 0 ? (
+              <span className="inbox-unread-badge">{unreadMessageCount}</span>
+            ) : null}
           </button>
-
           {isInboxOpen ? (
-            <div className="profile-menu-dropdown student-inbox-dropdown compliance-inbox-dropdown">
-              <div className="student-inbox-heading">Compliance Notifications</div>
-              {isLoadingInbox ? (
-                <div className="student-inbox-empty">Loading inbox...</div>
+            <div className="profile-menu-dropdown student-inbox-dropdown">
+              <div className="student-inbox-heading">
+                <button
+                  type="button"
+                  className="student-inbox-close"
+                  onClick={() => setIsInboxOpen(false)}
+                  aria-label="Close inbox"
+                  title="Close inbox"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="student-inbox-compose">
+                <select
+                  value={newMessage.requestId}
+                  onChange={(event) => setNewMessage((previous) => ({
+                    ...previous,
+                    requestId: event.target.value
+                  }))}
+                >
+                  <option value="">Choose a contract</option>
+                  {requests.map((request) => (
+                    <option key={request.id} value={request.id}>
+                      {request.studentEmail} · {request.contractFileName}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={newMessage.subject}
+                  onChange={(event) => setNewMessage((previous) => ({
+                    ...previous,
+                    subject: event.target.value
+                  }))}
+                  placeholder="Subject"
+                />
+                <textarea
+                  rows="3"
+                  value={newMessage.body}
+                  onChange={(event) => setNewMessage((previous) => ({
+                    ...previous,
+                    body: event.target.value
+                  }))}
+                  placeholder="Message student (Enter to send)"
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                      event.preventDefault();
+                      handleSendNewMessage();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={handleSendNewMessage}
+                  disabled={isSendingNewMessage}
+                >
+                  {isSendingNewMessage ? 'Sending...' : 'Send message'}
+                </button>
+              </div>
+              {messagesError ? (
+                <div className="student-inbox-empty" role="alert">{messagesError}</div>
+              ) : isLoadingMessages ? (
+                <div className="student-inbox-empty">Loading messages...</div>
+              ) : conversations.length === 0 ? (
+                <div className="student-inbox-empty">No messages from students yet.</div>
               ) : (
-                <>
-                  {inboxError ? <div className="compliance-inbox-error" role="alert">{inboxError}</div> : null}
-                  {notifications.length === 0 ? (
-                    <div className="student-inbox-empty">No notifications yet.</div>
-                  ) : notifications.map((notification) => (
+                <div className="inbox-conversation-list">
+                  {conversations.map((conversation) => (
                     <button
                       type="button"
-                      className={`student-notification ${notification.isRead ? '' : 'student-notification-unread'}`}
-                      key={notification.id}
-                      onClick={async () => {
-                        if (notification.isRead) return;
-                        try {
-                          await markComplianceNotificationRead(notification.id);
-                          setNotifications((previous) => previous.map((item) =>
-                            item.id === notification.id ? { ...item, isRead: true } : item
-                          ));
-                        } catch (error) {
-                          setInboxError(error.message || 'Unable to mark notification as read.');
-                        }
-                      }}
+                      className="inbox-conversation"
+                      key={conversation.id}
+                      aria-expanded={selectedConversationId === conversation.id}
+                      onClick={() => handleSelectConversation(conversation.id)}
                     >
-                      <strong>{notification.title}</strong>
-                      <span>{notification.body}</span>
-                      <small>{notification.createdAt ? new Date(notification.createdAt).toLocaleString() : ''}</small>
+                      <strong>{conversation.studentEmail}</strong>
+                      <span>{conversation.messages.length} messages</span>
                     </button>
                   ))}
-
-                  <div className="student-inbox-heading">Student Messages</div>
-                  {messages.length === 0 ? (
-                    <div className="student-inbox-empty">No messages yet.</div>
-                  ) : (
-                    <div className="compliance-inbox-messages">
-                      {messages.map((message) => (
-                        <div className="inbox-conversation" key={message.id}>
-                          <strong>{message.senderEmail || 'Student'}</strong>
-                          <small>{message.subject || 'Contract message'}</small>
-                          <span>{message.body}</span>
-                          <small>{message.createdAt ? new Date(message.createdAt).toLocaleString() : ''}</small>
-                          <textarea
-                            style={{ resize: 'none' }}
-                            rows={2}
-                            aria-label={`Reply to ${message.senderEmail || 'student'}`}
-                            placeholder="Write a reply..."
-                            value={replyByMessage[message.id] || ''}
-                            onChange={(event) => setReplyByMessage((previous) => ({
-                              ...previous,
-                              [message.id]: event.target.value
-                            }))}
-                          />
-                          <button
-                            type="button"
-                            disabled={Boolean(sendingReplyId) || !(replyByMessage[message.id] || '').trim()}
-                            onClick={() => handleInboxReply(message)}
-                          >
-                            {sendingReplyId === message.id ? 'Sending...' : 'Send Reply'}
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </>
+                </div>
               )}
+              {activeConversation ? (
+                <div className="inbox-thread">
+                  <div className="inbox-thread-header">
+                    <strong>{activeConversation.messages[0]?.subject}</strong>
+                    <span>{activeConversation.studentEmail}</span>
+                  </div>
+                  <div className="inbox-thread-messages">
+                    {activeConversation.messages.map((message) => (
+                      <div
+                        className={`student-inbox-message ${message.senderUserId === String(currentUser?.id) ? 'message-sent' : 'message-received'}`}
+                        key={message.id}
+                      >
+                        <small className="message-direction">
+                          {message.senderUserId === String(currentUser?.id) ? 'You' : message.senderEmail}
+                          {' · '}{formatDateTime(message.createdAt)}
+                        </small>
+                        <span>{message.body}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <textarea
+                    className="inbox-message-reply"
+                    value={conversationReply}
+                    onChange={(event) => setConversationReply(event.target.value)}
+                    placeholder="Reply (Enter to send)"
+                    rows={2}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && !event.shiftKey) {
+                        event.preventDefault();
+                        handleSendReply(activeConversation);
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="inbox-reply-button"
+                    disabled={sendingMessageId === activeConversation.id || !conversationReply.trim()}
+                    onClick={() => handleSendReply(activeConversation)}
+                  >
+                    {sendingMessageId === activeConversation.id ? 'Sending...' : 'Send reply'}
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>
+
         <div className="profile-menu" ref={menuRef}>
           <button
             type="button"
@@ -415,7 +674,33 @@ function ComplianceDashboardPage() {
             ) : pendingRequests.length === 0 ? (
               <div className="contract-card">No pending student submissions.</div>
             ) : (
-              pendingRequests.map((request) => (
+              pendingRequests.map((request) => {
+                const conditions = request.guidelines || [];
+                const allConditionsReviewed = conditions.length > 0 &&
+                  conditions.every((guideline) => ['pass', 'needs_changes'].includes(guideline.decision));
+                const allConditionsHaveDeadlines = conditions.every((guideline) => Boolean(guideline.dueAt));
+                const canApprove = allConditionsReviewed &&
+                  allConditionsHaveDeadlines &&
+                  conditions.every((guideline) => guideline.decision === 'pass');
+                const needsChangesConditions = conditions.filter(
+                  (guideline) => guideline.decision === 'needs_changes'
+                );
+                const rejectionGuidance = conditions.length === 0
+                  ? 'Add and save at least one NIL condition before rejecting.'
+                  : !allConditionsReviewed
+                    ? 'Review every condition and save before rejecting.'
+                    : !allConditionsHaveDeadlines
+                      ? 'Set a student deadline for every condition before rejecting.'
+                      : needsChangesConditions.length === 0
+                        ? 'Mark at least one condition “Needs changes” to reject.'
+                        : 'Add feedback to every “Needs changes” condition before rejecting.';
+                const canReject = allConditionsReviewed &&
+                  allConditionsHaveDeadlines &&
+                  needsChangesConditions.length > 0 &&
+                  needsChangesConditions.every((guideline) => Boolean(guideline.feedback?.trim()));
+                const isEditing = editingRequestId === request.id;
+
+                return (
                 <article key={request.id} className="contract-card contract-card-detailed">
                   <div className="contract-card-meta">Request ID: {request.id}</div>
                   <h3>{request.contractFileName}</h3>
@@ -478,115 +763,130 @@ function ComplianceDashboardPage() {
                     </div>
                   )}
                   <p>Status: <span className="request-status-pill request-status-pending">Pending</span></p>
-
-
-                  <div className="compliance-guidelines">
-                    <h4>NIL Compliance Review</h4>
-                    {(guidelinesByRequestId[request.id] || []).map((guideline) => (
-                      <div className="compliance-guideline-card" key={guideline.id}>
-                        <h5>{guideline.title}</h5>
-                        <p>{guideline.summary}</p>
-                        <p>
-                          <strong>Automated screening:</strong>{' '}
-                          {guideline.aiStatus || 'pending'}
-                        </p>
-
-                        <div className="compliance-guideline-decisions">
+                  {isEditing ? (
+                    <section className="officer-guideline-editor" aria-label="NIL guideline conditions">
+                      <div className="officer-guideline-editor-heading">
+                        <div>
+                          <h4>NIL guideline conditions</h4>
+                          <p>Review every condition and assign a student deadline. Add feedback to each condition marked “Needs changes”; save before accepting or rejecting.</p>
+                        </div>
+                        <button
+                          type="button"
+                          className="dashboard-secondary-button"
+                          onClick={() => addGuideline(request.id)}
+                          disabled={guidelineDrafts[request.id]?.length >= 25}
+                        >
+                          Add condition
+                        </button>
+                      </div>
+                      {(guidelineDrafts[request.id] || []).map((guideline, index) => (
+                        <div className="officer-guideline-item" key={guideline.id}>
+                          <div className="officer-guideline-item-heading">
+                            <strong>Condition {index + 1}</strong>
+                            <button
+                              type="button"
+                              className="officer-guideline-remove"
+                              onClick={() => removeGuideline(request.id, index)}
+                            >
+                              Remove
+                            </button>
+                          </div>
                           <label>
+                            Condition title
                             <input
-                              type="radio"
-                              name={`decision-${request.id}-${guideline.id}`}
-                              checked={guideline.decision === 'pass'}
-                              onChange={() =>
-                                setGuidelinesByRequestId((previous) => ({
-                                  ...previous,
-                                  [request.id]: previous[request.id].map((item) =>
-                                    item.id === guideline.id
-                                      ? { ...item, decision: 'pass', feedback: '' }
-                                      : item
-                                  )
-                                }))
-                              }
+                              type="text"
+                              maxLength={120}
+                              value={guideline.title}
+                              onChange={(event) => updateGuideline(request.id, index, 'title', event.target.value)}
+                              placeholder="e.g. Disclose the sponsorship on each post"
+                              required
                             />
-                            Pass
                           </label>
-
                           <label>
-                            <input
-                              type="radio"
-                              name={`decision-${request.id}-${guideline.id}`}
-                              checked={guideline.decision === 'needs_changes'}
-                              onChange={() =>
-                                setGuidelinesByRequestId((previous) => ({
-                                  ...previous,
-                                  [request.id]: previous[request.id].map((item) =>
-                                    item.id === guideline.id
-                                      ? { ...item, decision: 'needs_changes' }
-                                      : item
-                                  )
-                                }))
-                              }
+                            What the student needs to do
+                            <textarea
+                              rows={3}
+                              maxLength={2000}
+                              value={guideline.summary}
+                              onChange={(event) => updateGuideline(request.id, index, 'summary', event.target.value)}
+                              placeholder="Describe the condition clearly."
+                              required
                             />
-                            Needs Changes
+                          </label>
+                          <div className="officer-guideline-fields">
+                            <label>
+                              Student deadline
+                              <input
+                                type="date"
+                                value={guideline.dueAt}
+                                onChange={(event) => updateGuideline(request.id, index, 'dueAt', event.target.value)}
+                                required
+                              />
+                            </label>
+                            <label>
+                              Review result
+                              <select
+                                value={guideline.decision}
+                                onChange={(event) => updateGuideline(request.id, index, 'decision', event.target.value)}
+                              >
+                                <option value="pending">Pending review</option>
+                                <option value="pass">Meets condition</option>
+                                <option value="needs_changes">Needs changes</option>
+                              </select>
+                            </label>
+                          </div>
+                          <label>
+                            Officer feedback
+                            <textarea
+                              rows={2}
+                              maxLength={2000}
+                              value={guideline.feedback || ''}
+                              onChange={(event) => updateGuideline(request.id, index, 'feedback', event.target.value)}
+                              placeholder={guideline.decision === 'needs_changes'
+                                ? 'Explain the change the student must make.'
+                                : 'Optional note for the student.'}
+                              required={guideline.decision === 'needs_changes'}
+                            />
                           </label>
                         </div>
-
-                        {guideline.decision === 'needs_changes' && (
-                          <label className="compliance-guideline-feedback">
-                            Feedback (required)
-                            <textarea
-                              value={guideline.feedback}
-                              onChange={(event) =>
-                                setGuidelinesByRequestId((previous) => ({
-                                  ...previous,
-                                  [request.id]: previous[request.id].map((item) =>
-                                    item.id === guideline.id
-                                      ? { ...item, feedback: event.target.value }
-                                      : item
-                                  )
-                                }))
-                              }
-                              placeholder="Explain what needs to be corrected..."
-                              rows={3}
-                            />
-                          </label>
-                        )}
+                      ))}
+                      <div className="contract-action-row">
+                        <button
+                          type="button"
+                          className="dashboard-secondary-button dashboard-accept-button"
+                          onClick={() => handleSaveGuidelines(request.id)}
+                          disabled={savingGuidelinesId === request.id || (guidelineDrafts[request.id] || []).length === 0}
+                        >
+                          {savingGuidelinesId === request.id ? 'Saving...' : 'Save and notify student'}
+                        </button>
+                        <button
+                          type="button"
+                          className="dashboard-secondary-button"
+                          onClick={() => setEditingRequestId('')}
+                          disabled={savingGuidelinesId === request.id}
+                        >
+                          Cancel
+                        </button>
                       </div>
-                    ))}
-                  </div>
-
-
-                  {(guidelinesByRequestId[request.id] || []).length > 0 &&
-                    (guidelinesByRequestId[request.id] || []).every(
-                      (guideline) => guideline.decision === 'pass'
-                    ) && (
-                      <label className="compliance-guideline-feedback">
-                        Rejection reason (required if rejecting this contract)
-                        <textarea
-                          value={rejectionReasons[request.id] || ''}
-                          onChange={(event) =>
-                            setRejectionReasons((previous) => ({
-                              ...previous,
-                              [request.id]: event.target.value
-                            }))
-                          }
-                          placeholder="Explain why the contract is being rejected despite passing all guidelines..."
-                          rows={3}
-                        />
-                      </label>
-                    )}
-
-
-
+                    </section>
+                  ) : null}
                   <div className="contract-action-row">
                     <button type="button" className="contract-action-link" onClick={() => handleOpenDocument(request.id)}>
                       Open PDF
                     </button>
                     <button
                       type="button"
+                      className="dashboard-secondary-button"
+                      onClick={() => openGuidelineEditor(request)}
+                      disabled={isEditing || processingRequestId === request.id || savingGuidelinesId === request.id}
+                    >
+                      {isEditing ? 'Editing conditions' : 'Edit NIL conditions'}
+                    </button>
+                    <button
+                      type="button"
                       className="dashboard-secondary-button dashboard-accept-button"
                       onClick={() => handleReviewRequest(request.id, 'accepted')}
-                      disabled={processingRequestId === request.id}
+                      disabled={processingRequestId === request.id || isEditing || !canApprove}
                     >
                       {processingRequestId === request.id ? 'Saving...' : 'Accept'}
                     </button>
@@ -594,13 +894,19 @@ function ComplianceDashboardPage() {
                       type="button"
                       className="dashboard-secondary-button dashboard-reject-button"
                       onClick={() => handleReviewRequest(request.id, 'rejected')}
-                      disabled={processingRequestId === request.id}
+                      disabled={processingRequestId === request.id || isEditing || !canReject}
                     >
                       {processingRequestId === request.id ? 'Saving...' : 'Reject'}
                     </button>
                   </div>
+                  {!isEditing && !canReject && (
+                    <p className="contracts-feedback contract-review-guidance">
+                      {rejectionGuidance}
+                    </p>
+                  )}
                 </article>
-              ))
+                );
+              })
             )}
           </div>
         </section>
