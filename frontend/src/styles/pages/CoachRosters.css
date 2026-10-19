@@ -261,7 +261,7 @@
   color: #1e40af;
 }
 
-/* ── Roster list ── */
+/* ── Old Roster list (Kept for fallback/other pages) ── */
 .roster-list-card {
   margin-top: 18px;
   width: 100%;
@@ -385,6 +385,84 @@
   color: #6b7280;
 }
 
+/* ── Assigned Teams Layout (New Right Column) ── */
+.assigned-teams-wrapper {
+  margin-top: 18px;
+}
+
+.team-group {
+  margin-bottom: 36px;
+}
+
+.team-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+}
+
+.team-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.team-count {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.team-table-container {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #fdfcfb;
+}
+
+.team-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.team-table thead {
+  background-color: #f4f1eb;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.team-table th {
+  padding: 14px 16px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.team-table tbody tr {
+  border-top: 1px solid #e5e7eb;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.team-table tbody tr:hover {
+  background-color: #f5f0e8;
+}
+
+.team-table td {
+  padding: 14px 16px;
+  color: #4b5563;
+  font-size: 14px;
+}
+
+.team-player-name {
+  color: #111827 !important;
+  font-weight: 500;
+}
+
+
 /* ── Responsive ── */
 @media (max-width: 900px) {
   .coach-page {
@@ -440,6 +518,8 @@
     gap: 8px;
     font-size: 13px;
   }
+
+  .team-table-container { overflow-x: auto; }
 }
 
 .roster-players-panel {
