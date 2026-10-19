@@ -65,8 +65,6 @@ function ComplianceDashboardPage() {
   const [isSendingNewMessage, setIsSendingNewMessage] = useState(false);
   const menuRef = useRef(null);
   const inboxRef = useRef(null);
-  const [isInboxOpen, setIsInboxOpen] = useState(false);
-  const [messages, setMessages] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [inboxError, setInboxError] = useState('');
   const [replyByMessage, setReplyByMessage] = useState({});
