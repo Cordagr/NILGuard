@@ -518,13 +518,9 @@
     gap: 8px;
     font-size: 13px;
   }
-<<<<<<< HEAD
-
   .team-table-container {
     overflow-x: auto;
   }
-}
-=======
 }
 
 .roster-players-panel {
@@ -619,4 +615,3 @@
 .athlete-rosters-heading {
   margin-top: 28px !important;
 }
->>>>>>> d430f1202e8468250939ae654015a7bc13e60129
