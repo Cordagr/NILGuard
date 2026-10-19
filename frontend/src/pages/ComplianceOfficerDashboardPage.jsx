@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import '../styles/pages/StudentDashboard.css';
+import ContractChatCenter from '../components/ContractChatCenter';
+import MessengerIcon from '../assets/messenger.png';
 import logo from '../assets/NILGUARD.png';
 import {
   createAccountByCompliance,
@@ -10,9 +12,9 @@ import {
   listComplianceNotifications,
   listComplianceRequests,
   markComplianceNotificationRead,
-  sendComplianceMessage,
   updateComplianceRequestStatus
 } from '../services/complianceApi';
+import InboxIcon from '../assets/inbox.png';
 import ProfileIcon from '../assets/ProfileIcon.png';
 
 function getCurrentUser() {
@@ -54,16 +56,13 @@ function ComplianceOfficerDashboardPage() {
 
   const menuRef = useRef(null);
   const [isInboxOpen, setIsInboxOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const notificationsRef = useRef(null);
   const [messages, setMessages] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
-  const [isLoadingMessages, setIsLoadingMessages] = useState(true);
+  const [notificationsError, setNotificationsError] = useState('');
   const [messagesError, setMessagesError] = useState('');
-  const [selectedConversationId, setSelectedConversationId] = useState('');
-  const [conversationReply, setConversationReply] = useState('');
-  const [sendingMessageId, setSendingMessageId] = useState('');
-  const [newMessage, setNewMessage] = useState({ requestId: '', subject: '', body: '' });
-  const [isSendingNewMessage, setIsSendingNewMessage] = useState(false);
 
   const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
   const [newAccountEmail, setNewAccountEmail] = useState('');
@@ -76,28 +75,13 @@ function ComplianceOfficerDashboardPage() {
   const currentUser = useAuth().user || { role: 'compliance', school: '', ncaaDivision: '' };
   const pendingRequests = requests.filter((request) => request.status === 'pending');
   const reviewedRequests = requests.filter((request) => request.status !== 'pending');
-  const unreadMessageCount =
-    messages.filter((item) => !item.isRead).length +
-    notifications.filter((item) => !item.isRead).length;
-
-  const conversations = Object.values(messages.reduce((groups, message) => {
-    const conversationId = message.requestId || message.contractId || message.id;
-    if (!groups[conversationId]) {
-      groups[conversationId] = {
-        id: conversationId,
-        studentEmail: message.senderUserId === String(currentUser?.id)
-          ? message.recipientEmail
-          : message.senderEmail,
-        messages: []
-      };
-    }
-    groups[conversationId].messages.push(message);
-    return groups;
-  }, {}));
-
-  const activeConversation = conversations.find(
-    (conversation) => conversation.id === selectedConversationId
-  );
+  const unreadChatCount = messages.filter(
+    (item) => !item.isRead && item.recipientUserId === String(currentUser?.id)
+  ).length;
+  const unreadNotificationCount = notifications.filter((item) => !item.isRead).length;
+  const unreadChatBadgeCount = unreadChatCount > 99 ? '99+' : unreadChatCount;
+  const unreadNotificationBadgeCount =
+    unreadNotificationCount > 99 ? '99+' : unreadNotificationCount;
 
   const fetchRequests = async () => {
     if (!currentUser?.id) {
@@ -133,12 +117,19 @@ function ComplianceOfficerDashboardPage() {
       ) {
         setMenuOpen(false);
       }
+      if (
+        notificationsRef.current &&
+        !notificationsRef.current.contains(event.target)
+      ) {
+        setIsInboxOpen(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
 
     fetchRequests();
     fetchNotifications();
+    fetchMessages();
 
     return () => {
       document.removeEventListener(
@@ -148,13 +139,24 @@ function ComplianceOfficerDashboardPage() {
     };
   }, []);
 
+  const fetchMessages = async () => {
+    try {
+      const response = await listComplianceMessages();
+      setMessages(response.messages || []);
+      setMessagesError('');
+    } catch (error) {
+      setMessagesError(error.message || 'Unable to load contract chats.');
+    }
+  };
+
   const fetchNotifications = async () => {
     setIsLoadingNotifications(true);
     try {
       const response = await listComplianceNotifications();
       setNotifications(response.notifications || []);
+      setNotificationsError('');
     } catch (error) {
-      setMessagesError(error.message || 'Unable to load notifications.');
+      setNotificationsError(error.message || 'Unable to load notifications.');
     } finally {
       setIsLoadingNotifications(false);
     }
@@ -169,7 +171,7 @@ function ComplianceOfficerDashboardPage() {
         item.id === notification.id ? { ...item, isRead: true } : item
       ));
     } catch (error) {
-      setMessagesError(error.message || 'Unable to mark notification as read.');
+      setNotificationsError(error.message || 'Unable to mark notification as read.');
     }
   };
 
@@ -197,50 +199,6 @@ function ComplianceOfficerDashboardPage() {
       );
     } finally {
       setUpdatingRequestId('');
-    }
-  };
-
-
-  const handleSendReply = async (conversation) => {
-    const body = conversationReply.trim();
-
-    if (!body || !conversation?.id) return;
-
-    setSendingMessageId(conversation.id);
-    setMessagesError('');
-
-    try {
-      const firstMessage = conversation.messages[0];
-
-      await sendComplianceMessage(
-        conversation.id,
-        `Re: ${firstMessage?.subject || 'Contract message'}`,
-        body
-      );
-
-      setConversationReply('');
-      await fetchMessages();
-    } catch (error) {
-      setMessagesError(
-        error.message || 'Unable to send reply.'
-      );
-    } finally {
-      setSendingMessageId('');
-    }
-  };
-
-  const handleSendNewMessage = async () => {
-    if (!newMessage.requestId || !newMessage.body.trim()) return;
-
-    setIsSendingNewMessage(true);
-    try {
-      await sendComplianceMessage(newMessage.requestId, newMessage.subject, newMessage.body);
-      setNewMessage({ requestId: '', subject: '', body: '' });
-      await fetchMessages();
-    } catch (error) {
-      setMessagesError(error.message || 'Unable to send message.');
-    } finally {
-      setIsSendingNewMessage(false);
     }
   };
 
@@ -293,28 +251,33 @@ function ComplianceOfficerDashboardPage() {
         {currentUser?.email ? (
           <span style={{ marginRight: '0.75rem', fontSize: '0.9rem', color: '#555' }}>{currentUser.email}</span>
         ) : null}
-        <div className="profile-menu">
+        <div className="profile-menu dashboard-communication-actions" ref={notificationsRef}>
           <button
             type="button"
-            className="profile-menu-trigger inbox-trigger"
-            onClick={() => setIsInboxOpen(true)}
-            aria-label="Open inbox"
+            className={`profile-menu-trigger inbox-trigger${unreadNotificationCount > 0 ? ' has-unread' : ''}`}
+            onClick={() => {
+              setIsInboxOpen((previous) => !previous);
+              setIsChatOpen(false);
+            }}
+            aria-label={unreadNotificationCount > 0
+              ? `Open notifications, ${unreadNotificationBadgeCount} unread`
+              : 'Open notifications'}
+            aria-expanded={isInboxOpen}
           >
-            <span className="inbox-icon" aria-hidden="true" />
-            <span>Inbox</span>
-            {unreadMessageCount > 0 ? (
-              <span className="inbox-unread-badge">
-                {unreadMessageCount}
-              </span>
+            <img className="inbox-icon" src={InboxIcon} alt="" aria-hidden="true" />
+            <span>Notifications</span>
+            {unreadNotificationCount > 0 ? (
+              <span className="inbox-unread-badge" aria-hidden="true">{unreadNotificationBadgeCount}</span>
             ) : null}
           </button>
 
           {isInboxOpen && (
             <div className="profile-menu-dropdown student-inbox-dropdown">
               <div className="student-inbox-heading">
+                <strong>Notifications</strong>
                 <button
                   type="button"
-                  className="student-inbox-close"
+                  className="app-close-button"
                   onClick={() => setIsInboxOpen(false)}
                   aria-label="Close inbox"
                   title="Close inbox"
@@ -322,91 +285,57 @@ function ComplianceOfficerDashboardPage() {
                   ×
                 </button>
               </div>
-              <div className="student-inbox-compose">
-                <select
-                  value={newMessage.requestId}
-                  onChange={(event) => setNewMessage((previous) => ({ ...previous, requestId: event.target.value }))}
-                >
-                  <option value="">Choose a student contract</option>
-                  {requests.map((request) => (
-                    <option key={request.id} value={request.id}>
-                      {request.studentEmail} · {request.contractFileName}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  value={newMessage.subject}
-                  onChange={(event) => setNewMessage((previous) => ({ ...previous, subject: event.target.value }))}
-                  placeholder="Subject"
-                />
-                <textarea
-                  rows="3"
-                  value={newMessage.body}
-                  onChange={(event) => setNewMessage((previous) => ({ ...previous, body: event.target.value }))}
-                  placeholder="Message student..."
-                />
-                <button
-                  type="button"
-                  disabled={isSendingNewMessage || !newMessage.requestId || !newMessage.body.trim()}
-                  onClick={handleSendNewMessage}
-                >
-                  {isSendingNewMessage ? 'Sending...' : 'Send Message'}
-                </button>
-              </div>
-              {messagesError ? (
-                <div style={{ padding: '1em 1.4em', fontSize: '0.85rem', color: '#c0392b' }}>{messagesError}</div>
-              ) : isLoadingMessages ? (
-                <div style={{ padding: '1em 1.4em', fontSize: '0.85rem' }}>Loading messages...</div>
-              ) : messages.length === 0 ? (
-                <div className="student-inbox-empty">No messages from students yet.</div>
-              ) : (
-                <div className="inbox-conversation-list">
-                  {conversations.map((conversation) => (
+              {notificationsError ? (
+                <div className="student-inbox-empty notification-error" role="alert">{notificationsError}</div>
+              ) : isLoadingNotifications ? (
+                <div className="student-inbox-empty">Loading notifications...</div>
+              ) : notifications.length ? (
+                <div className="student-notification-list">
+                  {notifications.map((notification) => (
                     <button
                       type="button"
-                      className="inbox-conversation"
-                      key={conversation.id}
-                      aria-expanded={selectedConversationId === conversation.id}
-                      onClick={() => setSelectedConversationId((previous) => previous === conversation.id ? '' : conversation.id)}
+                      key={notification.id}
+                      className={`student-notification ${notification.isRead ? '' : 'student-notification-unread'}`}
+                      onClick={() => handleOpenNotification(notification)}
                     >
-                      <strong>{conversation.studentEmail}</strong>
-                      <span>{conversation.messages.length} messages</span>
+                      <strong>{notification.title}</strong>
+                      <span>{notification.body}</span>
+                      <small>{formatDateTime(notification.createdAt)}</small>
                     </button>
                   ))}
                 </div>
+              ) : (
+                <div className="student-inbox-empty">No notifications yet.</div>
               )}
-              {activeConversation ? (
-                <div className="inbox-thread">
-                  <div className="inbox-thread-header">
-                    <strong>{activeConversation.messages[0].subject}</strong>
-                    <span>{activeConversation.studentEmail}</span>
-                  </div>
-                  <div className="inbox-thread-messages">
-                    {activeConversation.messages.map((message) => (
-                      <div className={`student-inbox-message ${message.senderUserId === String(currentUser?.id) ? 'message-sent' : 'message-received'}`} key={message.id}>
-                        <small className="message-direction">{message.senderUserId === String(currentUser?.id) ? 'You' : message.senderEmail} · {formatDateTime(message.createdAt)}</small>
-                        <span>{message.body}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <textarea
-                    className="inbox-message-reply"
-                    value={conversationReply}
-                    onChange={(event) => setConversationReply(event.target.value)}
-                    placeholder="Reply..."
-                    rows={2}
-                  />
-                  <button
-                    type="button"
-                    disabled={Boolean(sendingMessageId) || !conversationReply.trim()}
-                    onClick={() => handleSendReply(activeConversation)}
-                  >
-                    {sendingMessageId ? 'Sending...' : 'Send Reply'}
-                  </button>
-                </div>
-              ) : null}
             </div>
           )}
+          <button
+            type="button"
+            className="profile-menu-trigger chat-launch-trigger"
+            onClick={() => {
+              setIsChatOpen(true);
+              setIsInboxOpen(false);
+            }}
+            aria-label={unreadChatCount > 0
+              ? `Open contract chats, ${unreadChatBadgeCount} unread`
+              : 'Open contract chats'}
+            aria-expanded={isChatOpen}
+          >
+            <img className="chat-launch-icon" src={MessengerIcon} alt="" aria-hidden="true" />
+            <span>Chats</span>
+            {unreadChatCount > 0 ? (
+              <span className="inbox-unread-badge" aria-hidden="true">{unreadChatBadgeCount}</span>
+            ) : null}
+          </button>
+          <ContractChatCenter
+            isOpen={isChatOpen}
+            onClose={() => setIsChatOpen(false)}
+            currentUser={currentUser}
+            requests={requests}
+            messages={messages}
+            onRefresh={fetchMessages}
+            loadError={messagesError}
+          />
         </div>
         <div className="profile-menu" ref={menuRef}>
           <button
@@ -450,13 +379,12 @@ function ComplianceOfficerDashboardPage() {
         <div className="contracts-toolbar">
           <div className="active-contracts-actions-block">
             {errorMessage ? (
-              <p className="contracts-feedback contracts-error">
+              <p className="contracts-feedback contracts-error notification-error" role="alert">
                 {errorMessage}
               </p>
             ) : (
               <p className="contracts-feedback">
-                Showing contracts that students have submitted
-                directly to this compliance officer for review.
+                Showing contracts submitted to compliance groups you belong to. Only the designated lead reviewer can make the final decision.
               </p>
             )}
           </div>
@@ -492,6 +420,12 @@ function ComplianceOfficerDashboardPage() {
                   <p>
                     Student: {request.studentEmail}
                   </p>
+                  <p>
+                    Lead reviewer: {request.assignedComplianceEmail || 'Not assigned'}
+                  </p>
+                  <p>
+                    Group members: {(request.complianceParticipantEmails || []).join(', ')}
+                  </p>
 
                   {request.studentSchool ? (
                     <p>
@@ -518,6 +452,11 @@ function ComplianceOfficerDashboardPage() {
                   <p>
                     Status: {request.status}
                   </p>
+                  {String(request.assignedComplianceUserId) !== String(currentUser?.id) ? (
+                    <p className="contracts-feedback contract-review-guidance">
+                      You can discuss this contract with the group. Only {request.assignedComplianceEmail} can accept or reject it.
+                    </p>
+                  ) : null}
 
                   <div className="contract-action-row">
                     {request.hasSourceFile ? (
@@ -549,7 +488,8 @@ function ComplianceOfficerDashboardPage() {
                         )
                       }
                       disabled={
-                        updatingRequestId === request.id
+                        updatingRequestId === request.id ||
+                        String(request.assignedComplianceUserId) !== String(currentUser?.id)
                       }
                     >
                       {updatingRequestId === request.id
@@ -567,7 +507,8 @@ function ComplianceOfficerDashboardPage() {
                         )
                       }
                       disabled={
-                        updatingRequestId === request.id
+                        updatingRequestId === request.id ||
+                        String(request.assignedComplianceUserId) !== String(currentUser?.id)
                       }
                     >
                       Reject

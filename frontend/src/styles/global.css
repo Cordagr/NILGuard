@@ -239,3 +239,101 @@ pre {
     font-size: clamp(1.5rem, 6vw, 2.5rem);
   }
 }
+
+.app-close-button {
+  display: grid;
+  place-items: center;
+  flex: 0 0 2rem;
+  width: 2rem;
+  min-width: 2rem;
+  height: 2rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font-family: Arial, sans-serif;
+  font-size: 1.5rem;
+  font-weight: 400;
+  line-height: 1;
+  text-align: center;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.app-close-button:hover,
+.app-close-button:focus-visible {
+  background: #FF4D00;
+  color: #fff;
+}
+
+.profile-menu-dropdown .app-close-button {
+  width: 2rem;
+  padding: 0;
+  text-align: center;
+}
+
+.notification-error .app-close-button {
+  border: 0;
+  background: transparent;
+  color: #fff;
+}
+
+.notification-error .app-close-button:hover,
+.notification-error .app-close-button:focus-visible {
+  background: #FF4D00;
+  color: #fff;
+}
+
+.notification-error {
+  position: relative;
+  margin: 0.75rem 0;
+  padding: 0.85rem 1rem 0.85rem 3rem;
+  border: 1px solid #fff !important;
+  border-radius: 8px;
+  background: #181818 !important;
+  color: #fff !important;
+  box-shadow: 0 8px 24px rgba(24, 24, 24, 0.16);
+}
+
+.notification-error::before {
+  position: absolute;
+  top: 0.85rem;
+  left: 1rem;
+  display: grid;
+  width: 1.35rem;
+  height: 1.35rem;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  color: #fff;
+  content: "i";
+  font-family: Georgia, serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.notification-error p,
+.notification-error h3,
+.notification-error strong,
+.notification-error span {
+  color: #fff !important;
+}
+
+.notification-error p {
+  margin-bottom: 0.5rem;
+}
+
+.notification-error button:not(.app-close-button) {
+  border: 1px solid #fff;
+  background: #fff;
+  color: #181818;
+}
+
+.notification-error button:not(.app-close-button):hover,
+.notification-error button:not(.app-close-button):focus-visible {
+  background: #e8e8e8;
+  color: #181818;
+}

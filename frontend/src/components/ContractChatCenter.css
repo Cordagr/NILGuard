@@ -1,0 +1,372 @@
+.dashboard-communication-actions {
+  display: flex;
+  align-items: center;
+  justify-self: end;
+  gap: 0.45rem;
+}
+
+.profile-menu-trigger.chat-launch-trigger {
+  position: relative;
+  display: flex;
+  width: auto;
+  min-width: 82px;
+  height: 40px;
+  padding: 0 0.7rem;
+  gap: 0.4rem;
+  border-radius: 999px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.chat-launch-icon {
+  display: block;
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+}
+
+.contract-chat-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(24, 24, 24, 0.62);
+  backdrop-filter: blur(3px);
+}
+
+.contract-chat-window {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(1120px, 100%);
+  height: min(780px, calc(100vh - 2rem));
+  overflow: hidden;
+  border: 1px solid #d8c8b5;
+  border-radius: 14px;
+  background: #f8f5ef;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.3);
+}
+
+.contract-chat-topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: #181818;
+  color: #fff;
+}
+
+.contract-chat-topbar p {
+  margin: 0;
+}
+
+.contract-chat-topbar p {
+  color: #d5d0c9;
+  font-size: 0.82rem;
+}
+
+.contract-chat-layout {
+  display: grid;
+  grid-template-columns: minmax(250px, 31%) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.contract-chat-sidebar {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  border-right: 1px solid #e4d9ca;
+  background: #fff;
+}
+
+.contract-chat-sidebar-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  border-bottom: 1px solid #eee5da;
+  color: #181818;
+  font-size: 0.9rem;
+}
+
+.contract-chat-sidebar-heading span {
+  display: grid;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  place-items: center;
+  border-radius: 999px;
+  background: #f0e6d8;
+  font-size: 0.75rem;
+}
+
+.contract-chat-list {
+  overflow-y: auto;
+}
+
+.contract-chat-list-item {
+  position: relative;
+  display: grid;
+  width: 100%;
+  gap: 0.3rem;
+  padding: 0.85rem 2.5rem 0.85rem 1rem;
+  border: 0;
+  border-bottom: 1px solid #eee5da;
+  background: #fff;
+  color: #181818;
+  text-align: left;
+  cursor: pointer;
+}
+
+.contract-chat-list-item:hover,
+.contract-chat-list-item.is-active {
+  background: #f5f0e8;
+}
+
+.contract-chat-list-item.is-active {
+  box-shadow: inset 3px 0 #ff4d00;
+}
+
+.contract-chat-list-item-title {
+  overflow: hidden;
+  font-size: 0.87rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contract-chat-list-item-subtitle,
+.contract-chat-list-item-preview {
+  overflow: hidden;
+  color: #777;
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contract-chat-list-item-preview {
+  color: #4b4b4b;
+}
+
+.contract-chat-unread {
+  position: absolute;
+  top: 0.9rem;
+  right: 0.75rem;
+  display: grid;
+  min-width: 1.3rem;
+  height: 1.3rem;
+  place-items: center;
+  padding: 0 0.2rem;
+  border-radius: 999px;
+  background: #ff4d00;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.contract-chat-empty-list {
+  margin: 0;
+  padding: 1rem;
+  color: #777;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.contract-chat-thread {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.contract-chat-thread-header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #e4d9ca;
+  background: #fff;
+}
+
+.contract-chat-thread-header h3,
+.contract-chat-thread-header p {
+  margin: 0;
+}
+
+.contract-chat-thread-header h3 {
+  overflow-wrap: anywhere;
+  color: #181818;
+  font-size: 1rem;
+}
+
+.contract-chat-thread-header p,
+.contract-chat-thread-header small {
+  display: block;
+  margin-top: 0.3rem;
+  color: #666;
+  font-size: 0.77rem;
+  overflow-wrap: anywhere;
+}
+
+.contract-chat-messages {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.7rem;
+  min-height: 0;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.contract-chat-message {
+  align-self: flex-start;
+  max-width: min(78%, 620px);
+  padding: 0.7rem 0.85rem;
+  border: 1px solid #e3d8c9;
+  border-radius: 12px 12px 12px 3px;
+  background: #fff;
+  color: #181818;
+  overflow-wrap: anywhere;
+}
+
+.contract-chat-message.is-own-message {
+  align-self: flex-end;
+  border-color: #181818;
+  border-radius: 12px 12px 3px 12px;
+  background: #181818;
+  color: #fff;
+}
+
+.contract-chat-message-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.7rem;
+}
+
+.contract-chat-message-meta time {
+  opacity: 0.7;
+}
+
+.contract-chat-message p {
+  margin: 0.35rem 0 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.contract-chat-empty-thread {
+  margin: auto;
+  padding: 1.5rem;
+  color: #777;
+  text-align: center;
+}
+
+.contract-chat-no-selection {
+  margin: auto;
+  padding: 1.5rem;
+  color: #777;
+  text-align: center;
+}
+
+.contract-chat-no-selection h3,
+.contract-chat-no-selection p {
+  margin: 0;
+}
+
+.contract-chat-no-selection p {
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.contract-chat-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  padding: 0.85rem;
+  border-top: 1px solid #e4d9ca;
+  background: #fff;
+}
+
+.contract-chat-composer .notification-error {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.contract-chat-composer textarea {
+  min-height: 2.8rem;
+  max-height: 8rem;
+  resize: vertical;
+  padding: 0.7rem;
+  border: 1px solid #d8c8b5;
+  border-radius: 8px;
+  font: inherit;
+}
+
+.contract-chat-composer button {
+  align-self: end;
+  min-width: 5rem;
+  padding: 0.75rem 1rem;
+  border: 0;
+  border-radius: 8px;
+  background: #ff4d00;
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.contract-chat-composer button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+  .dashboard-communication-actions {
+    gap: 0.3rem;
+  }
+
+  .profile-menu-trigger.chat-launch-trigger {
+    min-width: 40px;
+    padding: 0 0.55rem;
+  }
+
+  .chat-launch-trigger > span:not(.inbox-unread-badge) {
+    display: none;
+  }
+
+  .contract-chat-backdrop {
+    padding: 0;
+  }
+
+  .contract-chat-window {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .contract-chat-layout {
+    grid-template-columns: minmax(110px, 34%) minmax(0, 1fr);
+  }
+
+  .contract-chat-list-item {
+    padding-right: 0.5rem;
+    padding-left: 0.7rem;
+  }
+
+  .contract-chat-list-item-preview {
+    display: none;
+  }
+
+  .contract-chat-message {
+    max-width: 92%;
+  }
+
+  .contract-chat-thread-header,
+  .contract-chat-messages {
+    padding: 0.75rem;
+  }
+}

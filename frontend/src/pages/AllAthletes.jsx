@@ -199,7 +199,7 @@ export default function AllAthletes({ onSelectAthlete }) {
       {loading ? (
         <div className="loading-state">Loading athletes...</div>
       ) : error ? (
-        <div className="error-state">{error}</div>
+        <div className="error-state notification-error" role="alert">{error}</div>
       ) : Object.keys(groupedAthletes).length === 0 ? (
         <div className="empty-state">No athletes match your filters.</div>
       ) : (

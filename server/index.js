@@ -340,6 +340,17 @@ function serializeContract(contract) {
   };
 }
 
+function getComplianceParticipantIds(documentRequest) {
+  const participantIds = Array.isArray(documentRequest.complianceParticipantIds)
+    ? documentRequest.complianceParticipantIds.map(String)
+    : [];
+  const leadId = documentRequest.assignedComplianceUserId
+    ? String(documentRequest.assignedComplianceUserId)
+    : '';
+
+  return [...new Set([...participantIds, ...(leadId ? [leadId] : [])])];
+}
+
 function serializeDocumentRequest(documentRequest) {
   const timeline = [...(documentRequest.timeline || [])];
   if (!timeline.some((event) => event.type === 'submitted') && documentRequest.submittedAt) {
@@ -364,6 +375,12 @@ function serializeDocumentRequest(documentRequest) {
     studentDivision: documentRequest.studentDivision,
     assignedComplianceUserId: documentRequest.assignedComplianceUserId || null,
     assignedComplianceEmail: documentRequest.assignedComplianceEmail || null,
+    complianceParticipantIds: getComplianceParticipantIds(documentRequest),
+    complianceParticipantEmails: Array.isArray(documentRequest.complianceParticipantEmails)
+      ? documentRequest.complianceParticipantEmails
+      : documentRequest.assignedComplianceEmail
+        ? [documentRequest.assignedComplianceEmail]
+        : [],
     status: documentRequest.status,
     rejectionReason: documentRequest.rejectionReason || '',
     reviewHistory: (documentRequest.reviewHistory || []).map((entry) => ({
@@ -388,7 +405,20 @@ function serializeDocumentRequest(documentRequest) {
   };
 }
 
-function serializeMessage(message) {
+function serializeMessage(message, viewerUserId) {
+  const recipientUserIds = Array.isArray(message.recipientUserIds)
+    ? message.recipientUserIds.map(String)
+    : message.recipientUserId
+      ? [String(message.recipientUserId)]
+      : [];
+  const readByUserIds = Array.isArray(message.readByUserIds)
+    ? message.readByUserIds.map(String)
+    : message.isRead
+      ? recipientUserIds
+      : [];
+  const viewerId = String(viewerUserId);
+  const isViewerRecipient = recipientUserIds.includes(viewerId);
+
   return {
     id: message.messageId,
     requestId: message.requestId || null,
@@ -397,10 +427,18 @@ function serializeMessage(message) {
     senderEmail: message.senderEmail,
     senderSchool: message.senderSchool || null,
     recipientEmail: message.recipientEmail,
-    recipientUserId: message.recipientUserId || null,
+    recipientEmails: Array.isArray(message.recipientEmails)
+      ? message.recipientEmails
+      : message.recipientEmail
+        ? [message.recipientEmail]
+        : [],
+    recipientUserId: isViewerRecipient ? viewerId : message.recipientUserId || null,
+    recipientUserIds,
     subject: message.subject,
     body: message.body,
-    isRead: Boolean(message.isRead),
+    isRead: isViewerRecipient
+      ? readByUserIds.includes(viewerId)
+      : true,
     createdAt: message.createdAt
   };
 }
@@ -418,28 +456,72 @@ function serializeNotification(notification) {
   };
 }
 
-async function createUserNotification({ requestId, contractId, recipientUserId, type, title, body }) {
-  await notificationsCollection.insertOne({
+async function createUserNotification({
+  requestId,
+  contractId,
+  recipientUserId,
+  type,
+  title,
+  body,
+  notifications = notificationsCollection
+}) {
+  const recipientId = String(recipientUserId);
+  const now = new Date();
+
+  if (type === 'guidelines_updated' && requestId) {
+    const [existingNotification] = await notifications
+      .find({ recipientUserId: recipientId, requestId, type })
+      .sort({ createdAt: -1 })
+      .limit(1)
+      .toArray();
+
+    if (existingNotification) {
+      await notifications.updateOne(
+        { notificationId: existingNotification.notificationId },
+        {
+          $set: {
+            title,
+            body,
+            isRead: false,
+            readAt: null,
+            createdAt: now
+          }
+        }
+      );
+      return;
+    }
+  }
+
+  await notifications.insertOne({
     notificationId: `NOT-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`,
     requestId,
     contractId,
-    recipientUserId: String(recipientUserId),
+    recipientUserId: recipientId,
     type,
     title,
     body,
     isRead: false,
-    createdAt: new Date()
+    createdAt: now
   });
 }
 
-async function createStudentNotification({ requestId, contractId, studentUserId, type, title, body }) {
+async function createStudentNotification({
+  requestId,
+  contractId,
+  studentUserId,
+  type,
+  title,
+  body,
+  notifications
+}) {
   return createUserNotification({
     requestId,
     contractId,
     recipientUserId: studentUserId,
     type,
     title,
-    body
+    body,
+    notifications
   });
 }
 
@@ -1328,12 +1410,42 @@ app.get('/api/compliance/requests', async (req, res, next) => {
     assertUserRole(user, 'compliance');
 
     const requests = await documentRequestsCollection
-      .find({ assignedComplianceUserId: userId })
+      .find({
+        $or: [
+          { assignedComplianceUserId: userId },
+          { complianceParticipantIds: { $contains: userId } }
+        ]
+      })
       .sort({ status: 1, submittedAt: -1, updatedAt: -1 })
       .toArray();
 
     return res.json({
       requests: requests.map(serializeDocumentRequest)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/compliance/officers', async (req, res, next) => {
+  try {
+    const user = req.user;
+    assertUserRole(user, 'student');
+
+    if (!user.school) {
+      return res.status(400).json({ message: 'Your account is not associated with a school.' });
+    }
+
+    const officers = await usersCollection
+      .find({ role: 'compliance', school: user.school })
+      .sort({ email: 1 })
+      .toArray();
+
+    return res.json({
+      officers: officers.map((officer) => ({
+        id: String(officer._id),
+        email: officer.email
+      }))
     });
   } catch (error) {
     next(error);
@@ -1347,14 +1459,18 @@ app.post('/api/compliance/requests', async (req, res, next) => {
     assertUserRole(user, 'student', 'compliance');
 
     const contractId = String(req.body?.contractId || '').trim();
-    const complianceEmail = String(req.body?.complianceEmail || '').toLowerCase().trim();
+    const leadComplianceUserId = String(req.body?.leadComplianceUserId || '').trim();
+    const legacyComplianceEmail = String(req.body?.complianceEmail || '').toLowerCase().trim();
+    const selectedComplianceUserIds = Array.isArray(req.body?.complianceUserIds)
+      ? req.body.complianceUserIds.map((id) => String(id).trim()).filter(Boolean)
+      : [];
 
     if (!contractId) {
       return res.status(400).json({ message: 'A contract id is required.' });
     }
 
-    if (!complianceEmail) {
-      return res.status(400).json({ message: 'A compliance officer email is required.' });
+    if (!leadComplianceUserId && !legacyComplianceEmail) {
+      return res.status(400).json({ message: 'Choose a lead compliance officer.' });
     }
 
     const contract = await contractsCollection.findOne({ contractId, userId });
@@ -1363,15 +1479,39 @@ app.post('/api/compliance/requests', async (req, res, next) => {
       return res.status(404).json({ message: 'Contract not found for the current student.' });
     }
 
-    const complianceOfficer = await usersCollection.findOne({
-      email: complianceEmail,
-      role: 'compliance',
-      school: user.school
-    });
+    const complianceOfficer = leadComplianceUserId
+      ? await usersCollection.findOne({
+        _id: leadComplianceUserId,
+        role: 'compliance',
+        school: user.school
+      })
+      : await usersCollection.findOne({
+        email: legacyComplianceEmail,
+        role: 'compliance',
+        school: user.school
+      });
 
     if (!complianceOfficer) {
       return res.status(404).json({
-        message: 'No compliance officer account with that email was found for your school.'
+        message: 'The selected lead compliance officer was not found for your school.'
+      });
+    }
+
+    const complianceParticipantIds = [...new Set([
+      String(complianceOfficer._id),
+      ...selectedComplianceUserIds
+    ])];
+    const complianceParticipants = await usersCollection
+      .find({
+        _id: { $in: complianceParticipantIds },
+        role: 'compliance',
+        school: user.school
+      })
+      .toArray();
+
+    if (complianceParticipants.length !== complianceParticipantIds.length) {
+      return res.status(400).json({
+        message: 'All selected compliance officers must belong to your school.'
       });
     }
 
@@ -1407,6 +1547,8 @@ app.post('/api/compliance/requests', async (req, res, next) => {
           studentDivision: user.ncaaDivision || null,
           assignedComplianceUserId: complianceOfficer._id.toString(),
           assignedComplianceEmail: complianceOfficer.email,
+          complianceParticipantIds,
+          complianceParticipantEmails: complianceParticipants.map((officer) => officer.email),
           status: 'pending',
           reviewDueAt,
           guidelines: buildGuidelineReviews(guidelineFindings, null),
@@ -1433,6 +1575,9 @@ app.post('/api/compliance/requests', async (req, res, next) => {
     );
 
     const savedRequest = await documentRequestsCollection.findOne({ studentUserId: userId, contractId });
+    const submissionTarget = complianceParticipants.length === 1
+      ? complianceOfficer.email
+      : `the compliance group led by ${complianceOfficer.email}`;
 
     await createStudentNotification({
       requestId,
@@ -1440,20 +1585,20 @@ app.post('/api/compliance/requests', async (req, res, next) => {
       studentUserId: userId,
       type: 'contract_submitted',
       title: 'Contract submitted',
-      body: `Your contract was submitted to ${complianceOfficer.email} for review.`
+      body: `Your contract was submitted to ${submissionTarget} for review.`
     });
 
-    await createUserNotification({
+    await Promise.all(complianceParticipants.map((officer) => createUserNotification({
       requestId,
       contractId,
-      recipientUserId: complianceOfficer._id.toString(),
+      recipientUserId: String(officer._id),
       type: existingRequest ? 'contract_resubmitted' : 'contract_submitted',
       title: existingRequest ? 'Contract resubmitted for review' : 'New contract submitted',
       body: `${user.email} ${existingRequest ? 'resubmitted' : 'submitted'} "${contract.fileName}" for review.`
-    });
+    })));
 
     return res.status(existingRequest ? 200 : 201).json({
-      message: `Document submitted to ${complianceOfficer.email} for review.`,
+      message: `Document submitted to ${submissionTarget} for review.`,
       request: serializeDocumentRequest(savedRequest)
     });
   } catch (error) {
@@ -1706,7 +1851,7 @@ app.patch('/api/compliance/requests/:requestId/guidelines', async (req, res, nex
         prior.summary !== summary ||
         new Date(prior.dueAt || 0).getTime() !== dueAt.getTime()
       );
-      const resolvedDecision = contentChanged ? 'pending' : decision;
+      const resolvedDecision = decision;
       const reviewedAt = resolvedDecision === 'pending'
         ? null
         : (
@@ -1728,41 +1873,93 @@ app.patch('/api/compliance/requests/:requestId/guidelines', async (req, res, nex
       });
     }
 
-    await documentRequestsCollection.updateOne(
-      { requestId: documentRequest.requestId, assignedComplianceUserId: userId },
-      { $set: { guidelines, updatedAt: now } }
-    );
-
-    const updatedRequest = await documentRequestsCollection.findOne({ requestId: documentRequest.requestId });
     const guidelineSummary = guidelines.map((guideline) => {
       const dueDate = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(guideline.dueAt);
       const feedbackLine = guideline.feedback ? ` Feedback: ${guideline.feedback}` : '';
       return `• ${guideline.title} — ${guideline.decision === 'needs_changes' ? 'Needs changes' : guideline.decision}; due ${dueDate}.${feedbackLine}`;
     }).join('\n');
 
-    await messagesCollection.insertOne({
-      messageId: `MSG-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`,
-      requestId: documentRequest.requestId,
-      contractId: documentRequest.contractId,
-      senderUserId: userId,
-      senderEmail: user.email,
-      senderSchool: user.school || null,
-      recipientEmail: documentRequest.studentEmail,
-      recipientUserId: documentRequest.studentUserId,
-      subject: 'NIL guideline review updated',
-      body: `The NIL guideline conditions for ${documentRequest.contractFileName} have been updated:\n\n${guidelineSummary}`,
-      isRead: false,
-      createdAt: now
-    });
+    const client = await pool.connect();
+    let transactionOpen = false;
+    let updatedRequest;
+    try {
+      await client.query('BEGIN');
+      transactionOpen = true;
+      const transactionCollections = createCollections(client);
+      await client.query(
+        'SELECT id FROM document_requests WHERE id = $1 FOR UPDATE',
+        [documentRequest._id]
+      );
+      const currentRequest = await transactionCollections.documentRequestsCollection.findOne({
+        requestId: documentRequest.requestId,
+        assignedComplianceUserId: userId
+      });
 
-    await createStudentNotification({
-      requestId: documentRequest.requestId,
-      contractId: documentRequest.contractId,
-      studentUserId: documentRequest.studentUserId,
-      type: 'guidelines_updated',
-      title: 'NIL guideline conditions updated',
-      body: `Review the updated conditions, deadlines, and officer feedback for ${documentRequest.contractFileName}.`
-    });
+      if (!currentRequest || currentRequest.status !== 'pending') {
+        await client.query('ROLLBACK');
+        transactionOpen = false;
+        return res.status(409).json({
+          message: 'This contract is no longer pending. Refresh the page and try again.'
+        });
+      }
+
+      const updateResult = await transactionCollections.documentRequestsCollection.updateOne(
+        {
+          requestId: documentRequest.requestId,
+          assignedComplianceUserId: userId,
+          status: 'pending'
+        },
+        { $set: { guidelines, updatedAt: now } }
+      );
+
+      if (!updateResult.matchedCount) {
+        await client.query('ROLLBACK');
+        transactionOpen = false;
+        return res.status(409).json({
+          message: 'This contract is no longer pending. Refresh the page and try again.'
+        });
+      }
+
+      updatedRequest = await transactionCollections.documentRequestsCollection.findOne({
+        requestId: documentRequest.requestId,
+        assignedComplianceUserId: userId
+      });
+
+      await transactionCollections.messagesCollection.insertOne({
+        messageId: `MSG-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`,
+        requestId: documentRequest.requestId,
+        contractId: documentRequest.contractId,
+        senderUserId: userId,
+        senderEmail: user.email,
+        senderSchool: user.school || null,
+        recipientEmail: documentRequest.studentEmail,
+        recipientUserId: documentRequest.studentUserId,
+        subject: 'NIL guideline review updated',
+        body: `The NIL guideline conditions for ${documentRequest.contractFileName} have been updated:\n\n${guidelineSummary}`,
+        isRead: false,
+        createdAt: now
+      });
+
+      await createStudentNotification({
+        requestId: documentRequest.requestId,
+        contractId: documentRequest.contractId,
+        studentUserId: documentRequest.studentUserId,
+        type: 'guidelines_updated',
+        title: 'NIL guideline conditions updated',
+        body: `Review the updated conditions, deadlines, and officer feedback for ${documentRequest.contractFileName}.`,
+        notifications: transactionCollections.notificationsCollection
+      });
+
+      await client.query('COMMIT');
+      transactionOpen = false;
+    } catch (error) {
+      if (transactionOpen) {
+        await client.query('ROLLBACK');
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
 
     return res.json({
       message: 'NIL guideline conditions saved and sent to the student inbox.',
@@ -1785,7 +1982,13 @@ app.get('/api/compliance/requests/:requestId/file', async (req, res, next) => {
       documentRequest = await documentRequestsCollection.findOne({ requestId, studentUserId: userId });
     } else {
       assertUserRole(user, 'compliance');
-      documentRequest = await documentRequestsCollection.findOne({ requestId, assignedComplianceUserId: userId });
+      documentRequest = await documentRequestsCollection.findOne({
+        requestId,
+        $or: [
+          { assignedComplianceUserId: userId },
+          { complianceParticipantIds: { $contains: userId } }
+        ]
+      });
     }
 
     if (!documentRequest) {
@@ -1828,37 +2031,22 @@ app.get('/api/compliance/messages', async (req, res, next) => {
     const userId = String(user._id);
     assertUserRole(user, 'student', 'compliance');
 
-    let messageQuery;
-
-    if (user.role === 'compliance') {
-      messageQuery = {
+    const visibleRequests = user.role === 'student'
+      ? await documentRequestsCollection.find({ studentUserId: userId }).toArray()
+      : await documentRequestsCollection.find({
         $or: [
-          { senderUserId: userId },
-          { recipientUserId: userId }
+          { assignedComplianceUserId: userId },
+          { complianceParticipantIds: { $contains: userId } }
         ]
-      };
-    } else {
-      const studentRequests = await documentRequestsCollection
-        .find({ studentUserId: userId })
-        .project({ requestId: 1 })
-        .toArray();
-      const requestIds = studentRequests.map((request) => request.requestId);
-
-      messageQuery = {
-        requestId: { $in: requestIds },
-        $or: [
-          { senderUserId: userId },
-          { recipientUserId: userId }
-        ]
-      };
-    }
+      }).toArray();
+    const requestIds = visibleRequests.map((request) => request.requestId);
 
     const messages = await messagesCollection
-      .find(messageQuery)
+      .find({ requestId: { $in: requestIds } })
       .sort({ createdAt: -1 })
       .toArray();
 
-    return res.json({ messages: messages.map(serializeMessage) });
+    return res.json({ messages: messages.map((message) => serializeMessage(message, userId)) });
   } catch (error) {
     next(error);
   }
@@ -1873,7 +2061,10 @@ app.patch('/api/compliance/messages/:requestId/read', async (req, res, next) => 
     const request = user.role === 'compliance'
       ? await documentRequestsCollection.findOne({
         requestId: req.params.requestId,
-        assignedComplianceUserId: userId
+        $or: [
+          { assignedComplianceUserId: userId },
+          { complianceParticipantIds: { $contains: userId } }
+        ]
       })
       : await documentRequestsCollection.findOne({
         requestId: req.params.requestId,
@@ -1885,8 +2076,14 @@ app.patch('/api/compliance/messages/:requestId/read', async (req, res, next) => 
     }
 
     await messagesCollection.updateMany(
-      { requestId: request.requestId, recipientUserId: userId },
-      { $set: { isRead: true, readAt: new Date() } }
+      {
+        requestId: request.requestId,
+        $or: [
+          { recipientUserId: userId },
+          { recipientUserIds: { $contains: userId } }
+        ]
+      },
+      { $addToSet: { readByUserIds: userId } }
     );
 
     return res.json({ message: 'Messages marked as read.' });
@@ -1904,10 +2101,22 @@ app.get('/api/compliance/notifications', async (req, res, next) => {
       .sort({ createdAt: -1 })
       .limit(50)
       .toArray();
+    const visibleNotifications = [];
+    const seenGuidelineUpdates = new Set();
+
+    for (const notification of notifications) {
+      if (notification.type === 'guidelines_updated' && notification.requestId) {
+        if (seenGuidelineUpdates.has(notification.requestId)) {
+          continue;
+        }
+        seenGuidelineUpdates.add(notification.requestId);
+      }
+      visibleNotifications.push(notification);
+    }
 
     return res.json({
-      notifications: notifications.map(serializeNotification),
-      unreadCount: notifications.filter((notification) => !notification.isRead).length
+      notifications: visibleNotifications.map(serializeNotification),
+      unreadCount: visibleNotifications.filter((notification) => !notification.isRead).length
     });
   } catch (error) {
     next(error);
@@ -1918,10 +2127,26 @@ app.patch('/api/compliance/notifications/:notificationId/read', async (req, res,
   try {
     const userId = String(req.user._id);
     assertUserRole(req.user, 'student', 'compliance');
-    await notificationsCollection.updateOne(
-      { notificationId: req.params.notificationId, recipientUserId: userId },
-      { $set: { isRead: true, readAt: new Date() } }
-    );
+    const notification = await notificationsCollection.findOne({
+      notificationId: req.params.notificationId,
+      recipientUserId: userId
+    });
+
+    if (notification?.type === 'guidelines_updated' && notification.requestId) {
+      await notificationsCollection.updateMany(
+        {
+          recipientUserId: userId,
+          requestId: notification.requestId,
+          type: notification.type
+        },
+        { $set: { isRead: true, readAt: new Date() } }
+      );
+    } else if (notification) {
+      await notificationsCollection.updateOne(
+        { notificationId: notification.notificationId, recipientUserId: userId },
+        { $set: { isRead: true, readAt: new Date() } }
+      );
+    }
     return res.json({ message: 'Notification marked as read.' });
   } catch (error) {
     next(error);
@@ -1937,7 +2162,6 @@ app.post('/api/compliance/messages', async (req, res, next) => {
     const requestId = String(req.body?.requestId || '').trim();
     const subject = String(req.body?.subject || '').trim();
     const body = String(req.body?.body || '').trim();
-    const requestedRecipientEmail = String(req.body?.recipientEmail || '').trim().toLowerCase();
 
     if (!requestId) {
       return res.status(400).json({ message: 'A contract request is required for messaging.' });
@@ -1946,62 +2170,50 @@ app.post('/api/compliance/messages', async (req, res, next) => {
       return res.status(400).json({ message: 'A message body is required.' });
     }
 
-    let request;
-    let recipientUserId;
-    let recipientEmail;
-
-    if (user.role === 'student') {
-      request = await documentRequestsCollection.findOne({
+    const request = user.role === 'student'
+      ? await documentRequestsCollection.findOne({
         requestId,
         studentUserId: userId
-      });
-
-      if (!request) {
-        return res.status(403).json({ message: 'You can only message users about your own contracts.' });
-      }
-      if (!requestedRecipientEmail) {
-        return res.status(400).json({ message: 'Enter the compliance officer email address.' });
-      }
-
-      const officer = await usersCollection.findOne({
-        email: requestedRecipientEmail,
-        role: 'compliance',
-        school: user.school
-      });
-
-      if (!officer) {
-        return res.status(404).json({
-          message: 'No compliance officer account with that email was found for your school.'
-        });
-      }
-
-      recipientUserId = String(officer._id);
-      recipientEmail = officer.email;
-    } else {
-      request = await documentRequestsCollection.findOne({ requestId });
-
-      if (!request) {
-        return res.status(404).json({ message: 'Contract request not found.' });
-      }
-
-      const hasConversationAccess = await messagesCollection.findOne({
+      })
+      : await documentRequestsCollection.findOne({
         requestId,
         $or: [
-          { senderUserId: userId },
-          { recipientUserId: userId }
+          { assignedComplianceUserId: userId },
+          { complianceParticipantIds: { $contains: userId } }
         ]
       });
 
-      if (request.assignedComplianceUserId !== userId && !hasConversationAccess) {
-        return res.status(403).json({
-          message: 'You can only reply to conversations addressed to you or contracts assigned to you.'
-        });
-      }
-
-      recipientUserId = String(request.studentUserId);
-      recipientEmail = request.studentEmail;
+    if (!request) {
+      return res.status(user.role === 'student' ? 403 : 404).json({
+        message: user.role === 'student'
+          ? 'You can only message users about your own contracts.'
+          : 'You are not a member of this contract conversation.'
+      });
     }
 
+    const complianceParticipantIds = getComplianceParticipantIds(request);
+    const recipientUserIds = (user.role === 'student'
+      ? complianceParticipantIds
+      : [String(request.studentUserId), ...complianceParticipantIds]
+    ).filter((recipientId) => recipientId !== userId);
+    const recipientUsers = await usersCollection
+      .find({ _id: { $in: recipientUserIds } })
+      .toArray();
+    const recipientUsersById = new Map(
+      recipientUsers.map((recipient) => [String(recipient._id), recipient])
+    );
+
+    if (recipientUserIds.some((recipientId) => !recipientUsersById.has(recipientId))) {
+      return res.status(409).json({
+        message: 'A compliance group member could not be found. Update the group before sending a message.'
+      });
+    }
+
+    const recipientEmails = recipientUserIds.map(
+      (recipientId) => recipientUsersById.get(recipientId).email
+    );
+    const recipientEmail = recipientEmails.join(', ');
+    const recipientUserId = recipientUserIds[0] || null;
     const now = new Date();
     await messagesCollection.insertOne({
       messageId: `MSG-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`,
@@ -2012,33 +2224,46 @@ app.post('/api/compliance/messages', async (req, res, next) => {
       senderSchool: user.school || null,
       recipientEmail,
       recipientUserId,
+      recipientEmails,
+      recipientUserIds,
+      readByUserIds: [],
       subject: subject || '(No subject)',
       body,
       isRead: false,
       createdAt: now
     });
 
-    if (user.role === 'compliance') {
-      await createStudentNotification({
-        requestId,
-        contractId: request.contractId,
-        studentUserId: request.studentUserId,
-        type: 'officer_message',
-        title: 'New message from compliance',
-        body: subject || 'You received a new compliance message.'
-      });
-    } else {
-      await createUserNotification({
-        requestId,
-        contractId: request.contractId,
-        recipientUserId,
-        type: 'student_message',
-        title: 'New student message',
-        body: `${user.email} sent you a message about "${request.contractFileName || 'a contract'}".`
-      });
-    }
+    await Promise.all(recipientUserIds.map(async (recipientId) => {
+      const recipient = recipientUsersById.get(recipientId);
+      const notificationBody = `${user.email} sent a message about "${request.contractFileName || 'a contract'}".`;
+      const notificationTitle = user.role === 'student'
+        ? 'New student message'
+        : 'New message in contract group';
 
-    return res.status(201).json({ message: `Message sent to ${recipientEmail}.` });
+      if (recipient.role === 'student') {
+        await createStudentNotification({
+          requestId,
+          contractId: request.contractId,
+          studentUserId: recipientId,
+          type: 'officer_message',
+          title: 'New message from compliance',
+          body: subject || 'You received a new compliance message.'
+        });
+      } else {
+        await createUserNotification({
+          requestId,
+          contractId: request.contractId,
+          recipientUserId: recipientId,
+          type: user.role === 'student' ? 'student_message' : 'group_message',
+          title: notificationTitle,
+          body: notificationBody
+        });
+      }
+    }));
+
+    return res.status(201).json({
+      message: 'Message sent to the contract group.'
+    });
   } catch (error) {
     next(error);
   }

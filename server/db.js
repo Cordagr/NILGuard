@@ -57,6 +57,20 @@ function compileFilter(filter = {}) {
     const expression = key === '_id'
       ? 'id'
       : `${path.slice(0, -1).reduce((sql, segment) => `${sql}->${segment}`, 'data')}->>${path[path.length - 1]}`;
+    const jsonExpression = key === '_id'
+      ? 'to_jsonb(id)'
+      : `${path.reduce((sql, segment) => `${sql}->${segment}`, 'data')}`;
+
+    if (
+      expected &&
+      typeof expected === 'object' &&
+      !Array.isArray(expected) &&
+      '$contains' in expected
+    ) {
+      values.push(JSON.stringify([String(expected.$contains)]));
+      clauses.push(`${jsonExpression} @> $${values.length}::jsonb`);
+      return;
+    }
 
     if (
       expected &&
@@ -125,6 +139,14 @@ function applyUpdate(document, update) {
   for (const [path, value] of Object.entries(update.$push || {})) {
     const current = getPath(next, path);
     setPath(next, path, [...(Array.isArray(current) ? current : []), value]);
+  }
+
+  for (const [path, value] of Object.entries(update.$addToSet || {})) {
+    const current = getPath(next, path);
+    const additions = value && typeof value === 'object' && '$each' in value
+      ? value.$each
+      : [value];
+    setPath(next, path, [...new Set([...(Array.isArray(current) ? current : []), ...additions])]);
   }
 
   return next;
@@ -328,8 +350,12 @@ export async function initializeDatabase(pool) {
     'CREATE UNIQUE INDEX IF NOT EXISTS rosters_owner_group_unique ON rosters ((data->>\'userId\'), (data->>\'school\'), (data->>\'sport\'), (data->>\'year\'))',
     'CREATE UNIQUE INDEX IF NOT EXISTS document_requests_id_unique ON document_requests ((data->>\'requestId\'))',
     'CREATE INDEX IF NOT EXISTS document_requests_student_submitted ON document_requests ((data->>\'studentUserId\'), (data->>\'submittedAt\') DESC)',
+    'CREATE INDEX IF NOT EXISTS document_requests_compliance_lead ON document_requests ((data->>\'assignedComplianceUserId\'), (data->>\'submittedAt\') DESC)',
+    'CREATE INDEX IF NOT EXISTS document_requests_participants_gin ON document_requests USING GIN ((data->\'complianceParticipantIds\'))',
     'CREATE INDEX IF NOT EXISTS document_requests_school_status_submitted ON document_requests ((data->>\'studentSchool\'), (data->>\'status\'), (data->>\'submittedAt\') DESC)',
     'CREATE UNIQUE INDEX IF NOT EXISTS document_requests_student_contract_unique ON document_requests ((data->>\'studentUserId\'), (data->>\'contractId\'))',
+    'CREATE INDEX IF NOT EXISTS messages_request_created ON messages ((data->>\'requestId\'), (data->>\'createdAt\') DESC)',
+    'CREATE INDEX IF NOT EXISTS messages_recipient_users_gin ON messages USING GIN ((data->\'recipientUserIds\'))',
     'CREATE INDEX IF NOT EXISTS audit_logs_created ON audit_logs ((data->>\'createdAt\') DESC)',
     'CREATE INDEX IF NOT EXISTS audit_logs_user_created ON audit_logs ((data->>\'userId\'), (data->>\'createdAt\') DESC)'
   ];

@@ -55,7 +55,7 @@ export default function AthleteProfilePage() {
   if (error) {
     return (
       <div className="athlete-profile-page">
-        <div className="profile-error">
+        <div className="profile-error notification-error" role="alert">
           <h3>Error Loading Profile</h3>
           <p>{error}</p>
           <button className="profile-back-btn" onClick={() => navigate(-1)} style={{ marginTop: '16px' }}>
