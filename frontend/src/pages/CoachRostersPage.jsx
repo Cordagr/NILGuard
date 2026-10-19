@@ -293,7 +293,8 @@ function CoachRostersPage() {
               type="button"
               className="profile-menu-trigger"
               onClick={() => setMenuOpen((prev) => !prev)}
-              aria-label="Open menu"
+              aria-label="Account menu"
+              aria-expanded={menuOpen}
               style={{ background: 'none', border: 'none', padding: 0 }}
             >
               <img src={ProfileIcon} alt="Profile" className="profile-icon-img" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', border: '2px solid #222', background: '#fff' }} />
@@ -317,9 +318,15 @@ function CoachRostersPage() {
         </div>
       </header>
 
+      <section className="coach-overview" aria-label="Roster overview">
+        <div className="coach-welcome"><span className="coach-eyebrow">YOUR TEAM. YOUR NEXT MOVE.</span><h2>Build your team’s starting lineup.</h2><p>Bring your rosters together and keep every athlete in view.</p></div>
+        <div className="coach-stat"><span>Roster groups</span><strong>{isLoadingRosters || errorMessage ? '—' : rosters.length}</strong></div>
+        <div className="coach-stat"><span>Players on rosters</span><strong>{isLoadingRosters || errorMessage ? '—' : rosters.reduce((total, roster) => total + (Number(roster.playerCount) || 0), 0)}</strong></div>
+      </section>
       <main className="coach-layout">
         <section className="coach-left-column coach-panel">
-          <h2>Upload Roster</h2>
+          <span className="coach-eyebrow">01 / BUILD YOUR ROSTER</span>
+          <h2>Upload roster</h2>
           <p className="coach-panel-subtext">
             Select a CSV file. NILGuard validates the required columns and groups players into rosters by school, sport, and year.
           </p>
@@ -341,8 +348,8 @@ function CoachRostersPage() {
             {isUploading ? 'Uploading CSV...' : 'Upload Roster CSV'}
           </button>
 
-          {errorMessage ? <p className="roster-feedback roster-error">{errorMessage}</p> : null}
-          {!errorMessage && successMessage ? <p className="roster-feedback roster-success">{successMessage}</p> : null}
+          {errorMessage ? <p role="alert" className="roster-feedback roster-error">{errorMessage}</p> : null}
+          {!errorMessage && successMessage ? <p role="status" className="roster-feedback roster-success">{successMessage}</p> : null}
           {!errorMessage && !successMessage ? (
             <p className="roster-feedback">
               Required columns: student_id, first_name, last_name, school, sport, year.
@@ -371,6 +378,7 @@ function CoachRostersPage() {
         </section>
 
         <section className="coach-right-column coach-panel">
+          <span className="coach-eyebrow">02 / YOUR TEAM HUB</span>
           <h2>Athlete Directory</h2>
           <p className="coach-panel-subtext">
             Browse individual student-athletes across your uploaded rosters.
