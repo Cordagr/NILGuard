@@ -1,10 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import '../styles/pages/CoachRosters.css';
 import logo from '../assets/NILGUARD.png';
 import ProfileIcon from '../assets/ProfileIcon.png';
-import { deleteRoster, getRosterFileUrl, listRosters, uploadRosterCsv } from '../services/rosterApi';
+import { deleteRoster, getRosterFileUrl, listRosters, uploadRosterCsv, listCoachAthletes } from '../services/rosterApi';
 
 function normalizeCsvHeader(header) {
   return String(header || '')
@@ -31,7 +31,6 @@ function parseCsvRows(text) {
       } else {
         insideQuotes = !insideQuotes;
       }
-
       continue;
     }
 
@@ -45,13 +44,10 @@ function parseCsvRows(text) {
       if (character === '\r' && nextCharacter === '\n') {
         index += 1;
       }
-
       currentRow.push(currentField);
-
       if (currentRow.some((value) => String(value || '').trim() !== '')) {
         rows.push(currentRow);
       }
-
       currentField = '';
       currentRow = [];
       continue;
@@ -62,7 +58,6 @@ function parseCsvRows(text) {
 
   if (currentField !== '' || currentRow.length > 0) {
     currentRow.push(currentField);
-
     if (currentRow.some((value) => String(value || '').trim() !== '')) {
       rows.push(currentRow);
     }
@@ -116,6 +111,7 @@ function formatTimestamp(value) {
 
 function CoachRostersPage() {
   const [rosters, setRosters] = useState([]);
+  const [athletes, setAthletes] = useState([]);
   const [isLoadingRosters, setIsLoadingRosters] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [deletingRosterId, setDeletingRosterId] = useState('');
@@ -135,10 +131,13 @@ function CoachRostersPage() {
     setIsLoadingRosters(true);
 
     try {
-      const response = await listRosters(currentUser);
-      setRosters(response.rosters || []);
+      const rostersResponse = await listRosters(currentUser);
+      setRosters(rostersResponse.rosters || []);
+      
+      const athletesResponse = await listCoachAthletes(currentUser);
+      setAthletes(athletesResponse.athletes || []);
     } catch (error) {
-      setErrorMessage(error.message || 'Unable to load rosters.');
+      setErrorMessage(error.message || 'Unable to load rosters and athletes.');
     } finally {
       setIsLoadingRosters(false);
     }
@@ -149,9 +148,45 @@ function CoachRostersPage() {
       navigate('/login');
       return;
     }
-
     fetchRosters();
   }, [navigate]);
+
+  // UPDATED: Now gracefully handles the nested assignments array from the backend
+  const groupedTeams = useMemo(() => {
+    const groups = {};
+    
+    athletes.forEach((athlete) => {
+      if (athlete.assignments && athlete.assignments.length > 0) {
+        // If they have an assignments array, map them into each sport they play
+        athlete.assignments.forEach((assignment) => {
+          const sport = assignment.sport || 'Unknown Sport';
+          const year = assignment.year || 'Unknown Year';
+          const key = `${sport} - ${year}`;
+          
+          if (!groups[key]) {
+            groups[key] = [];
+          }
+          // Merge the assignment data (sport, year) into the athlete object for rendering
+          groups[key].push({ ...athlete, sport, year });
+        });
+      } else {
+        // Fallback for flat structure
+        const sport = athlete.sport || 'Unknown Sport';
+        const year = athlete.year || 'Unknown Year';
+        const key = `${sport} - ${year}`;
+        
+        if (!groups[key]) {
+          groups[key] = [];
+        }
+        groups[key].push(athlete);
+      }
+    });
+
+    return Object.keys(groups).sort().reduce((acc, key) => {
+      acc[key] = groups[key];
+      return acc;
+    }, {});
+  }, [athletes]);
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -236,7 +271,7 @@ function CoachRostersPage() {
     try {
       const response = await deleteRoster(currentUser, roster.id);
       setSuccessMessage(response.message || 'Roster deleted successfully.');
-      setRosters((previousRosters) => previousRosters.filter((currentRoster) => currentRoster.id !== roster.id));
+      await fetchRosters();
     } catch (error) {
       setErrorMessage(error.message || 'Unable to delete the roster.');
     } finally {
@@ -277,11 +312,7 @@ function CoachRostersPage() {
                 <button
                   type="button"
                   style={{ width: '100%', background: 'transparent', border: 'none', padding: '0.9em 1.4em', textAlign: 'left', fontFamily: 'Barlow Condensed, sans-serif', fontSize: '1rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#181818', cursor: 'pointer', borderRadius: 0 }}
-                  onClick={() => {
-                  logout();
-                    setMenuOpen(false);
-                    navigate('/login');
-                  }}
+                  onClick={handleLogout}
                 >
                   Logout
                 </button>
@@ -292,6 +323,7 @@ function CoachRostersPage() {
       </header>
 
       <main className="coach-layout">
+        
         <section className="coach-left-column coach-panel">
           <h2>Upload Roster</h2>
           <p className="coach-panel-subtext">
@@ -330,25 +362,21 @@ function CoachRostersPage() {
             <div className="sample-csv-row">1042,Jordan,Reed,{currentUser?.school || 'State University'},Basketball,2026</div>
             <div className="sample-csv-row">1043,Talia,Nguyen,{currentUser?.school || 'State University'},Basketball,2026</div>
             <div className="sample-csv-row">1044,Marcus,Brown,{currentUser?.school || 'State University'},Basketball,2026</div>
-            <div className="sample-csv-row">1045,Ava,Patel,{currentUser?.school || 'State University'},Tennis,2026</div>
-            <div className="sample-csv-row">1046,Noah,Davis,{currentUser?.school || 'State University'},Tennis,2026</div>
           </div>
 
           <div className="sample-csv-links" aria-label="Sample CSV links">
             <a href="/sample-csv/roster_template.csv" className="interactive-link" download>
               roster_template.csv
             </a>
-            <a href="/sample-csv/womens_tennis_template.csv" className="interactive-link" download>
-              womens_tennis_template.csv
-            </a>
           </div>
         </section>
 
         <section className="coach-right-column coach-panel">
+          
           <h2>Current Rosters</h2>
           <p className="coach-panel-subtext">Uploaded by current coach</p>
 
-          <div className="roster-list-card">
+          <div className="roster-list-card" style={{ marginBottom: '40px' }}>
             <div className="roster-list-header">
               <span>School</span>
               <span>Year</span>
@@ -380,14 +408,6 @@ function CoachRostersPage() {
                         disabled={!roster.hasSourceFile}
                       >
                         <span>Open CSV</span>
-                        <span className="roster-open-lock" aria-hidden="true">
-                          <svg viewBox="0 0 24 24" focusable="false">
-                            <path
-                              d="M17 9h-1V7a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-6 0V7a1 1 0 0 1 2 0v2Zm1 7.75A1.75 1.75 0 1 1 13.75 15 1.75 1.75 0 0 1 12 16.75Z"
-                              fill="currentColor"
-                            />
-                          </svg>
-                        </span>
                       </button>
                       <button
                         type="button"
@@ -402,6 +422,61 @@ function CoachRostersPage() {
                 ))
               : null}
           </div>
+
+          <h2>Your Assigned Teams</h2>
+          <p className="coach-panel-subtext" style={{ marginBottom: '24px' }}>
+            Rosters grouped by sport and year. Select any athlete to open their profile.
+          </p>
+
+          {isLoadingRosters ? (
+            <div className="roster-empty-state">Loading teams...</div>
+          ) : Object.keys(groupedTeams).length === 0 ? (
+            <div className="roster-empty-state">No athletes found. Upload a roster to begin.</div>
+          ) : (
+            <div className="assigned-teams-wrapper">
+              {Object.entries(groupedTeams).map(([teamName, teamAthletes]) => (
+                <div key={teamName} className="team-group">
+                  
+                  <div className="team-header">
+                    <h3>{teamName}</h3>
+                    <span className="team-count">
+                      {teamAthletes.length} {teamAthletes.length === 1 ? 'player' : 'players'}
+                    </span>
+                  </div>
+
+                  <div className="team-table-container">
+                    <table className="team-table">
+                      <thead>
+                        <tr>
+                          <th>NAME</th>
+                          <th>STUDENT ID</th>
+                          <th>SPORT</th>
+                          <th>YEAR</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {teamAthletes.map((athlete) => {
+                          const fullName = `${athlete.firstName || ''} ${athlete.lastName || ''}`.trim();
+                          return (
+                            <tr
+                              key={`${athlete.studentId}-${athlete.sport}`}
+                              onClick={() => navigate(`/athlete/${athlete.studentId}`)}
+                            >
+                              <td className="team-player-name">{fullName || 'Unknown'}</td>
+                              <td>{athlete.studentId || '—'}</td>
+                              <td>{athlete.sport || '—'}</td>
+                              <td>{athlete.year || '—'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       </main>
     </div>
