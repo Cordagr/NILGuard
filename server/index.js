@@ -120,31 +120,41 @@ const configuredCorsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+const isOriginAllowed = (origin) => {
+  if (configuredCorsOrigins.includes(origin)) {
+    return true;
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    try {
+      const parsedOrigin = new URL(origin);
+      return (
+        parsedOrigin.protocol === 'http:' &&
+        ['localhost', '127.0.0.1'].includes(parsedOrigin.hostname)
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
+};
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || configuredCorsOrigins.includes(origin)) {
-        callback(null, true);
-        return;
-      }
-
-      let isLocalDevelopmentOrigin = false;
-      if (process.env.NODE_ENV !== 'production') {
-        try {
-          const parsedOrigin = new URL(origin);
-          isLocalDevelopmentOrigin =
-            parsedOrigin.protocol === 'http:' &&
-            ['localhost', '127.0.0.1'].includes(parsedOrigin.hostname);
-        } catch {
-          isLocalDevelopmentOrigin = false;
-        }
-      }
-
-      callback(null, isLocalDevelopmentOrigin);
+      callback(null, !origin || isOriginAllowed(origin));
     },
     credentials: true
   })
 );
+app.use((req, res, next) => {
+  const origin = req.get('origin');
+  if (origin && !isOriginAllowed(origin)) {
+    return res.status(403).json({ message: 'Origin not allowed.' });
+  }
+  next();
+});
 app.use(express.json());
 app.use(cookieParser());
 

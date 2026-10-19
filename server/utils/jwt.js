@@ -24,15 +24,23 @@ export function verifyToken(token) {
   return jwt.verify(token, secret);
 }
 
+function getAuthCookieOptions() {
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  return {
+    httpOnly: true,
+    sameSite: isProduction ? 'none' : 'lax',
+    secure: isProduction
+  };
+}
+
 export function setAuthCookie(res, token) {
   res.cookie('token', token, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: false, // change to true when the app runs over https
+    ...getAuthCookieOptions(),
     maxAge: 30 * 60 * 1000
   });
 }
 
 export function clearAuthCookie(res) {
-  res.clearCookie('token');
+  res.clearCookie('token', getAuthCookieOptions());
 }
