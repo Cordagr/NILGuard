@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api';
 
 function getUserId(user) {
   const userId = user?.id;
@@ -23,23 +23,41 @@ async function parseJsonResponse(response) {
 export async function listComplianceRequests(user) {
   const userId = getUserId(user);
   const searchParams = new URLSearchParams({ userId });
- const response = await fetch(`${API_BASE_URL}/compliance/requests?${searchParams.toString()}`, {
+  const response = await fetch(`${API_BASE_URL}/compliance/requests?${searchParams.toString()}`, {
     credentials: 'include'
- });
+  });
 
   return parseJsonResponse(response);
 }
 
-export async function submitComplianceRequest(user, contractId, complianceEmail) {
+export async function listComplianceOfficers() {
+  const response = await fetch(`${API_BASE_URL}/compliance/officers`, {
+    credentials: 'include'
+  });
+
+  return parseJsonResponse(response);
+}
+
+export async function submitComplianceRequest(
+  user,
+  contractId,
+  leadComplianceUserId,
+  complianceUserIds = []
+) {
   const userId = getUserId(user);
- const response = await fetch(`${API_BASE_URL}/compliance/requests`, {
- method: 'POST',
- headers: {
+  const response = await fetch(`${API_BASE_URL}/compliance/requests`, {
+    method: 'POST',
+    headers: {
       'Content-Type': 'application/json'
- },
+    },
     credentials: 'include',
- body: JSON.stringify({ userId, contractId, complianceEmail })
- });
+    body: JSON.stringify({
+      userId,
+      contractId,
+      leadComplianceUserId,
+      complianceUserIds
+    })
+  });
 
   return parseJsonResponse(response);
 }
@@ -119,14 +137,14 @@ export async function markComplianceNotificationRead(notificationId) {
   return parseJsonResponse(response);
 }
 
-export async function sendComplianceMessage(requestId, subject, body, recipientEmail = '') {
+export async function sendComplianceMessage(requestId, subject, body) {
   const response = await fetch(`${API_BASE_URL}/compliance/messages`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
     credentials: 'include',
-    body: JSON.stringify({ requestId, subject, body, recipientEmail })
+    body: JSON.stringify({ requestId, subject, body })
   });
 
   return parseJsonResponse(response);

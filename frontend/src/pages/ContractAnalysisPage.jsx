@@ -477,7 +477,7 @@ function ContractAnalysisPage() {
                   </div>
                 </div>
               ) : errorMessage ? (
-                <div className="analysis-ai-message error" role="alert">
+                <div className="analysis-ai-message error notification-error" role="alert">
                   <strong>Analysis could not be loaded</strong>
                   <p>{errorMessage}</p>
                   <button type="button" onClick={() => loadAnalysis({ refresh: true })}>
@@ -487,7 +487,7 @@ function ContractAnalysisPage() {
               ) : aiAnalysis ? (
                 <>
                   {aiStatus !== 'completed' && aiMessage && (
-                    <div className="analysis-ai-message error" role="alert">
+                    <div className="analysis-ai-message error notification-error" role="alert">
                       <strong>The latest AI review did not finish</strong>
                       <p>{aiMessage}</p>
                       {aiAnalysis && <span>The previous saved review is still shown below.</span>}
@@ -578,7 +578,7 @@ function ContractAnalysisPage() {
                   </div>
                 </>
               ) : (
-                <div className={`analysis-ai-message ${canRetryAi ? 'error' : 'notice'}`} role={canRetryAi ? 'alert' : 'status'}>
+                <div className={`analysis-ai-message ${canRetryAi ? 'error notification-error' : 'notice'}`} role={canRetryAi ? 'alert' : 'status'}>
                   <strong>{getAiStatusLabel(aiStatus)}</strong>
                   <p>{aiMessage || 'The AI review is not available for this agreement.'}</p>
                   {canRetryAi && (
@@ -608,7 +608,7 @@ function ContractAnalysisPage() {
               {isLoading ? (
                 <div className="analysis-ai-empty">Loading the existing compliance checks…</div>
               ) : errorMessage ? (
-                <div className="analysis-ai-empty">{errorMessage}</div>
+                <div className="analysis-ai-empty notification-error" role="alert">{errorMessage}</div>
               ) : (
                 <div className="analysis-legacy-content">
                   <div className="analysis-legacy-metrics">
@@ -715,7 +715,7 @@ function ContractAnalysisPage() {
                   />
                 ))}
               </Document>
-              {pdfLoadError && <div className="analysis-pdf-error" role="alert">{pdfLoadError}</div>}
+              {pdfLoadError && <div className="analysis-pdf-error notification-error" role="alert">{pdfLoadError}</div>}
             </div>
           ) : (
             <div className="analysis-pdf-loading">No contract PDF is available.</div>

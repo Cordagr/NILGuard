@@ -2,14 +2,16 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import '../styles/pages/StudentDashboard.css';
+import ContractChatCenter from '../components/ContractChatCenter';
+import MessengerIcon from '../assets/messenger.png';
 import logo from '../assets/NILGUARD.png';
 import {
   getComplianceRequestFileUrl,
   listComplianceMessages,
+  listComplianceNotifications,
   listComplianceRequests,
-  markComplianceMessagesRead,
+  markComplianceNotificationRead,
   saveComplianceGuidelines,
-  sendComplianceMessage,
   updateComplianceRequestStatus
 } from '../services/complianceApi';
 import InboxIcon from '../assets/inbox.png';
@@ -42,11 +44,12 @@ function formatDateTime(value) {
 }
 
 function ComplianceDashboardPage() {
+  const navigate = useNavigate();
+  const { user: currentUser, logout } = useAuth();
   const [rejectionReasons, setRejectionReasons] = useState({});
   const [validationPopup, setValidationPopup] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [requests, setRequests] = useState([]);
-  const [guidelinesByRequestId, setGuidelinesByRequestId] = useState({});
   const [isLoadingRequests, setIsLoadingRequests] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -55,66 +58,48 @@ function ComplianceDashboardPage() {
   const [guidelineDrafts, setGuidelineDrafts] = useState({});
   const [savingGuidelinesId, setSavingGuidelinesId] = useState('');
   const [messages, setMessages] = useState([]);
-  const [isInboxOpen, setIsInboxOpen] = useState(false);
-  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [messagesError, setMessagesError] = useState('');
-  const [selectedConversationId, setSelectedConversationId] = useState('');
-  const [conversationReply, setConversationReply] = useState('');
-  const [sendingMessageId, setSendingMessageId] = useState('');
-  const [newMessage, setNewMessage] = useState({ requestId: '', subject: '', body: '' });
-  const [isSendingNewMessage, setIsSendingNewMessage] = useState(false);
   const menuRef = useRef(null);
-  const inboxRef = useRef(null);
+  const notificationsRef = useRef(null);
   const [notifications, setNotifications] = useState([]);
-  const [inboxError, setInboxError] = useState('');
-  const [replyByMessage, setReplyByMessage] = useState({});
-  const [sendingReplyId, setSendingReplyId] = useState('');
-  const [isLoadingInbox, setIsLoadingInbox] = useState(true);
+  const [notificationsError, setNotificationsError] = useState('');
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(true);
 
-  const unreadCount =
-    messages.filter((message) => !message.isRead).length +
-    notifications.filter((notification) => !notification.isRead).length;
+  const unreadChatCount = messages.filter(
+    (message) => !message.isRead && message.recipientUserId === String(currentUser?.id)
+  ).length;
+  const unreadNotificationCount = notifications.filter((notification) => !notification.isRead).length;
+  const unreadChatBadgeCount = unreadChatCount > 99 ? '99+' : unreadChatCount;
+  const unreadNotificationBadgeCount =
+    unreadNotificationCount > 99 ? '99+' : unreadNotificationCount;
 
-  const fetchInbox = async () => {
-    setIsLoadingInbox(true);
+  const fetchNotifications = async () => {
+    setIsLoadingNotifications(true);
     try {
-      const [messageResponse, notificationResponse] = await Promise.all([
-        listComplianceMessages(),
-        listComplianceNotifications()
-      ]);
-      setMessages(messageResponse.messages || []);
-      setNotifications(notificationResponse.notifications || []);
-      setInboxError('');
+      const response = await listComplianceNotifications();
+      setNotifications(response.notifications || []);
+      setNotificationsError('');
     } catch (error) {
-      setInboxError(error.message || 'Unable to load inbox.');
+      setNotificationsError(error.message || 'Unable to load notifications.');
     } finally {
-      setIsLoadingInbox(false);
+      setIsLoadingNotifications(false);
     }
   };
 
-  const handleInboxReply = async (message) => {
-    const body = (replyByMessage[message.id] || '').trim();
-    if (!body || !message.requestId) return;
+  const handleOpenNotification = async (notification) => {
+    if (notification.isRead) return;
 
-    setSendingReplyId(message.id);
-    setInboxError('');
     try {
-      await sendComplianceMessage(
-        message.requestId,
-        `Re: ${message.subject || 'Contract message'}`,
-        body
-      );
-      setReplyByMessage((previous) => ({ ...previous, [message.id]: '' }));
-      await fetchInbox();
+      await markComplianceNotificationRead(notification.id);
+      setNotifications((previous) => previous.map((item) =>
+        item.id === notification.id ? { ...item, isRead: true } : item
+      ));
     } catch (error) {
-      setInboxError(error.message || 'Unable to send reply.');
-    } finally {
-      setSendingReplyId('');
+      setNotificationsError(error.message || 'Unable to mark notification as read.');
     }
   };
-  const navigate = useNavigate();
-  const { user: currentUser, logout } = useAuth();
-
   const fetchRequests = async () => {
     if (!currentUser?.id) {
       navigate('/login');
@@ -127,22 +112,6 @@ function ComplianceDashboardPage() {
       const response = await listComplianceRequests(currentUser);
       const loadedRequests = response.requests || [];
       setRequests(loadedRequests);
-
-      setGuidelinesByRequestId((previous) => {
-        const next = { ...previous };
-
-        loadedRequests.forEach((request) => {
-          if (!Array.isArray(next[request.id])) {
-            next[request.id] = (request.guidelines || []).map((guideline) => ({
-              ...guideline,
-              decision: guideline.decision || '',
-              feedback: guideline.feedback || ''
-            }));
-          }
-        });
-
-        return next;
-      });
     } catch (error) {
       setErrorMessage(error.message || 'Unable to load compliance requests.');
     } finally {
@@ -165,7 +134,15 @@ function ComplianceDashboardPage() {
       ...previous,
       [requestId]: previous[requestId].map((guideline, guidelineIndex) =>
         guidelineIndex === index
-          ? { ...guideline, [key]: value }
+          ? {
+              ...guideline,
+              [key]: value,
+              ...(
+                ['title', 'summary', 'dueAt'].includes(key) && guideline[key] !== value
+                  ? { decision: 'pending', feedback: '' }
+                  : {}
+              )
+            }
           : guideline
       )
     }));
@@ -196,6 +173,28 @@ function ComplianceDashboardPage() {
   };
 
   const handleSaveGuidelines = async (requestId) => {
+    const guidelines = guidelineDrafts[requestId] || [];
+    setErrorMessage('');
+    setSuccessMessage('');
+    for (const [index, guideline] of guidelines.entries()) {
+      if (!guideline.title.trim()) {
+        setErrorMessage(`Enter a title for condition ${index + 1}.`);
+        return;
+      }
+      if (!guideline.summary.trim()) {
+        setErrorMessage(`Describe what the student needs to do for condition ${index + 1}.`);
+        return;
+      }
+      if (!guideline.dueAt) {
+        setErrorMessage(`Choose a student deadline for condition ${index + 1}.`);
+        return;
+      }
+      if (guideline.decision === 'needs_changes' && !guideline.feedback.trim()) {
+        setErrorMessage(`Add officer feedback for condition ${index + 1} marked “Needs changes”.`);
+        return;
+      }
+    }
+
     setSavingGuidelinesId(requestId);
     setErrorMessage('');
     setSuccessMessage('');
@@ -203,7 +202,7 @@ function ComplianceDashboardPage() {
       const response = await saveComplianceGuidelines(
         currentUser,
         requestId,
-        guidelineDrafts[requestId]
+        guidelines
       );
       setRequests((previous) =>
         previous.map((request) => request.id === requestId ? response.request : request)
@@ -221,60 +220,6 @@ function ComplianceDashboardPage() {
     }
   };
 
-  const handleSelectConversation = async (conversationId) => {
-    setSelectedConversationId((previous) => previous === conversationId ? '' : conversationId);
-    setConversationReply('');
-    if (conversationId === selectedConversationId) return;
-    try {
-      await markComplianceMessagesRead(conversationId);
-      setMessages((previous) => previous.map((message) =>
-        message.requestId === conversationId &&
-        message.recipientUserId === String(currentUser?.id)
-          ? { ...message, isRead: true }
-          : message
-      ));
-    } catch (error) {
-      setMessagesError(error.message || 'Unable to mark messages as read.');
-    }
-  };
-
-  const handleSendNewMessage = async () => {
-    if (!newMessage.requestId || !newMessage.body.trim()) {
-      setMessagesError('Choose a contract and enter a message.');
-      return;
-    }
-
-    setIsSendingNewMessage(true);
-    setMessagesError('');
-    try {
-      await sendComplianceMessage(newMessage.requestId, newMessage.subject, newMessage.body);
-      setNewMessage({ requestId: '', subject: '', body: '' });
-      await fetchMessages();
-    } catch (error) {
-      setMessagesError(error.message || 'Unable to send message.');
-    } finally {
-      setIsSendingNewMessage(false);
-    }
-  };
-
-  const handleSendReply = async (conversation) => {
-    const body = conversationReply.trim();
-    if (!body) return;
-
-    setSendingMessageId(conversation.id);
-    setMessagesError('');
-    try {
-      const subject = conversation.messages[0]?.subject || 'Re: contract review';
-      await sendComplianceMessage(conversation.id, `Re: ${subject}`, body);
-      setConversationReply('');
-      await fetchMessages();
-    } catch (error) {
-      setMessagesError(error.message || 'Unable to send reply.');
-    } finally {
-      setSendingMessageId('');
-    }
-  };
-
   useEffect(() => {
     if (!currentUser?.id) {
       navigate('/login');
@@ -285,26 +230,20 @@ function ComplianceDashboardPage() {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setMenuOpen(false);
       }
-      if (inboxRef.current && !inboxRef.current.contains(event.target)) {
-        setIsInboxOpen(false);
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target)) {
+        setIsNotificationsOpen(false);
       }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     fetchRequests();
+    fetchNotifications();
     fetchMessages();
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [navigate]);
-
-  useEffect(() => {
-    if (!isInboxOpen) return undefined;
-    fetchMessages(true);
-    const intervalId = window.setInterval(() => fetchMessages(), 15000);
-    return () => window.clearInterval(intervalId);
-  }, [isInboxOpen]);
 
   const pendingRequests = useMemo(
     () => requests.filter((request) => request.status === 'pending'),
@@ -315,46 +254,13 @@ function ComplianceDashboardPage() {
     () => requests.filter((request) => request.status !== 'pending'),
     [requests]
   );
-  const unreadMessageCount = messages.filter(
-    (message) => !message.isRead && message.recipientUserId === String(currentUser?.id)
-  ).length;
-  const conversations = useMemo(() => {
-    const groups = messages.reduce((result, message) => {
-      const conversationId = message.requestId || message.contractId || message.id;
-      if (!result[conversationId]) {
-        result[conversationId] = {
-          id: conversationId,
-          studentEmail: message.senderUserId === String(currentUser?.id)
-            ? message.recipientEmail
-            : message.senderEmail,
-          messages: []
-        };
-      }
-      result[conversationId].messages.push(message);
-      return result;
-    }, {});
-
-    return Object.values(groups).map((conversation) => ({
-      ...conversation,
-      messages: conversation.messages.sort(
-        (left, right) => new Date(left.createdAt) - new Date(right.createdAt)
-      )
-    }));
-  }, [messages, currentUser?.id]);
-  const activeConversation = conversations.find(
-    (conversation) => conversation.id === selectedConversationId
-  );
-
-  const fetchMessages = async (showLoading = false) => {
-    if (showLoading) setIsLoadingMessages(true);
+  const fetchMessages = async () => {
     setMessagesError('');
     try {
       const response = await listComplianceMessages();
       setMessages(response.messages || []);
     } catch (error) {
-      setMessagesError(error.message || 'Unable to load inbox messages.');
-    } finally {
-      if (showLoading) setIsLoadingMessages(false);
+      setMessagesError(error.message || 'Unable to load contract chats.');
     }
   };
 
@@ -366,7 +272,13 @@ function ComplianceDashboardPage() {
 
   
   const handleReviewRequest = async (requestId, status) => {
-    const guidelines = guidelinesByRequestId[requestId] || [];
+    const request = requests.find((item) => item.id === requestId);
+    if (!request) {
+      setValidationPopup('This request is no longer available. Refresh the page and try again.');
+      return;
+    }
+
+    const guidelines = request.guidelines || [];
 
     const rejectionReason = (rejectionReasons[requestId] || '').trim();
 
@@ -393,7 +305,7 @@ function ComplianceDashboardPage() {
         return;
       }
 
-      if (guideline.decision === 'needs_changes' && !guideline.feedback.trim()) {
+      if (guideline.decision === 'needs_changes' && !(guideline.feedback || '').trim()) {
         setValidationPopup(`Please provide feedback for "${guideline.title}".`);
         return;
       }
@@ -409,7 +321,6 @@ function ComplianceDashboardPage() {
     setSuccessMessage('');
 
     try {
-      const request = requests.find((item) => item.id === requestId);
       const response = await updateComplianceRequestStatus(
         currentUser,
         requestId,
@@ -445,146 +356,92 @@ function ComplianceDashboardPage() {
           ) : null}
         </div>
 
-        <div className="profile-menu">
+        <div className="profile-menu dashboard-communication-actions" ref={notificationsRef}>
           <button
             type="button"
-            className="profile-menu-trigger inbox-trigger"
-            onClick={() => setIsInboxOpen(true)}
-            aria-label="Open inbox"
-            aria-expanded={isInboxOpen}
+            className={`profile-menu-trigger inbox-trigger${unreadNotificationCount > 0 ? ' has-unread' : ''}`}
+            onClick={() => {
+              setIsNotificationsOpen((previous) => !previous);
+              setIsChatOpen(false);
+            }}
+            aria-label={unreadNotificationCount > 0
+              ? `Open notifications, ${unreadNotificationBadgeCount} unread`
+              : 'Open notifications'}
+            aria-expanded={isNotificationsOpen}
           >
             <img className="inbox-icon" src={InboxIcon} alt="" aria-hidden="true" />
-            <span>Inbox</span>
-            {unreadMessageCount > 0 ? (
-              <span className="inbox-unread-badge">{unreadMessageCount}</span>
+            <span>Notifications</span>
+            {unreadNotificationCount > 0 ? (
+              <span className="inbox-unread-badge" aria-hidden="true">
+                {unreadNotificationBadgeCount}
+              </span>
             ) : null}
           </button>
-          {isInboxOpen ? (
+          {isNotificationsOpen ? (
             <div className="profile-menu-dropdown student-inbox-dropdown">
               <div className="student-inbox-heading">
+                <strong>Notifications</strong>
                 <button
                   type="button"
-                  className="student-inbox-close"
-                  onClick={() => setIsInboxOpen(false)}
-                  aria-label="Close inbox"
-                  title="Close inbox"
+                  className="app-close-button"
+                  onClick={() => setIsNotificationsOpen(false)}
+                  aria-label="Close notifications"
+                  title="Close notifications"
                 >
                   ×
                 </button>
               </div>
-              <div className="student-inbox-compose">
-                <select
-                  value={newMessage.requestId}
-                  onChange={(event) => setNewMessage((previous) => ({
-                    ...previous,
-                    requestId: event.target.value
-                  }))}
-                >
-                  <option value="">Choose a contract</option>
-                  {requests.map((request) => (
-                    <option key={request.id} value={request.id}>
-                      {request.studentEmail} · {request.contractFileName}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  value={newMessage.subject}
-                  onChange={(event) => setNewMessage((previous) => ({
-                    ...previous,
-                    subject: event.target.value
-                  }))}
-                  placeholder="Subject"
-                />
-                <textarea
-                  rows="3"
-                  value={newMessage.body}
-                  onChange={(event) => setNewMessage((previous) => ({
-                    ...previous,
-                    body: event.target.value
-                  }))}
-                  placeholder="Message student (Enter to send)"
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      event.preventDefault();
-                      handleSendNewMessage();
-                    }
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={handleSendNewMessage}
-                  disabled={isSendingNewMessage}
-                >
-                  {isSendingNewMessage ? 'Sending...' : 'Send message'}
-                </button>
-              </div>
-              {messagesError ? (
-                <div className="student-inbox-empty" role="alert">{messagesError}</div>
-              ) : isLoadingMessages ? (
-                <div className="student-inbox-empty">Loading messages...</div>
-              ) : conversations.length === 0 ? (
-                <div className="student-inbox-empty">No messages from students yet.</div>
-              ) : (
-                <div className="inbox-conversation-list">
-                  {conversations.map((conversation) => (
+              {notificationsError ? (
+                <div className="student-inbox-empty notification-error" role="alert">{notificationsError}</div>
+              ) : isLoadingNotifications ? (
+                <div className="student-inbox-empty">Loading notifications...</div>
+              ) : notifications.length ? (
+                <div className="student-notification-list">
+                  {notifications.map((notification) => (
                     <button
                       type="button"
-                      className="inbox-conversation"
-                      key={conversation.id}
-                      aria-expanded={selectedConversationId === conversation.id}
-                      onClick={() => handleSelectConversation(conversation.id)}
+                      key={notification.id}
+                      className={`student-notification ${notification.isRead ? '' : 'student-notification-unread'}`}
+                      onClick={() => handleOpenNotification(notification)}
                     >
-                      <strong>{conversation.studentEmail}</strong>
-                      <span>{conversation.messages.length} messages</span>
+                      <strong>{notification.title}</strong>
+                      <span>{notification.body}</span>
+                      <small>{formatDateTime(notification.createdAt)}</small>
                     </button>
                   ))}
                 </div>
+              ) : (
+                <div className="student-inbox-empty">No notifications yet.</div>
               )}
-              {activeConversation ? (
-                <div className="inbox-thread">
-                  <div className="inbox-thread-header">
-                    <strong>{activeConversation.messages[0]?.subject}</strong>
-                    <span>{activeConversation.studentEmail}</span>
-                  </div>
-                  <div className="inbox-thread-messages">
-                    {activeConversation.messages.map((message) => (
-                      <div
-                        className={`student-inbox-message ${message.senderUserId === String(currentUser?.id) ? 'message-sent' : 'message-received'}`}
-                        key={message.id}
-                      >
-                        <small className="message-direction">
-                          {message.senderUserId === String(currentUser?.id) ? 'You' : message.senderEmail}
-                          {' · '}{formatDateTime(message.createdAt)}
-                        </small>
-                        <span>{message.body}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <textarea
-                    className="inbox-message-reply"
-                    value={conversationReply}
-                    onChange={(event) => setConversationReply(event.target.value)}
-                    placeholder="Reply (Enter to send)"
-                    rows={2}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' && !event.shiftKey) {
-                        event.preventDefault();
-                        handleSendReply(activeConversation);
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="inbox-reply-button"
-                    disabled={sendingMessageId === activeConversation.id || !conversationReply.trim()}
-                    onClick={() => handleSendReply(activeConversation)}
-                  >
-                    {sendingMessageId === activeConversation.id ? 'Sending...' : 'Send reply'}
-                  </button>
-                </div>
-              ) : null}
             </div>
           ) : null}
+          <button
+            type="button"
+            className="profile-menu-trigger chat-launch-trigger"
+            onClick={() => {
+              setIsChatOpen(true);
+              setIsNotificationsOpen(false);
+            }}
+            aria-label={unreadChatCount > 0
+              ? `Open contract chats, ${unreadChatBadgeCount} unread`
+              : 'Open contract chats'}
+            aria-expanded={isChatOpen}
+          >
+            <img className="chat-launch-icon" src={MessengerIcon} alt="" aria-hidden="true" />
+            <span>Chats</span>
+            {unreadChatCount > 0 ? (
+              <span className="inbox-unread-badge" aria-hidden="true">{unreadChatBadgeCount}</span>
+            ) : null}
+          </button>
+          <ContractChatCenter
+            isOpen={isChatOpen}
+            onClose={() => setIsChatOpen(false)}
+            currentUser={currentUser}
+            requests={requests}
+            messages={messages}
+            onRefresh={fetchMessages}
+            loadError={messagesError}
+          />
         </div>
 
         <div className="profile-menu" ref={menuRef}>
@@ -650,7 +507,7 @@ function ComplianceDashboardPage() {
             </div>
 
             {errorMessage ? (
-              <p className="contracts-feedback contracts-error">{errorMessage}</p>
+              <p className="contracts-feedback contracts-error notification-error" role="alert">{errorMessage}</p>
             ) : successMessage ? (
               <p className="contracts-feedback contracts-success">{successMessage}</p>
             ) : (
@@ -696,6 +553,8 @@ function ComplianceDashboardPage() {
                   allConditionsHaveDeadlines &&
                   needsChangesConditions.length > 0 &&
                   needsChangesConditions.every((guideline) => Boolean(guideline.feedback?.trim()));
+                const isLeadReviewer =
+                  String(request.assignedComplianceUserId) === String(currentUser?.id);
                 const isEditing = editingRequestId === request.id;
 
                 return (
@@ -704,6 +563,13 @@ function ComplianceDashboardPage() {
                   <h3>{request.contractFileName}</h3>
                   <p>
                     <strong>Student:</strong> {request.studentEmail}
+                  </p>
+                  <p>
+                    <strong>Lead reviewer:</strong> {request.assignedComplianceEmail || 'Not assigned'}
+                  </p>
+                  <p>
+                    <strong>Group members:</strong>{' '}
+                    {(request.complianceParticipantEmails || []).join(', ')}
                   </p>
                   {request.studentSchool && (
                     <p>
@@ -761,12 +627,17 @@ function ComplianceDashboardPage() {
                     </div>
                   )}
                   <p>Status: <span className="request-status-pill request-status-pending">Pending</span></p>
+                  {!isLeadReviewer ? (
+                    <p className="contracts-feedback contract-review-guidance">
+                      You can discuss this contract with the group. Only {request.assignedComplianceEmail} can edit conditions or make the final decision.
+                    </p>
+                  ) : null}
                   {isEditing ? (
                     <section className="officer-guideline-editor" aria-label="NIL guideline conditions">
                       <div className="officer-guideline-editor-heading">
                         <div>
                           <h4>NIL guideline conditions</h4>
-                          <p>Review every condition and assign a student deadline. Add feedback to each condition marked “Needs changes”; save before accepting or rejecting.</p>
+                          <p>Editing a condition resets its review result to Pending review. Choose a result after editing, assign a student deadline, and add feedback for each condition marked “Needs changes”. Save to notify the student; accept or reject after saving.</p>
                         </div>
                         <button
                           type="button"
@@ -876,7 +747,7 @@ function ComplianceDashboardPage() {
                       type="button"
                       className="dashboard-secondary-button"
                       onClick={() => openGuidelineEditor(request)}
-                      disabled={isEditing || processingRequestId === request.id || savingGuidelinesId === request.id}
+                      disabled={!isLeadReviewer || isEditing || processingRequestId === request.id || savingGuidelinesId === request.id}
                     >
                       {isEditing ? 'Editing conditions' : 'Edit NIL conditions'}
                     </button>
@@ -884,7 +755,7 @@ function ComplianceDashboardPage() {
                       type="button"
                       className="dashboard-secondary-button dashboard-accept-button"
                       onClick={() => handleReviewRequest(request.id, 'accepted')}
-                      disabled={processingRequestId === request.id || isEditing || !canApprove}
+                      disabled={!isLeadReviewer || processingRequestId === request.id || isEditing || !canApprove}
                     >
                       {processingRequestId === request.id ? 'Saving...' : 'Accept'}
                     </button>
@@ -892,7 +763,7 @@ function ComplianceDashboardPage() {
                       type="button"
                       className="dashboard-secondary-button dashboard-reject-button"
                       onClick={() => handleReviewRequest(request.id, 'rejected')}
-                      disabled={processingRequestId === request.id || isEditing || !canReject}
+                      disabled={!isLeadReviewer || processingRequestId === request.id || isEditing || !canReject}
                     >
                       {processingRequestId === request.id ? 'Saving...' : 'Reject'}
                     </button>
