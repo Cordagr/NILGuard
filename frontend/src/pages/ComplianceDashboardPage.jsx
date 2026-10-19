@@ -14,6 +14,7 @@ import {
 } from '../services/complianceApi';
 import InboxIcon from '../assets/inbox.png';
 import ProfileIcon from '../assets/ProfileIcon.png';
+import inboxIcon from '../assets/inbox.png';
 
 function toInputDate(value) {
   if (!value) return '';
@@ -41,8 +42,11 @@ function formatDateTime(value) {
 }
 
 function ComplianceDashboardPage() {
+  const [rejectionReasons, setRejectionReasons] = useState({});
+  const [validationPopup, setValidationPopup] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [requests, setRequests] = useState([]);
+  const [guidelinesByRequestId, setGuidelinesByRequestId] = useState({});
   const [isLoadingRequests, setIsLoadingRequests] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -60,6 +64,56 @@ function ComplianceDashboardPage() {
   const [newMessage, setNewMessage] = useState({ requestId: '', subject: '', body: '' });
   const [isSendingNewMessage, setIsSendingNewMessage] = useState(false);
   const menuRef = useRef(null);
+  const inboxRef = useRef(null);
+  const [isInboxOpen, setIsInboxOpen] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [inboxError, setInboxError] = useState('');
+  const [replyByMessage, setReplyByMessage] = useState({});
+  const [sendingReplyId, setSendingReplyId] = useState('');
+  const [isLoadingInbox, setIsLoadingInbox] = useState(true);
+
+  const unreadCount =
+    messages.filter((message) => !message.isRead).length +
+    notifications.filter((notification) => !notification.isRead).length;
+
+  const fetchInbox = async () => {
+    setIsLoadingInbox(true);
+    try {
+      const [messageResponse, notificationResponse] = await Promise.all([
+        listComplianceMessages(),
+        listComplianceNotifications()
+      ]);
+      setMessages(messageResponse.messages || []);
+      setNotifications(notificationResponse.notifications || []);
+      setInboxError('');
+    } catch (error) {
+      setInboxError(error.message || 'Unable to load inbox.');
+    } finally {
+      setIsLoadingInbox(false);
+    }
+  };
+
+  const handleInboxReply = async (message) => {
+    const body = (replyByMessage[message.id] || '').trim();
+    if (!body || !message.requestId) return;
+
+    setSendingReplyId(message.id);
+    setInboxError('');
+    try {
+      await sendComplianceMessage(
+        message.requestId,
+        `Re: ${message.subject || 'Contract message'}`,
+        body
+      );
+      setReplyByMessage((previous) => ({ ...previous, [message.id]: '' }));
+      await fetchInbox();
+    } catch (error) {
+      setInboxError(error.message || 'Unable to send reply.');
+    } finally {
+      setSendingReplyId('');
+    }
+  };
   const navigate = useNavigate();
   const { user: currentUser, logout } = useAuth();
 
@@ -73,7 +127,24 @@ function ComplianceDashboardPage() {
 
     try {
       const response = await listComplianceRequests(currentUser);
-      setRequests(response.requests || []);
+      const loadedRequests = response.requests || [];
+      setRequests(loadedRequests);
+
+      setGuidelinesByRequestId((previous) => {
+        const next = { ...previous };
+
+        loadedRequests.forEach((request) => {
+          if (!Array.isArray(next[request.id])) {
+            next[request.id] = (request.guidelines || []).map((guideline) => ({
+              ...guideline,
+              decision: guideline.decision || '',
+              feedback: guideline.feedback || ''
+            }));
+          }
+        });
+
+        return next;
+      });
     } catch (error) {
       setErrorMessage(error.message || 'Unable to load compliance requests.');
     } finally {
@@ -216,6 +287,9 @@ function ComplianceDashboardPage() {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setMenuOpen(false);
       }
+      if (inboxRef.current && !inboxRef.current.contains(event.target)) {
+        setIsInboxOpen(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
@@ -292,7 +366,46 @@ function ComplianceDashboardPage() {
     window.open(getComplianceRequestFileUrl(currentUser, requestId), '_blank', 'noopener,noreferrer');
   };
 
+  
   const handleReviewRequest = async (requestId, status) => {
+    const guidelines = guidelinesByRequestId[requestId] || [];
+
+    const rejectionReason = (rejectionReasons[requestId] || '').trim();
+
+    if (
+      status === 'rejected' &&
+      guidelines.length > 0 &&
+      guidelines.every((guideline) => guideline.decision === 'pass') &&
+      !rejectionReason
+    ) {
+      setValidationPopup(
+        'All guidelines pass. Please explain why this contract is still being rejected.'
+      );
+      return;
+    }
+
+    if (guidelines.length === 0) {
+      setValidationPopup('No NIL guidelines are available for review.');
+      return;
+    }
+
+    for (const guideline of guidelines) {
+      if (!['pass', 'needs_changes'].includes(guideline.decision)) {
+        setValidationPopup(`Please review "${guideline.title}" before continuing.`)
+        return;
+      }
+
+      if (guideline.decision === 'needs_changes' && !guideline.feedback.trim()) {
+        setValidationPopup(`Please provide feedback for "${guideline.title}".`);
+        return;
+      }
+    }
+
+    if (status === 'accepted' && guidelines.some((item) => item.decision !== 'pass')) {
+      setValidationPopup('Every NIL guideline must pass before approving this contract.');
+      return;
+    }
+
     setProcessingRequestId(requestId);
     setErrorMessage('');
     setSuccessMessage('');
@@ -307,7 +420,9 @@ function ComplianceDashboardPage() {
       );
       setSuccessMessage(response.message || `Request ${status}.`);
       setRequests((previousRequests) =>
-        previousRequests.map((request) => (request.id === requestId ? response.request : request))
+        previousRequests.map((request) =>
+          request.id === requestId ? response.request : request
+        )
       );
       setEditingRequestId('');
     } catch (error) {
@@ -316,6 +431,7 @@ function ComplianceDashboardPage() {
       setProcessingRequestId('');
     }
   };
+
 
   return (
     <div className="student-dashboard-container">
@@ -497,6 +613,33 @@ function ComplianceDashboardPage() {
               </button>
             </div>
           )}
+
+          {validationPopup && (
+            <div
+              className="compliance-modal-overlay"
+              onClick={() => setValidationPopup('')}
+            >
+              <div
+                className="compliance-validation-modal"
+                role="alertdialog"
+                aria-modal="true"
+                aria-labelledby="compliance-validation-title"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="compliance-validation-icon">!</div>
+                <h2 id="compliance-validation-title">Review Required</h2>
+                <p>{validationPopup}</p>
+                <button
+                  type="button"
+                  className="compliance-validation-button"
+                  onClick={() => setValidationPopup('')}
+                >
+                  Got it
+                </button>
+              </div>
+            </div>
+          )}
+
         </div>
       </header>
 
@@ -580,6 +723,45 @@ function ComplianceDashboardPage() {
                   <p>
                     <strong>Submitted:</strong> {formatDateTime(request.submittedAt)}
                   </p>
+                  {request.reviewHistory?.length > 0 && (
+                    <div className="compliance-review-history">
+                      <h4>Previous Review History</h4>
+                      {[...request.reviewHistory].reverse().map((review, index) => (
+                        <div
+                          className="compliance-review-history-entry"
+                          key={`${review.reviewedAt || index}-${review.outcome}-${index}`}
+                        >
+                          <p>
+                            <strong>Previous decision:</strong>{' '}
+                            <span
+                              className={`request-status-pill ${
+                                review.outcome === 'accepted'
+                                  ? 'request-status-accepted'
+                                  : 'request-status-rejected'
+                              }`}
+                            >
+                              {review.outcome}
+                            </span>
+                          </p>
+                          <p>
+                            <strong>Reviewed:</strong>{' '}
+                            {formatDateTime(review.reviewedAt)}
+                          </p>
+                          {review.reviewerEmail && (
+                            <p>
+                              <strong>Reviewer:</strong> {review.reviewerEmail}
+                            </p>
+                          )}
+                          {review.rejectionReason && (
+                            <p>
+                              <strong>Rejection reason:</strong>{' '}
+                              {review.rejectionReason}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <p>Status: <span className="request-status-pill request-status-pending">Pending</span></p>
                   {isEditing ? (
                     <section className="officer-guideline-editor" aria-label="NIL guideline conditions">
@@ -763,6 +945,45 @@ function ComplianceDashboardPage() {
                   <p>
                     <strong>Submitted:</strong> {formatDateTime(request.submittedAt)}
                   </p>
+                  {request.reviewHistory?.length > 0 && (
+                    <div className="compliance-review-history">
+                      <h4>Previous Review History</h4>
+                      {[...request.reviewHistory].reverse().map((review, index) => (
+                        <div
+                          className="compliance-review-history-entry"
+                          key={`${review.reviewedAt || index}-${review.outcome}-${index}`}
+                        >
+                          <p>
+                            <strong>Previous decision:</strong>{' '}
+                            <span
+                              className={`request-status-pill ${
+                                review.outcome === 'accepted'
+                                  ? 'request-status-accepted'
+                                  : 'request-status-rejected'
+                              }`}
+                            >
+                              {review.outcome}
+                            </span>
+                          </p>
+                          <p>
+                            <strong>Reviewed:</strong>{' '}
+                            {formatDateTime(review.reviewedAt)}
+                          </p>
+                          {review.reviewerEmail && (
+                            <p>
+                              <strong>Reviewer:</strong> {review.reviewerEmail}
+                            </p>
+                          )}
+                          {review.rejectionReason && (
+                            <p>
+                              <strong>Rejection reason:</strong>{' '}
+                              {review.rejectionReason}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <p>
                     Status:{' '}
                     <span

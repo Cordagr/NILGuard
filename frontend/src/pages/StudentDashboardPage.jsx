@@ -125,6 +125,33 @@ function getMetadataStorageKey(userId, contractId) {
   return `nilguard_contract_metadata_${userId}_${contractId}`;
 }
 
+function normalizeDateInput(value) {
+  if (!value) return '';
+
+  const text = String(value).trim();
+
+  // Already in the format required by <input type="date">
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    return text;
+  }
+
+  // ISO date/time or another string beginning with YYYY-MM-DD
+  const isoMatch = text.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoMatch) {
+    return isoMatch[1];
+  }
+
+  // Handle dates such as "Oct 1, 2026"
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
 function getContractMetadata(userId, contractId) {
   try {
     const raw = localStorage.getItem(
@@ -151,8 +178,8 @@ function getContractMetadata(userId, contractId) {
       athleteName: parsed.athleteName || '',
       brandPayer: parsed.brandPayer || '',
       contractValue: parsed.contractValue || '',
-      startDate: parsed.startDate || '',
-      endDate: parsed.endDate || '',
+      startDate: normalizeDateInput(parsed.startDate),
+      endDate: normalizeDateInput(parsed.endDate),
       deliverables: Array.isArray(parsed.deliverables)
         ? parsed.deliverables
         : [],
@@ -318,6 +345,7 @@ function StudentDashboardPage() {
   const [conversationReply, setConversationReply] = useState('');
   const [sendingMessageId, setSendingMessageId] = useState('');
   const [newMessage, setNewMessage] = useState({ requestId: '', subject: '', body: '' });
+  const [recipientComplianceEmail, setRecipientComplianceEmail] = useState('');
   const [isSendingNewMessage, setIsSendingNewMessage] = useState(false);
 
   const [contracts, setContracts] = useState([]);
@@ -517,11 +545,19 @@ function StudentDashboardPage() {
 
     setIsSendingNewMessage(true);
     try {
+      const recipientEmail = recipientComplianceEmail.trim().toLowerCase();
+      if (!recipientEmail) {
+        setErrorMessage('Enter the compliance officer email address.');
+        return;
+      }
+
       await sendComplianceMessage(
         newMessage.requestId,
         newMessage.subject,
-        newMessage.body
+        newMessage.body,
+        recipientEmail
       );
+      setRecipientComplianceEmail('');
       setNewMessage({ requestId: '', subject: '', body: '' });
       await fetchMessages();
     } catch (error) {
@@ -1188,6 +1224,13 @@ function StudentDashboardPage() {
                   ))}
                 </select>
                 <input
+                  type="email"
+                  placeholder="Compliance officer email"
+                  value={recipientComplianceEmail}
+                  onChange={(event) => setRecipientComplianceEmail(event.target.value)}
+                  required
+                />
+                <input
                   type="text"
                   placeholder="Subject"
                   value={newMessage.subject}
@@ -1196,19 +1239,22 @@ function StudentDashboardPage() {
                   }
                 />
                 <textarea
+                  style={{ resize: 'none' }}
                   rows="3"
-                  placeholder="Message compliance and press Enter"
+                  placeholder="Message compliance..."
                   value={newMessage.body}
                   onChange={(event) =>
                     setNewMessage((previous) => ({ ...previous, body: event.target.value }))
                   }
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      event.preventDefault();
-                      handleSendNewMessage();
-                    }
-                  }}
                 />
+
+                <button
+                  type="button"
+                  disabled={isSendingNewMessage}
+                  onClick={handleSendNewMessage}
+                >
+                  {isSendingNewMessage ? 'Sending...' : 'Send Message'}
+                </button>
               </div>
               {conversations.length === 0 ? (
                 <div className="student-inbox-empty">No messages yet.</div>
@@ -1249,18 +1295,28 @@ function StudentDashboardPage() {
                         ))}
                       </div>
                       <textarea
+                        style={{ resize: 'none' }}
                         className="inbox-message-reply"
                         rows="2"
-                        placeholder="Reply and press Enter"
+                        placeholder="Write a Reply..."
                         value={conversationReply}
                         onChange={(event) => setConversationReply(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' && !event.shiftKey) {
-                            event.preventDefault();
-                            handleSendReply(activeConversation);
-                          }
-                        }}
                       />
+                      <button
+                        style={{ 
+                          border: '1px solid',
+                          borderRadius: '40px',
+                          margin: '5px 10px 10px 10px',
+                          width: '90%'
+                          
+                        }}
+                        type="button"
+                        disabled={!conversationReply.trim() || Boolean(sendingMessageId)}
+                        onClick={() => handleSendReply(activeConversation)}
+                      >
+                        {sendingMessageId ? 'Sending...' : 'Send Reply'}
+                      </button>
+
                     </div>
                   ) : null}
                 </>
@@ -1563,7 +1619,7 @@ function StudentDashboardPage() {
                             )
                           }
                         >
-                          Agreement Details
+                          Edit Agreement
                         </button>
 
                         <button
@@ -1923,7 +1979,7 @@ function StudentDashboardPage() {
             }}
           >
             <h2 id="agreement-details-title">
-              Agreement Details
+              Edit Agreement
             </h2>
 
             <p className="dashboard-dialog-copy">
@@ -2290,7 +2346,7 @@ function StudentDashboardPage() {
 
       {/* COMPLETE HISTORICAL RECORD */}
 
-      {selectedHistoricalContract ? (
+      {selectedHistoricalContract && !metadataDialogContractId ? (
         <div
           className="dashboard-dialog-backdrop"
           role="presentation"
@@ -2643,6 +2699,13 @@ function StudentDashboardPage() {
                   </p>
                 ) : null}
 
+                {selectedComplianceRequest.rejectionReason ? (
+                  <p>
+                    <strong>Rejection reason:</strong>{' '}
+                    {selectedComplianceRequest.rejectionReason}
+                  </p>
+                ) : null}
+
                 <h4 className="compliance-tasks-heading">Compliance Tasks</h4>
 
                 {selectedComplianceRequest.guidelines?.length ? (
@@ -2703,17 +2766,20 @@ function StudentDashboardPage() {
                 Open Original PDF
               </button>
 
+              
               <button
                 type="button"
                 className="dashboard-secondary-button"
-                onClick={() =>
-                  openMetadataDialog(
-                    selectedHistoricalContract
-                  )
-                }
+                onClick={() => {
+                  const contract = selectedHistoricalContract;
+
+                  setSelectedHistoricalContractId('');
+                  openMetadataDialog(contract);
+                }}
               >
                 Edit Agreement
               </button>
+
 
               <button
                 type="button"
