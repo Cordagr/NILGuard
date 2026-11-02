@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import '../styles/pages/StudentDashboard.css';
 import ContractChatCenter from '../components/ContractChatCenter';
+import exitIcon from '../assets/exit.png';
 import MessengerIcon from '../assets/messenger.png';
 import logo from '../assets/NILGUARD.png';
 import {
@@ -388,7 +389,7 @@ function ComplianceDashboardPage() {
                   aria-label="Close notifications"
                   title="Close notifications"
                 >
-                  ×
+                  <img src={exitIcon} alt="" aria-hidden="true" />
                 </button>
               </div>
               {notificationsError ? (
@@ -556,6 +557,7 @@ function ComplianceDashboardPage() {
                 const isLeadReviewer =
                   String(request.assignedComplianceUserId) === String(currentUser?.id);
                 const isEditing = editingRequestId === request.id;
+                const guidelineClausesLocked = Boolean(request.guidelineClausesLocked);
 
                 return (
                 <article key={request.id} className="contract-card contract-card-detailed">
@@ -637,13 +639,15 @@ function ComplianceDashboardPage() {
                       <div className="officer-guideline-editor-heading">
                         <div>
                           <h4>NIL guideline conditions</h4>
-                          <p>Editing a condition resets its review result to Pending review. Choose a result after editing, assign a student deadline, and add feedback for each condition marked “Needs changes”. Save to notify the student; accept or reject after saving.</p>
+                          <p>{guidelineClausesLocked
+                            ? 'Clause wording has already been updated for this review and is now locked. You can still change deadlines, review results, and feedback.'
+                            : 'You can update clause wording once for this review. After saving a wording change, titles, descriptions, and checklist items are locked. You can still change deadlines, review results, and feedback.'}</p>
                         </div>
                         <button
                           type="button"
                           className="dashboard-secondary-button"
                           onClick={() => addGuideline(request.id)}
-                          disabled={guidelineDrafts[request.id]?.length >= 25}
+                          disabled={guidelineClausesLocked || guidelineDrafts[request.id]?.length >= 25}
                         >
                           Add condition
                         </button>
@@ -656,6 +660,7 @@ function ComplianceDashboardPage() {
                               type="button"
                               className="officer-guideline-remove"
                               onClick={() => removeGuideline(request.id, index)}
+                              disabled={guidelineClausesLocked}
                             >
                               Remove
                             </button>
@@ -667,6 +672,7 @@ function ComplianceDashboardPage() {
                               maxLength={120}
                               value={guideline.title}
                               onChange={(event) => updateGuideline(request.id, index, 'title', event.target.value)}
+                              disabled={guidelineClausesLocked}
                               placeholder="e.g. Disclose the sponsorship on each post"
                               required
                             />
@@ -678,6 +684,7 @@ function ComplianceDashboardPage() {
                               maxLength={2000}
                               value={guideline.summary}
                               onChange={(event) => updateGuideline(request.id, index, 'summary', event.target.value)}
+                              disabled={guidelineClausesLocked}
                               placeholder="Describe the condition clearly."
                               required
                             />
@@ -749,7 +756,7 @@ function ComplianceDashboardPage() {
                       onClick={() => openGuidelineEditor(request)}
                       disabled={!isLeadReviewer || isEditing || processingRequestId === request.id || savingGuidelinesId === request.id}
                     >
-                      {isEditing ? 'Editing conditions' : 'Edit NIL conditions'}
+                      {isEditing ? 'Editing conditions' : guidelineClausesLocked ? 'Review conditions' : 'Edit NIL conditions'}
                     </button>
                     <button
                       type="button"

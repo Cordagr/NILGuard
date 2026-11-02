@@ -3,7 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 function ProtectedRoute({ children, allowedRole }) {
-  const { user, isCheckingSession } = useAuth();
+  const { user, isCheckingSession, sessionExpired } = useAuth();
   const location = useLocation();
 
   if (isCheckingSession) {
@@ -11,7 +11,8 @@ function ProtectedRoute({ children, allowedRole }) {
   }
 
   if (!user) {
-    return <Navigate to="/login?reason=auth" state={{ from: location }} replace />;
+    const reason = sessionExpired ? 'timeout' : 'auth';
+    return <Navigate to={`/login?reason=${reason}`} state={{ from: location }} replace />;
   }
 
   if (allowedRole && user.role !== allowedRole) {

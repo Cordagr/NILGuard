@@ -4,6 +4,8 @@ import {
   markComplianceMessagesRead,
   sendComplianceMessage
 } from '../services/complianceApi';
+import exitIcon from '../assets/exit.png';
+import sendIcon from '../assets/send.png';
 import './ContractChatCenter.css';
 
 function formatChatTime(value) {
@@ -119,7 +121,7 @@ export default function ContractChatCenter({
   const handleSend = async (event) => {
     event.preventDefault();
     const body = draft.trim();
-    if (!activeConversation || !body) {
+    if (!activeConversation || !body || isSending) {
       return;
     }
 
@@ -137,6 +139,21 @@ export default function ContractChatCenter({
       setErrorMessage(error.message || 'Unable to send your chat message.');
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleComposerKeyDown = (event) => {
+    if (
+      event.key !== 'Enter' ||
+      event.shiftKey ||
+      event.nativeEvent.isComposing
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    if (!isSending && draft.trim()) {
+      event.currentTarget.form?.requestSubmit();
     }
   };
 
@@ -177,7 +194,7 @@ export default function ContractChatCenter({
             aria-label="Close chats"
             title="Close chats"
           >
-            ×
+            <img src={exitIcon} alt="" aria-hidden="true" />
           </button>
         </header>
 
@@ -282,12 +299,17 @@ export default function ContractChatCenter({
                   <textarea
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
+                    onKeyDown={handleComposerKeyDown}
                     placeholder="Message everyone in this contract group..."
                     rows={2}
                     aria-label="Chat message"
                   />
-                  <button type="submit" disabled={isSending || !draft.trim()}>
-                    {isSending ? 'Sending...' : 'Send'}
+                  <button
+                    type="submit"
+                    disabled={isSending || !draft.trim()}
+                    aria-label={isSending ? 'Sending message' : 'Send message'}
+                  >
+                    <img src={sendIcon} alt="" aria-hidden="true" />
                   </button>
                 </form>
               </>

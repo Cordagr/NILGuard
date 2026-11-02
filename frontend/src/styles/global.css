@@ -262,10 +262,27 @@ pre {
   cursor: pointer;
 }
 
+.app-close-button img {
+  display: block;
+  width: 1.15rem;
+  height: 1.15rem;
+  object-fit: contain;
+}
+
+.contract-chat-topbar .app-close-button img,
+.notification-error .app-close-button img {
+  filter: brightness(0) invert(1);
+}
+
+.contract-chat-topbar .app-close-button:hover img,
+.notification-error .app-close-button:hover img {
+  opacity: 0.75;
+}
+
 .app-close-button:hover,
 .app-close-button:focus-visible {
-  background: #FF4D00;
-  color: #fff;
+  background: transparent;
+  color: inherit;
 }
 
 .profile-menu-dropdown .app-close-button {
@@ -282,7 +299,7 @@ pre {
 
 .notification-error .app-close-button:hover,
 .notification-error .app-close-button:focus-visible {
-  background: #FF4D00;
+  background: transparent;
   color: #fff;
 }
 

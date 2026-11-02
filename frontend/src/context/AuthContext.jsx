@@ -6,6 +6,19 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setSessionExpired(true);
+      setUser(null);
+    };
+
+    window.addEventListener('nilguard:session-expired', handleSessionExpired);
+    return () => {
+      window.removeEventListener('nilguard:session-expired', handleSessionExpired);
+    };
+  }, []);
 
   // when the app loads, ask the backend if the session cookie is still valid
   useEffect(() => {
@@ -16,6 +29,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   function startSession(userData) {
+    setSessionExpired(false);
     setUser(userData);
   }
 
@@ -30,7 +44,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, isCheckingSession, startSession, logout }}>
+    <AuthContext.Provider value={{ user, isCheckingSession, sessionExpired, startSession, logout }}>
       {children}
     </AuthContext.Provider>
   );

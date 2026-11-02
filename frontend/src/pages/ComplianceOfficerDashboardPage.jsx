@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import '../styles/pages/StudentDashboard.css';
 import ContractChatCenter from '../components/ContractChatCenter';
+import exitIcon from '../assets/exit.png';
 import MessengerIcon from '../assets/messenger.png';
 import logo from '../assets/NILGUARD.png';
 import {
@@ -282,7 +283,7 @@ function ComplianceOfficerDashboardPage() {
                   aria-label="Close inbox"
                   title="Close inbox"
                 >
-                  ×
+                  <img src={exitIcon} alt="" aria-hidden="true" />
                 </button>
               </div>
               {notificationsError ? (

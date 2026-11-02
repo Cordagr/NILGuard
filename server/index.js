@@ -25,7 +25,7 @@ dotenv.config();
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 const app = express();
-const PORT = Number(process.env.PORT || 5001);
+const PORT = Number(process.env.PORT || 5000);
 const AGREEMENT_METADATA_VERSION = 2;
 const DATABASE_URL = process.env.DATABASE_URL;
 const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
@@ -339,6 +339,20 @@ function serializeContract(contract) {
   };
 }
 
+function hasCustomGuidelineClauseContent(guidelines) {
+  if (!Array.isArray(guidelines) || guidelines.length === 0) {
+    return false;
+  }
+
+  return guidelines.some((guideline, index) => {
+    const defaultGuideline = NIL_GUIDELINES[index];
+    return !defaultGuideline ||
+      guideline.id !== defaultGuideline.id ||
+      guideline.title !== defaultGuideline.title ||
+      guideline.summary !== defaultGuideline.summary;
+  });
+}
+
 function getComplianceParticipantIds(documentRequest) {
   const participantIds = Array.isArray(documentRequest.complianceParticipantIds)
     ? documentRequest.complianceParticipantIds.map(String)
@@ -381,6 +395,8 @@ function serializeDocumentRequest(documentRequest) {
         ? [documentRequest.assignedComplianceEmail]
         : [],
     status: documentRequest.status,
+    guidelineClausesLocked: Boolean(documentRequest.guidelineClausesLockedAt) ||
+      hasCustomGuidelineClauseContent(documentRequest.guidelines),
     rejectionReason: documentRequest.rejectionReason || '',
     reviewHistory: (documentRequest.reviewHistory || []).map((entry) => ({
       outcome: entry.outcome,
@@ -1287,6 +1303,7 @@ app.patch('/api/contracts/:contractId/metadata', async (req, res, next) => {
         requestUpdate.reviewedBy = null;
         requestUpdate.reviewerEmail = null;
         requestUpdate.rejectionReason = '';
+        requestUpdate.guidelineClausesLockedAt = null;
 
         // Clear prior guideline decisions so the revised details are reviewed afresh.
         requestUpdate.guidelines = buildGuidelineReviews(
@@ -1437,12 +1454,71 @@ app.get('/api/compliance/officers', async (req, res, next) => {
       .find({ role: 'compliance', school: user.school })
       .sort({ email: 1 })
       .toArray();
+    const availableOfficerIds = new Set(officers.map((officer) => String(officer._id)));
+    const savedOfficerIds = (Array.isArray(user.savedComplianceOfficerIds)
+      ? user.savedComplianceOfficerIds
+      : [])
+      .map(String)
+      .filter((id) => availableOfficerIds.has(id));
 
     return res.json({
       officers: officers.map((officer) => ({
         id: String(officer._id),
         email: officer.email
-      }))
+      })),
+      savedOfficerIds
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/compliance/officers/saved', async (req, res, next) => {
+  try {
+    const user = req.user;
+    assertUserRole(user, 'student');
+
+    if (!user.school) {
+      return res.status(400).json({ message: 'Your account is not associated with a school.' });
+    }
+
+    const email = String(req.body?.email || '').toLowerCase().trim();
+    if (!isEduEmail(email)) {
+      return res.status(400).json({
+        message: 'Enter the official university email for a registered compliance officer.'
+      });
+    }
+
+    const officer = await usersCollection.findOne({
+      email,
+      role: 'compliance',
+      school: user.school
+    });
+    if (!officer) {
+      return res.status(404).json({
+        message: 'No registered compliance officer with that email was found at your school.'
+      });
+    }
+
+    const updateResult = await usersCollection.updateOne(
+      { _id: String(user._id) },
+      {
+        $addToSet: { savedComplianceOfficerIds: String(officer._id) },
+        $set: { updatedAt: new Date() }
+      }
+    );
+    if (!updateResult.matchedCount) {
+      return res.status(404).json({ message: 'Your student account could not be found.' });
+    }
+
+    const updatedStudent = await usersCollection.findOne({ _id: String(user._id) });
+    return res.json({
+      message: 'Compliance officer saved.',
+      officer: {
+        id: String(officer._id),
+        email: officer.email
+      },
+      savedOfficerIds: (updatedStudent.savedComplianceOfficerIds || []).map(String)
     });
   } catch (error) {
     next(error);
@@ -1549,6 +1625,7 @@ app.post('/api/compliance/requests', async (req, res, next) => {
           status: 'pending',
           reviewDueAt,
           guidelines: buildGuidelineReviews(guidelineFindings, null),
+          guidelineClausesLockedAt: null,
           reviewedAt: null,
           reviewedBy: null,
           reviewerEmail: null,
@@ -1900,13 +1977,40 @@ app.patch('/api/compliance/requests/:requestId/guidelines', async (req, res, nex
         });
       }
 
+      const currentGuidelines = currentRequest.guidelines?.length
+        ? currentRequest.guidelines
+        : buildGuidelineReviews([], null);
+      const clauseContentChanged = currentGuidelines.length !== guidelines.length ||
+        currentGuidelines.some((guideline, index) => {
+          const nextGuideline = guidelines[index];
+          return !nextGuideline ||
+            guideline.id !== nextGuideline.id ||
+            guideline.title !== nextGuideline.title ||
+            guideline.summary !== nextGuideline.summary;
+        });
+      const clausesAlreadyLocked = Boolean(currentRequest.guidelineClausesLockedAt) ||
+        hasCustomGuidelineClauseContent(currentGuidelines);
+
+      if (clausesAlreadyLocked && clauseContentChanged) {
+        await client.query('ROLLBACK');
+        transactionOpen = false;
+        return res.status(409).json({
+          message: 'Clause wording can only be updated once per review. Deadlines, review results, and feedback can still be changed.'
+        });
+      }
+
+      const updateFields = { guidelines, updatedAt: now };
+      if (clausesAlreadyLocked || clauseContentChanged) {
+        updateFields.guidelineClausesLockedAt = currentRequest.guidelineClausesLockedAt || now;
+      }
+
       const updateResult = await transactionCollections.documentRequestsCollection.updateOne(
         {
           requestId: documentRequest.requestId,
           assignedComplianceUserId: userId,
           status: 'pending'
         },
-        { $set: { guidelines, updatedAt: now } }
+        { $set: updateFields }
       );
 
       if (!updateResult.matchedCount) {

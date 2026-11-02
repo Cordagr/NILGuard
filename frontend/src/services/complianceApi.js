@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
 function getUserId(user) {
   const userId = user?.id;
@@ -12,6 +12,10 @@ function getUserId(user) {
 
 async function parseJsonResponse(response) {
   const payload = await response.json().catch(() => ({}));
+
+  if (response.status === 401) {
+    window.dispatchEvent(new Event('nilguard:session-expired'));
+  }
 
   if (!response.ok) {
     throw new Error(payload.message || 'Request failed.');
@@ -33,6 +37,19 @@ export async function listComplianceRequests(user) {
 export async function listComplianceOfficers() {
   const response = await fetch(`${API_BASE_URL}/compliance/officers`, {
     credentials: 'include'
+  });
+
+  return parseJsonResponse(response);
+}
+
+export async function saveComplianceOfficer(email) {
+  const response = await fetch(`${API_BASE_URL}/compliance/officers/saved`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    credentials: 'include',
+    body: JSON.stringify({ email })
   });
 
   return parseJsonResponse(response);
