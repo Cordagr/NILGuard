@@ -1026,6 +1026,13 @@ main.student-dashboard-content,
   color: #14532d;
 }
 
+.contract-success-toast-dismiss img {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  object-fit: contain;
+}
+
 /* ── Section headers ── */
 .contracts-column-header {
   margin-bottom: 1rem;
@@ -1653,6 +1660,16 @@ main.student-dashboard-content,
   gap: 1rem;
 }
 
+.send-compliance-dialog {
+  position: relative;
+}
+
+.send-compliance-dialog-exit {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+}
+
 .dashboard-dialog h2 {
   font-family: 'Inter', sans-serif;
   font-size: 1.8rem;
@@ -1700,6 +1717,64 @@ main.student-dashboard-content,
 .dashboard-dialog-input:focus {
   outline: none;
   border-color: #FF4D00;
+}
+
+.compliance-officer-entry {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.75rem;
+  border: 1px solid #F0E6D8;
+  border-radius: 0.8em;
+  background: #FAFAF8;
+}
+
+.compliance-officer-entry > label {
+  color: #333;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.compliance-officer-entry-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.compliance-officer-entry .dashboard-dialog-input {
+  min-width: 0;
+  margin: 0;
+}
+
+.compliance-officer-entry .dashboard-secondary-button {
+  min-width: 4.5rem;
+  min-height: 32px;
+  padding: 0.4rem 0.8rem;
+  font-family: var(--font-family);
+  font-size: 0.75rem;
+  font-weight: 900;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.compliance-officer-entry-help,
+.compliance-officer-entry-error,
+.compliance-officer-entry-success {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.compliance-officer-entry-help {
+  color: #666;
+}
+
+.compliance-officer-entry-error {
+  color: #b42318;
+}
+
+.compliance-officer-entry-success {
+  color: #16723b;
 }
 
 .compliance-group-members {

@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import '../styles/pages/StudentDashboard.css';
 
 import ContractChatCenter from '../components/ContractChatCenter';
+import exitIcon from '../assets/exit.png';
 import MessengerIcon from '../assets/messenger.png';
 import logo from '../assets/NILGUARD.png';
 import FilterIcon from '../assets/filter.png';
@@ -25,6 +26,7 @@ import {
   listComplianceOfficers,
   listComplianceRequests,
   markComplianceNotificationRead,
+  saveComplianceOfficer,
   submitComplianceRequest
 } from '../services/complianceApi';
 
@@ -353,9 +355,14 @@ function StudentDashboardPage() {
   const unreadNotificationBadgeCount =
     unreadNotificationCount > 99 ? '99+' : unreadNotificationCount;
   const [complianceOfficers, setComplianceOfficers] = useState([]);
+  const [savedComplianceOfficerIds, setSavedComplianceOfficerIds] = useState([]);
   const [isLoadingComplianceOfficers, setIsLoadingComplianceOfficers] = useState(false);
   const [leadComplianceUserId, setLeadComplianceUserId] = useState('');
   const [additionalComplianceUserIds, setAdditionalComplianceUserIds] = useState([]);
+  const [newComplianceOfficerEmail, setNewComplianceOfficerEmail] = useState('');
+  const [isSavingComplianceOfficer, setIsSavingComplianceOfficer] = useState(false);
+  const [complianceOfficerSaveError, setComplianceOfficerSaveError] = useState('');
+  const [complianceOfficerSaveMessage, setComplianceOfficerSaveMessage] = useState('');
 
   const [contracts, setContracts] = useState([]);
   const [complianceRequests, setComplianceRequests] =
@@ -467,7 +474,11 @@ function StudentDashboardPage() {
 
     try {
       const response = await listComplianceOfficers();
-      setComplianceOfficers(response.officers || []);
+      if (!Array.isArray(response.officers) || !Array.isArray(response.savedOfficerIds)) {
+        throw new Error('Unable to load saved compliance officers.');
+      }
+      setComplianceOfficers(response.officers);
+      setSavedComplianceOfficerIds(response.savedOfficerIds);
     } catch (error) {
       setErrorMessage(error.message || 'Unable to load compliance officers.');
     } finally {
@@ -751,16 +762,58 @@ function StudentDashboardPage() {
     const existingRequest = complianceRequests.find(
       (request) => request.contractId === contractId
     );
-    const leadId = existingRequest?.assignedComplianceUserId || '';
+    const leadId = existingRequest?.assignedComplianceUserId ||
+      savedComplianceOfficerIds[0] ||
+      '';
     setLeadComplianceUserId(leadId);
     setAdditionalComplianceUserIds(
       (existingRequest?.complianceParticipantIds || []).filter((id) => id !== leadId)
     );
+    setNewComplianceOfficerEmail('');
+    setComplianceOfficerSaveError('');
+    setComplianceOfficerSaveMessage('');
     setSendDialogContractId(contractId);
   };
 
   const closeSendDialog = () => {
     setSendDialogContractId('');
+  };
+
+  const handleSaveComplianceOfficer = async (event) => {
+    event.preventDefault();
+    const email = newComplianceOfficerEmail.trim().toLowerCase();
+    if (!email) {
+      return;
+    }
+
+    setIsSavingComplianceOfficer(true);
+    setComplianceOfficerSaveError('');
+    setComplianceOfficerSaveMessage('');
+
+    try {
+      const response = await saveComplianceOfficer(email);
+      if (!response.officer?.id || !Array.isArray(response.savedOfficerIds)) {
+        throw new Error('Unable to verify the saved compliance officer.');
+      }
+
+      setComplianceOfficers((previous) => [
+        ...previous.filter((officer) => officer.id !== response.officer.id),
+        response.officer
+      ].sort((left, right) => left.email.localeCompare(right.email)));
+      setSavedComplianceOfficerIds(response.savedOfficerIds);
+      setLeadComplianceUserId((previous) => previous || response.officer.id);
+      setAdditionalComplianceUserIds((previous) =>
+        previous.filter((id) => id !== response.officer.id)
+      );
+      setNewComplianceOfficerEmail('');
+      setComplianceOfficerSaveMessage(`${response.officer.email} was added to your saved officers.`);
+    } catch (error) {
+      setComplianceOfficerSaveError(
+        error.message || 'Unable to save this compliance officer.'
+      );
+    } finally {
+      setIsSavingComplianceOfficer(false);
+    }
   };
 
   const handleSubmitToCompliance = async () => {
@@ -1103,7 +1156,7 @@ function StudentDashboardPage() {
             aria-label="Dismiss success message"
             onClick={() => setSuccessMessage('')}
           >
-            &times;
+            <img src={exitIcon} alt="" aria-hidden="true" />
           </button>
         </div>
       )}
@@ -1121,7 +1174,7 @@ function StudentDashboardPage() {
             aria-label="Dismiss error notification"
             onClick={() => setErrorMessage('')}
           >
-            ×
+            <img src={exitIcon} alt="" aria-hidden="true" />
           </button>
         </div>
       )}
@@ -1181,7 +1234,7 @@ function StudentDashboardPage() {
                   aria-label="Close notifications"
                   title="Close notifications"
                 >
-                  ×
+                  <img src={exitIcon} alt="" aria-hidden="true" />
                 </button>
               </div>
               {notifications.length ? (
@@ -1803,11 +1856,20 @@ function StudentDashboardPage() {
           role="presentation"
         >
           <div
-            className="dashboard-dialog"
+            className="dashboard-dialog send-compliance-dialog"
             role="dialog"
             aria-modal="true"
             aria-labelledby="send-compliance-title"
           >
+            <button
+              type="button"
+              className="app-close-button send-compliance-dialog-exit"
+              onClick={closeSendDialog}
+              aria-label="Close send contract dialog"
+              title="Close send contract dialog"
+            >
+              <img src={exitIcon} alt="" aria-hidden="true" />
+            </button>
             <h2 id="send-compliance-title">
               Send Contract To Compliance
             </h2>
@@ -1815,6 +1877,48 @@ function StudentDashboardPage() {
             <p className="dashboard-dialog-copy">
               Choose a lead reviewer and add other compliance officers from your school to this contract conversation.
             </p>
+
+            <form
+              className="compliance-officer-entry"
+              onSubmit={handleSaveComplianceOfficer}
+            >
+              <label htmlFor="saved-compliance-officer-email">
+                Add an existing compliance officer
+              </label>
+              <div className="compliance-officer-entry-controls">
+                <input
+                  id="saved-compliance-officer-email"
+                  className="dashboard-dialog-input"
+                  type="email"
+                  value={newComplianceOfficerEmail}
+                  onChange={(event) => setNewComplianceOfficerEmail(event.target.value)}
+                  placeholder="officer@school.edu"
+                  autoComplete="email"
+                  disabled={isSavingComplianceOfficer}
+                  required
+                />
+                <button
+                  type="submit"
+                  className="dashboard-secondary-button btn-97"
+                  disabled={isSavingComplianceOfficer || !newComplianceOfficerEmail.trim()}
+                >
+                  {isSavingComplianceOfficer ? 'Adding...' : 'Add'}
+                </button>
+              </div>
+              <p className="compliance-officer-entry-help">
+                Use the email on their registered compliance account at your school.
+              </p>
+              {complianceOfficerSaveError ? (
+                <p className="compliance-officer-entry-error" role="alert">
+                  {complianceOfficerSaveError}
+                </p>
+              ) : null}
+              {complianceOfficerSaveMessage ? (
+                <p className="compliance-officer-entry-success" role="status">
+                  {complianceOfficerSaveMessage}
+                </p>
+              ) : null}
+            </form>
 
             <label className="contracts-sort-label">
               Lead reviewer
@@ -1841,11 +1945,28 @@ function StudentDashboardPage() {
                 <option value="">
                   {isLoadingComplianceOfficers ? 'Loading officers...' : 'Choose a lead reviewer'}
                 </option>
-                {complianceOfficers.map((officer) => (
-                  <option key={officer.id} value={officer.id}>
-                    {officer.email}
-                  </option>
-                ))}
+                {savedComplianceOfficerIds.length ? (
+                  <optgroup label="Saved officers">
+                    {complianceOfficers
+                      .filter((officer) => savedComplianceOfficerIds.includes(officer.id))
+                      .map((officer) => (
+                        <option key={officer.id} value={officer.id}>
+                          {officer.email}
+                        </option>
+                      ))}
+                  </optgroup>
+                ) : null}
+                <optgroup
+                  label={savedComplianceOfficerIds.length ? 'Other officers at your school' : 'Officers at your school'}
+                >
+                  {complianceOfficers
+                    .filter((officer) => !savedComplianceOfficerIds.includes(officer.id))
+                    .map((officer) => (
+                      <option key={officer.id} value={officer.id}>
+                        {officer.email}
+                      </option>
+                    ))}
+                </optgroup>
               </select>
             </label>
 
@@ -1883,7 +2004,7 @@ function StudentDashboardPage() {
             <div className="contract-action-row">
               <button
                 type="button"
-                className="dashboard-secondary-button"
+                className="dashboard-secondary-button btn-97"
                 onClick={
                   closeSendDialog
                 }
@@ -1893,7 +2014,7 @@ function StudentDashboardPage() {
 
               <button
                 type="button"
-                className="dashboard-secondary-button dashboard-accept-button"
+                className="dashboard-secondary-button btn-97"
                 onClick={
                   handleSubmitToCompliance
                 }

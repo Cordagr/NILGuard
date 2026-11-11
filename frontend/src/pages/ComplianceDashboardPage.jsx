@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import '../styles/pages/StudentDashboard.css';
 import ContractChatCenter from '../components/ContractChatCenter';
+import exitIcon from '../assets/exit.png';
 import MessengerIcon from '../assets/messenger.png';
 import logo from '../assets/NILGUARD.png';
 import {
@@ -388,7 +389,7 @@ function ComplianceDashboardPage() {
                   aria-label="Close notifications"
                   title="Close notifications"
                 >
-                  ×
+                  <img src={exitIcon} alt="" aria-hidden="true" />
                 </button>
               </div>
               {notificationsError ? (
@@ -540,15 +541,6 @@ function ComplianceDashboardPage() {
                 const needsChangesConditions = conditions.filter(
                   (guideline) => guideline.decision === 'needs_changes'
                 );
-                const rejectionGuidance = conditions.length === 0
-                  ? 'Add and save at least one NIL condition before rejecting.'
-                  : !allConditionsReviewed
-                    ? 'Review every condition and save before rejecting.'
-                    : !allConditionsHaveDeadlines
-                      ? 'Set a student deadline for every condition before rejecting.'
-                      : needsChangesConditions.length === 0
-                        ? 'Mark at least one condition “Needs changes” to reject.'
-                        : 'Add feedback to every “Needs changes” condition before rejecting.';
                 const canReject = allConditionsReviewed &&
                   allConditionsHaveDeadlines &&
                   needsChangesConditions.length > 0 &&
@@ -556,6 +548,22 @@ function ComplianceDashboardPage() {
                 const isLeadReviewer =
                   String(request.assignedComplianceUserId) === String(currentUser?.id);
                 const isEditing = editingRequestId === request.id;
+                const guidelineClausesLocked = Boolean(request.guidelineClausesLocked);
+                const decisionGuidance = isEditing
+                  ? 'Save or cancel condition editing before making a final decision.'
+                  : conditions.length === 0
+                    ? 'Add and save at least one NIL condition before making a decision.'
+                    : !allConditionsReviewed
+                      ? 'Choose a result for every condition, then save. Accept requires every condition to meet requirements; Reject requires at least one condition to need changes.'
+                      : !allConditionsHaveDeadlines
+                        ? 'Set a student deadline for every condition, then save before making a decision.'
+                        : needsChangesConditions.some((guideline) => !guideline.feedback?.trim())
+                          ? 'Add officer feedback to every condition marked “Needs changes,” then save.'
+                          : canApprove
+                            ? 'All conditions meet requirements. You can accept the contract.'
+                            : canReject
+                              ? 'At least one condition needs changes. You can reject the contract.'
+                              : 'Review and save the condition results before making a final decision.';
 
                 return (
                 <article key={request.id} className="contract-card contract-card-detailed">
@@ -637,13 +645,15 @@ function ComplianceDashboardPage() {
                       <div className="officer-guideline-editor-heading">
                         <div>
                           <h4>NIL guideline conditions</h4>
-                          <p>Editing a condition resets its review result to Pending review. Choose a result after editing, assign a student deadline, and add feedback for each condition marked “Needs changes”. Save to notify the student; accept or reject after saving.</p>
+                          <p>{guidelineClausesLocked
+                            ? 'Condition wording is locked. Set a result and deadline for every condition, then save to notify the student. Saving does not finalize the contract; make the Accept or Reject decision afterward.'
+                            : 'You can update condition wording once. Set a result and deadline for every condition, then save to notify the student. Saving does not finalize the contract; make the Accept or Reject decision afterward.'}</p>
                         </div>
                         <button
                           type="button"
                           className="dashboard-secondary-button"
                           onClick={() => addGuideline(request.id)}
-                          disabled={guidelineDrafts[request.id]?.length >= 25}
+                          disabled={guidelineClausesLocked || guidelineDrafts[request.id]?.length >= 25}
                         >
                           Add condition
                         </button>
@@ -656,6 +666,7 @@ function ComplianceDashboardPage() {
                               type="button"
                               className="officer-guideline-remove"
                               onClick={() => removeGuideline(request.id, index)}
+                              disabled={guidelineClausesLocked}
                             >
                               Remove
                             </button>
@@ -667,6 +678,7 @@ function ComplianceDashboardPage() {
                               maxLength={120}
                               value={guideline.title}
                               onChange={(event) => updateGuideline(request.id, index, 'title', event.target.value)}
+                              disabled={guidelineClausesLocked}
                               placeholder="e.g. Disclose the sponsorship on each post"
                               required
                             />
@@ -678,6 +690,7 @@ function ComplianceDashboardPage() {
                               maxLength={2000}
                               value={guideline.summary}
                               onChange={(event) => updateGuideline(request.id, index, 'summary', event.target.value)}
+                              disabled={guidelineClausesLocked}
                               placeholder="Describe the condition clearly."
                               required
                             />
@@ -749,7 +762,7 @@ function ComplianceDashboardPage() {
                       onClick={() => openGuidelineEditor(request)}
                       disabled={!isLeadReviewer || isEditing || processingRequestId === request.id || savingGuidelinesId === request.id}
                     >
-                      {isEditing ? 'Editing conditions' : 'Edit NIL conditions'}
+                      {isEditing ? 'Editing conditions' : guidelineClausesLocked ? 'Review conditions' : 'Edit NIL conditions'}
                     </button>
                     <button
                       type="button"
@@ -768,11 +781,9 @@ function ComplianceDashboardPage() {
                       {processingRequestId === request.id ? 'Saving...' : 'Reject'}
                     </button>
                   </div>
-                  {!isEditing && !canReject && (
-                    <p className="contracts-feedback contract-review-guidance">
-                      {rejectionGuidance}
-                    </p>
-                  )}
+                  <p className="contracts-feedback contract-review-guidance" role="status">
+                    {decisionGuidance}
+                  </p>
                 </article>
                 );
               })
