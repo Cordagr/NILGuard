@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { getCoachAthlete } from '../services/rosterApi';
 import '../styles/pages/AthletesProfilePage.css';
 
-export default function AthleteProfilePage() {
+export default function AthletesProfilePage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -13,22 +13,36 @@ export default function AthleteProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
+  
+useEffect(() => {
     async function fetchProfile() {
-      try {
-        const data = await getCoachAthlete(user, id);
-        setAthlete(data.athlete);
-      } catch (err) {
-        setError(err.message || 'Unable to load athlete profile.');
-      } finally {
-        setLoading(false);
-      }
+        if (!user || !id) {
+            setError('Missing coach session or athlete ID.');
+            setLoading(false);
+            return;
+        }
+
+        try {
+            setLoading(true);
+            setError('');
+
+            const data = await getCoachAthlete(user, id);
+
+            if (!data.athlete) {
+                throw new Error('Athlete profile was not found.');
+            }
+
+            setAthlete(data.athlete);
+        } catch (err) {
+            setError(err.message || 'Unable to load athlete profile.');
+        } finally {
+            setLoading(false);
+        }
     }
 
-    if (user && id) {
-      fetchProfile();
-    }
-  }, [user, id]);
+    fetchProfile();
+}, [user, id]);
+
 
   const handleMessageAthlete = () => {
     if (athlete) {
