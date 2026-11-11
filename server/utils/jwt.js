@@ -10,7 +10,7 @@ export function signToken(user) {
   return jwt.sign(
     { userId: String(user._id), role: user.role },
     secret,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '30m' }
+    { expiresIn: process.env.JWT_EXPIRES_IN || '45m' }
   );
 }
 
@@ -34,10 +34,19 @@ function getAuthCookieOptions() {
   };
 }
 
+function getTokenMaxAge(token) {
+  const payload = jwt.decode(token);
+  if (!payload || typeof payload !== 'object' || typeof payload.exp !== 'number') {
+    throw new Error('Auth token must include an expiration.');
+  }
+
+  return Math.max(0, payload.exp * 1000 - Date.now());
+}
+
 export function setAuthCookie(res, token) {
   res.cookie('token', token, {
     ...getAuthCookieOptions(),
-    maxAge: 30 * 60 * 1000
+    maxAge: getTokenMaxAge(token)
   });
 }
 

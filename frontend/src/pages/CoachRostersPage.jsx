@@ -372,7 +372,7 @@ function CoachRostersPage() {
             {isUploading ? 'Uploading CSV...' : 'Upload Roster CSV'}
           </button>
 
-          {errorMessage ? <p className="roster-feedback roster-error">{errorMessage}</p> : null}
+          {errorMessage ? <p className="roster-feedback roster-error notification-error" role="alert">{errorMessage}</p> : null}
           {!errorMessage && successMessage ? <p className="roster-feedback roster-success">{successMessage}</p> : null}
           {!errorMessage && !successMessage ? (
             <p className="roster-feedback">

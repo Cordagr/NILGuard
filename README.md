@@ -58,7 +58,7 @@ a
 
 - Accounts register and log in with an official university `.edu` email address.
 - Roles: `student`, `coach`, `school`, and `compliance` (contract reviewers use the compliance role).
-- Sessions use a JWT stored in an httpOnly cookie that expires after 30 minutes. The user id always comes from the session, never from the request body or headers.
+- Sessions use a JWT stored in an httpOnly cookie that expires after 45 minutes. The user id always comes from the session, never from the request body or headers.
 - After 3 failed login attempts the account locks for 15 minutes.
 - Register, login, failed logins, and lockouts are written to the PostgreSQL `audit_logs` table.
 - All `/api/contracts`, `/api/rosters`, and `/api/compliance` endpoints require a valid session.

@@ -1,6 +1,6 @@
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api';
+  import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
 function getUserId(user) {
   const userId = user?.id;
@@ -14,6 +14,10 @@ function getUserId(user) {
 
 async function parseJsonResponse(response) {
   const payload = await response.json().catch(() => ({}));
+
+  if (response.status === 401) {
+    window.dispatchEvent(new Event('nilguard:session-expired'));
+  }
 
   if (!response.ok) {
     throw new Error(payload.message || 'Request failed.');
