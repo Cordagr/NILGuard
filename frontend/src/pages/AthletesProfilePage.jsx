@@ -10,7 +10,6 @@ export default function AthleteProfilePage() {
   const { user } = useAuth();
   
   const [athlete, setAthlete] = useState(null);
-  const [contracts, setContracts] = useState([]); // Ready for real backend data
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -19,10 +18,6 @@ export default function AthleteProfilePage() {
       try {
         const data = await getCoachAthlete(user, id);
         setAthlete(data.athlete);
-        
-        // TODO: Replace with actual API call once the database relationship is clarified
-        // const contractData = await getAthleteContracts(user, id);
-        // setContracts(contractData.contracts);
       } catch (err) {
         setError(err.message || 'Unable to load athlete profile.');
       } finally {
@@ -136,27 +131,6 @@ export default function AthleteProfilePage() {
                   <p>All current contracts have passed compliance review.</p>
                 </div>
               </div>
-            </div>
-
-            <div className="profile-card">
-              <h3 className="profile-section-title">Recent Contracts</h3>
-              <div className="contract-placeholder-list">
-                {contracts.length > 0 ? (
-                  contracts.map((contract, index) => (
-                    <div className="contract-item" key={index}>
-                      <div className="contract-brand">{contract.brandPayer || 'Unknown Brand'}</div>
-                      <div className="contract-date">
-                        Approved {new Date(contract.createdAt).toLocaleDateString()}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="no-assignments">No historical contracts found.</p>
-                )}
-              </div>
-              {contracts.length > 0 && (
-                <button className="view-all-btn">View All Contracts &rarr;</button>
-              )}
             </div>
           </div>
 

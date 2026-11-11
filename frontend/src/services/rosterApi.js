@@ -1,3 +1,4 @@
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api';
 
@@ -37,6 +38,8 @@ export async function listRosters(user) {
 
   return parseJsonResponse(response);
 }
+
+
 
 export async function listCoachAthletes(user) {
   const userId = getUserId(user);
@@ -117,4 +120,17 @@ export function getRosterFileUrl(user, rosterId) {
   });
 
   return `${API_BASE_URL}/rosters/${rosterId}/file?${searchParams.toString()}`;
+}
+
+export async function listAthletes(user) {
+  getUserId(user);
+
+  const response = await fetch(
+    `${API_BASE_URL}/rosters/athletes`,
+    {
+      credentials: 'include'
+    }
+  );
+
+  return parseJsonResponse(response);
 }
