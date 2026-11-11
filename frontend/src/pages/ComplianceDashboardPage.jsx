@@ -541,15 +541,6 @@ function ComplianceDashboardPage() {
                 const needsChangesConditions = conditions.filter(
                   (guideline) => guideline.decision === 'needs_changes'
                 );
-                const rejectionGuidance = conditions.length === 0
-                  ? 'Add and save at least one NIL condition before rejecting.'
-                  : !allConditionsReviewed
-                    ? 'Review every condition and save before rejecting.'
-                    : !allConditionsHaveDeadlines
-                      ? 'Set a student deadline for every condition before rejecting.'
-                      : needsChangesConditions.length === 0
-                        ? 'Mark at least one condition “Needs changes” to reject.'
-                        : 'Add feedback to every “Needs changes” condition before rejecting.';
                 const canReject = allConditionsReviewed &&
                   allConditionsHaveDeadlines &&
                   needsChangesConditions.length > 0 &&
@@ -558,6 +549,21 @@ function ComplianceDashboardPage() {
                   String(request.assignedComplianceUserId) === String(currentUser?.id);
                 const isEditing = editingRequestId === request.id;
                 const guidelineClausesLocked = Boolean(request.guidelineClausesLocked);
+                const decisionGuidance = isEditing
+                  ? 'Save or cancel condition editing before making a final decision.'
+                  : conditions.length === 0
+                    ? 'Add and save at least one NIL condition before making a decision.'
+                    : !allConditionsReviewed
+                      ? 'Choose a result for every condition, then save. Accept requires every condition to meet requirements; Reject requires at least one condition to need changes.'
+                      : !allConditionsHaveDeadlines
+                        ? 'Set a student deadline for every condition, then save before making a decision.'
+                        : needsChangesConditions.some((guideline) => !guideline.feedback?.trim())
+                          ? 'Add officer feedback to every condition marked “Needs changes,” then save.'
+                          : canApprove
+                            ? 'All conditions meet requirements. You can accept the contract.'
+                            : canReject
+                              ? 'At least one condition needs changes. You can reject the contract.'
+                              : 'Review and save the condition results before making a final decision.';
 
                 return (
                 <article key={request.id} className="contract-card contract-card-detailed">
@@ -640,8 +646,8 @@ function ComplianceDashboardPage() {
                         <div>
                           <h4>NIL guideline conditions</h4>
                           <p>{guidelineClausesLocked
-                            ? 'Clause wording has already been updated for this review and is now locked. You can still change deadlines, review results, and feedback.'
-                            : 'You can update clause wording once for this review. After saving a wording change, titles, descriptions, and checklist items are locked. You can still change deadlines, review results, and feedback.'}</p>
+                            ? 'Condition wording is locked. Set a result and deadline for every condition, then save to notify the student. Saving does not finalize the contract; make the Accept or Reject decision afterward.'
+                            : 'You can update condition wording once. Set a result and deadline for every condition, then save to notify the student. Saving does not finalize the contract; make the Accept or Reject decision afterward.'}</p>
                         </div>
                         <button
                           type="button"
@@ -775,11 +781,9 @@ function ComplianceDashboardPage() {
                       {processingRequestId === request.id ? 'Saving...' : 'Reject'}
                     </button>
                   </div>
-                  {!isEditing && !canReject && (
-                    <p className="contracts-feedback contract-review-guidance">
-                      {rejectionGuidance}
-                    </p>
-                  )}
+                  <p className="contracts-feedback contract-review-guidance" role="status">
+                    {decisionGuidance}
+                  </p>
                 </article>
                 );
               })
