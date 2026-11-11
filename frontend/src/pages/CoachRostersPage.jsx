@@ -170,12 +170,13 @@ function CoachRostersPage() {
   };
 
   useEffect(() => {
-    if (!currentUser?.id) {
-      navigate('/login');
-      return;
-    }
-    fetchRosters();
-  }, [navigate]);
+  if (!currentUser?.id) {
+    navigate('/login');
+    return;
+  }
+
+  fetchRosters();
+}, [currentUser?.id, navigate]);
 
   // UPDATED: Now gracefully handles the nested assignments array from the backend
   const groupedTeams = useMemo(() => {
