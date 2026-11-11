@@ -122,8 +122,9 @@ function CoachRostersPage() {
   const { user: currentUser, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [athleteSearch, setAthleteSearch] = useState('');
+  const [athletes, setAthletes] = useState([]);
 
-  const athletes = rosters.flatMap((roster) =>
+  const rosterAthletes = rosters.flatMap((roster) =>
     (roster.players || []).map((player) => ({
       ...player,
       school: roster.school,
@@ -134,7 +135,7 @@ function CoachRostersPage() {
   );
 
   const normalizedAthleteSearch = athleteSearch.trim().toLowerCase();
-  const filteredAthletes = athletes.filter((athlete) =>
+  const filteredAthletes = rosterAthletes.filter((athlete) =>
     [
       athlete.firstName,
       athlete.lastName,
