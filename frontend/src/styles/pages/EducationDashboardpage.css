@@ -195,6 +195,114 @@
   background: #444;
 }
 
+.education-sharing-card {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  border: 1px solid #e1e4e8;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.education-sharing-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.education-sharing-heading h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+}
+
+.education-sharing-heading p,
+.education-sharing-muted,
+.education-sharing-list p,
+.education-invite-preview p {
+  margin: 0.5rem 0 0;
+  color: #666;
+  line-height: 1.5;
+}
+
+.education-sharing-revoke,
+.education-invite-controls button,
+.education-invite-preview > button {
+  border: 0;
+  border-radius: 6px;
+  padding: 0.7rem 0.9rem;
+  background: #222;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.education-sharing-revoke {
+  flex-shrink: 0;
+  background: #991b1b;
+}
+
+.education-sharing-revoke:disabled,
+.education-invite-controls button:disabled,
+.education-invite-preview > button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.education-invite-form {
+  margin-top: 1rem;
+}
+
+.education-invite-form > label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-weight: 700;
+}
+
+.education-invite-controls {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.education-invite-controls input {
+  min-width: 0;
+  flex: 1;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font: inherit;
+  text-transform: uppercase;
+}
+
+.education-invite-preview,
+.education-sharing-list {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.education-invite-preview h3,
+.education-sharing-list h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.education-consent-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin: 1rem 0;
+  color: #374151;
+  line-height: 1.5;
+}
+
+.education-consent-label input {
+  margin-top: 0.25rem;
+}
+
 @media (max-width: 900px) {
   .education-header {
     padding: 1.5rem 2rem;
@@ -209,6 +317,10 @@
   .education-module-grid {
     grid-template-columns: 1fr;
   }
+
+  .education-sharing-heading {
+    flex-direction: column;
+  }
 }
 
 @media (max-width: 600px) {
@@ -219,6 +331,10 @@
   .education-content {
     width: calc(100% - 2rem);
     padding-top: 2rem;
+  }
+
+  .education-invite-controls {
+    flex-direction: column;
   }
 
   .education-header h1 {

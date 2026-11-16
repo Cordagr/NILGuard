@@ -156,3 +156,13 @@
     padding: 10px 12px;
   }
 }
+.login-verification-prompt {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.login-verification-prompt p {
+  margin: 0;
+  font-size: 13px;
+}

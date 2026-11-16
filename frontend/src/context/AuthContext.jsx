@@ -33,6 +33,10 @@ export function AuthProvider({ children }) {
     setUser(userData);
   }
 
+  function updateUser(userData) {
+    setUser(userData);
+  }
+
   async function logout() {
     try {
       await logoutUser();
@@ -44,7 +48,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, isCheckingSession, sessionExpired, startSession, logout }}>
+    <AuthContext.Provider value={{ user, isCheckingSession, sessionExpired, startSession, updateUser, logout }}>
       {children}
     </AuthContext.Provider>
   );

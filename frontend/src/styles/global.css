@@ -225,6 +225,58 @@ pre {
 .visible     { display: block; }
 .text-center { text-align: center; }
 
+.coach-sidebar-account .coach-text-button.logout-icon-button,
+.student-dashboard-container:not(.coach-page) .coach-sidebar-account .coach-text-button.logout-icon-button,
+.profile-menu-dropdown button.logout-icon-button,
+.student-profile-button.logout-icon-button {
+  box-sizing: border-box;
+  display: inline-flex;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+  border: 1px solid #D8D2C8;
+  border-radius: 8px;
+  background: #fff;
+  color: #0F172A;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.coach-sidebar-account .coach-text-button.logout-icon-button:hover:not(:disabled),
+.student-dashboard-container:not(.coach-page) .coach-sidebar-account .coach-text-button.logout-icon-button:hover:not(:disabled),
+.profile-menu-dropdown button.logout-icon-button:hover:not(:disabled),
+.student-profile-button.logout-icon-button:hover:not(:disabled) {
+  border-color: #D8D2C8;
+  background: #F4EFE8;
+  color: #0F172A;
+  text-decoration: none;
+}
+
+.profile-menu-dropdown.logout-menu-dropdown {
+  width: fit-content;
+  min-width: 0;
+  padding: 6px;
+}
+
+.logout-action-icon {
+  display: block;
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+button.logout-icon-button:focus-visible,
+.shadcn-button.logout-icon-button:focus-visible {
+  outline: 2px solid #0F172A;
+  outline-offset: 2px;
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   body {
@@ -269,13 +321,11 @@ pre {
   object-fit: contain;
 }
 
-.contract-chat-topbar .app-close-button img,
-.notification-error .app-close-button img {
+.contract-chat-topbar .app-close-button img {
   filter: brightness(0) invert(1);
 }
 
-.contract-chat-topbar .app-close-button:hover img,
-.notification-error .app-close-button:hover img {
+.contract-chat-topbar .app-close-button:hover img {
   opacity: 0.75;
 }
 
@@ -289,68 +339,4 @@ pre {
   width: 2rem;
   padding: 0;
   text-align: center;
-}
-
-.notification-error .app-close-button {
-  border: 0;
-  background: transparent;
-  color: #fff;
-}
-
-.notification-error .app-close-button:hover,
-.notification-error .app-close-button:focus-visible {
-  background: transparent;
-  color: #fff;
-}
-
-.notification-error {
-  position: relative;
-  margin: 0.75rem 0;
-  padding: 0.85rem 1rem 0.85rem 3rem;
-  border: 1px solid #fff !important;
-  border-radius: 8px;
-  background: #181818 !important;
-  color: #fff !important;
-  box-shadow: 0 8px 24px rgba(24, 24, 24, 0.16);
-}
-
-.notification-error::before {
-  position: absolute;
-  top: 0.85rem;
-  left: 1rem;
-  display: grid;
-  width: 1.35rem;
-  height: 1.35rem;
-  place-items: center;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-  color: #fff;
-  content: "i";
-  font-family: Georgia, serif;
-  font-size: 0.9rem;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.notification-error p,
-.notification-error h3,
-.notification-error strong,
-.notification-error span {
-  color: #fff !important;
-}
-
-.notification-error p {
-  margin-bottom: 0.5rem;
-}
-
-.notification-error button:not(.app-close-button) {
-  border: 1px solid #fff;
-  background: #fff;
-  color: #181818;
-}
-
-.notification-error button:not(.app-close-button):hover,
-.notification-error button:not(.app-close-button):focus-visible {
-  background: #e8e8e8;
-  color: #181818;
 }

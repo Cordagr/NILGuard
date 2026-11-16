@@ -42,7 +42,7 @@
 
 .contract-chat-window {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   width: min(1120px, 100%);
   height: min(780px, calc(100vh - 2rem));
   overflow: hidden;
@@ -50,25 +50,6 @@
   border-radius: 14px;
   background: #f8f5ef;
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.3);
-}
-
-.contract-chat-topbar {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem 1.25rem;
-  background: #181818;
-  color: #fff;
-}
-
-.contract-chat-topbar p {
-  margin: 0;
-}
-
-.contract-chat-topbar p {
-  color: #d5d0c9;
-  font-size: 0.82rem;
 }
 
 .contract-chat-layout {
@@ -95,16 +76,6 @@
   font-size: 0.9rem;
 }
 
-.contract-chat-sidebar-heading span {
-  display: grid;
-  min-width: 1.5rem;
-  height: 1.5rem;
-  place-items: center;
-  border-radius: 999px;
-  background: #f0e6d8;
-  font-size: 0.75rem;
-}
-
 .contract-chat-list {
   overflow-y: auto;
 }
@@ -113,8 +84,8 @@
   position: relative;
   display: grid;
   width: 100%;
-  gap: 0.3rem;
-  padding: 0.85rem 2.5rem 0.85rem 1rem;
+  gap: 0.4rem;
+  padding: 0.8rem 1rem;
   border: 0;
   border-bottom: 1px solid #eee5da;
   background: #fff;
@@ -125,26 +96,41 @@
 
 .contract-chat-list-item:hover,
 .contract-chat-list-item.is-active {
-  background: #f5f0e8;
+  background: #F7F8FA;
 }
 
 .contract-chat-list-item.is-active {
-  box-shadow: inset 3px 0 #ff4d00;
+  box-shadow: inset 3px 0 #E84B0B;
+}
+
+.contract-chat-list-item:focus-visible {
+  outline: 2px solid #344054;
+  outline-offset: -2px;
+}
+
+.contract-chat-list-title-row,
+.contract-chat-list-preview-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .contract-chat-list-item-title {
   overflow: hidden;
+  min-width: 0;
   font-size: 0.87rem;
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.contract-chat-list-item-subtitle,
 .contract-chat-list-item-preview {
   overflow: hidden;
+  min-width: 0;
   color: #777;
-  font-size: 0.75rem;
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -153,20 +139,20 @@
   color: #4b4b4b;
 }
 
+.contract-chat-list-time {
+  flex: 0 0 auto;
+  color: #777;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 .contract-chat-unread {
-  position: absolute;
-  top: 0.9rem;
-  right: 0.75rem;
-  display: grid;
-  min-width: 1.3rem;
-  height: 1.3rem;
-  place-items: center;
-  padding: 0 0.2rem;
+  display: block;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
   border-radius: 999px;
   background: #ff4d00;
-  color: #fff;
-  font-size: 0.68rem;
-  font-weight: 800;
 }
 
 .contract-chat-empty-list {
@@ -185,77 +171,328 @@
 }
 
 .contract-chat-thread-header {
-  padding: 1rem 1.25rem;
+  padding: 0.9rem 1.25rem;
   border-bottom: 1px solid #e4d9ca;
   background: #fff;
 }
 
-.contract-chat-thread-header h3,
-.contract-chat-thread-header p {
+.contract-chat-title-row,
+.contract-chat-title-content {
+  display: flex;
+  align-items: center;
+}
+
+.contract-chat-title-row {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.contract-chat-title-content {
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.contract-chat-title-row h3,
+.contract-chat-title-row p,
+.contract-chat-members-line {
   margin: 0;
 }
 
-.contract-chat-thread-header h3 {
+.contract-chat-title-row h3 {
   overflow-wrap: anywhere;
   color: #181818;
-  font-size: 1rem;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
-.contract-chat-thread-header p,
-.contract-chat-thread-header small {
-  display: block;
-  margin-top: 0.3rem;
-  color: #666;
-  font-size: 0.77rem;
+.contract-chat-status-pill {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  padding: 2px 9px;
+  border: 1px solid #e8dfd4;
+  border-radius: 999px;
+  background: #f5f0e8;
+  color: #51483f;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.contract-chat-status-pill.is-pending {
+  border-color: #f3d9aa;
+  background: #fff5df;
+  color: #805500;
+}
+
+.contract-chat-status-pill.is-accepted {
+  border-color: #b7dfc4;
+  background: #eaf7ed;
+  color: #24633a;
+}
+
+.contract-chat-status-pill.is-rejected,
+.contract-chat-status-pill.is-needs-changes {
+  border-color: #f2c4b8;
+  background: #fff0ed;
+  color: #a53d25;
+}
+
+.contract-chat-close-button {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
+  flex-basis: 38px;
+  border: 1px solid #D8D2C8;
+  border-radius: 7px;
+  background: #fff;
+  color: #0F172A;
+}
+
+.contract-chat-close-button:hover:not(:disabled) {
+  border-color: #D8D2C8;
+  background: #F7F8FA;
+}
+
+.contract-chat-close-button:focus-visible {
+  outline: 2px solid #344054;
+  outline-offset: 2px;
+}
+
+.contract-chat-close-button img {
+  width: 14px;
+  height: 14px;
+}
+
+.contract-chat-members-line {
+  margin-top: 5px;
+  color: #6b6259;
+  font-size: 12px;
+  line-height: 1.4;
   overflow-wrap: anywhere;
+}
+
+.contract-chat-progress {
+  margin-top: 12px;
+}
+
+.contract-chat-progress-copy {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.contract-chat-progress-copy strong,
+.contract-chat-details-link {
+  font-size: 13px;
+}
+
+.contract-chat-progress-copy strong {
+  color: #51483f;
+  font-weight: 600;
+}
+
+.contract-chat-progress-track {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eee8df;
+}
+
+.contract-chat-progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #ff4d00;
+  transition: width 160ms ease;
+}
+
+.contract-chat-clause-alert {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  background: #FFF4E0;
+  color: #72521b;
+  font-size: 13px;
+}
+
+.contract-chat-alert-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: #C58A1D;
+}
+
+.contract-chat-alert-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contract-chat-alert-text strong {
+  color: #302a24;
+  font-weight: 600;
+}
+
+.contract-chat-clause-alert.is-passed {
+  background: transparent;
+  color: #087c72;
+}
+
+.contract-chat-clause-alert.is-passed > strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.contract-chat-details-link {
+  margin-left: auto;
+  color: #d94300;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.contract-chat-details-link:hover {
+  text-decoration: underline;
 }
 
 .contract-chat-messages {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 0.7rem;
+  gap: 0.9rem;
   min-height: 0;
   padding: 1rem;
   overflow-y: auto;
 }
 
+.contract-chat-day-group {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.7rem;
+}
+
+.contract-chat-day-group:first-child {
+  margin-top: auto;
+}
+
+.contract-chat-date-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #84796e;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.contract-chat-date-divider::before,
+.contract-chat-date-divider::after {
+  height: 1px;
+  flex: 1;
+  background: #e8dfd4;
+  content: '';
+}
+
+.contract-chat-message-group {
+  display: flex;
+  width: min(82%, 700px);
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.contract-chat-message-group.is-own {
+  margin-left: auto;
+  justify-content: flex-end;
+}
+
+.contract-chat-avatar {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: #e8dfd4;
+  color: #51483f;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.contract-chat-message-group-content {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.contract-chat-message-group.is-own .contract-chat-message-group-content {
+  align-items: flex-end;
+}
+
+.contract-chat-sender-label {
+  margin: 0 0 4px 2px;
+  color: #655b51;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.contract-chat-message-bubbles {
+  display: flex;
+  max-width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.contract-chat-message-group.is-own .contract-chat-message-bubbles {
+  align-items: flex-end;
+}
+
 .contract-chat-message {
-  align-self: flex-start;
-  max-width: min(78%, 620px);
-  padding: 0.7rem 0.85rem;
-  border: 1px solid #e3d8c9;
+  max-width: 100%;
+  padding: 0.65rem 0.8rem;
+  border: 0;
   border-radius: 12px 12px 12px 3px;
-  background: #fff;
-  color: #181818;
+  background: #f5f0e8;
+  color: #302a24;
   overflow-wrap: anywhere;
 }
 
-.contract-chat-message.is-own-message {
-  align-self: flex-end;
-  border-color: #181818;
+.contract-chat-message-group.is-own .contract-chat-message {
   border-radius: 12px 12px 3px 12px;
-  background: #181818;
-  color: #fff;
-}
-
-.contract-chat-message-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.55rem;
-  font-size: 0.7rem;
-}
-
-.contract-chat-message-meta time {
-  opacity: 0.7;
+  background: #fff0e8;
+  color: #3a251b;
 }
 
 .contract-chat-message p {
-  margin: 0.35rem 0 0;
-  font-size: 0.88rem;
+  margin: 0;
+  font-size: 14px;
   line-height: 1.45;
   white-space: pre-wrap;
+}
+
+.contract-chat-message-time {
+  margin-top: 3px;
+  color: #777;
+  font-size: 13px;
+}
+
+.contract-chat-timeline-event {
+  align-self: center;
+  max-width: 100%;
+  color: #777;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
 }
 
 .contract-chat-empty-thread {
@@ -272,9 +509,16 @@
   text-align: center;
 }
 
-.contract-chat-no-selection h3,
-.contract-chat-no-selection p {
+.contract-chat-no-selection h3 {
   margin: 0;
+  color: #181818;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.contract-chat-no-selection .contract-chat-title-row {
+  justify-content: center;
 }
 
 .contract-chat-no-selection p {
@@ -282,78 +526,101 @@
   font-size: 0.85rem;
 }
 
-.contract-chat-composer {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.85rem;
-  padding: 1rem 1.1rem;
+.contract-chat-composer-area {
   border-top: 1px solid #e4d9ca;
   background: #fff;
 }
 
-.contract-chat-composer .notification-error {
-  grid-column: 1 / -1;
-  margin: 0;
+.contract-chat-composer-area > *:not(form) {
+  margin: 8px 12px 0;
+}
+
+.contract-chat-composer {
+  display: flex;
+  align-items: flex-end;
+  padding: 12px;
+}
+
+.contract-chat-composer-field {
+  position: relative;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .contract-chat-composer textarea {
-  min-height: 3.2rem;
-  max-height: 8rem;
-  resize: vertical;
-  padding: 0.8rem 0.95rem;
-  border: 1px solid #d8c8b5;
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 56px;
+  max-height: 120px;
+  resize: none;
+  overflow-y: auto;
+  padding: 9px 52px 9px 12px;
+  border: 1px solid #D8D2C8;
   border-radius: 10px;
   font: inherit;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  line-height: 1.4;
+  outline: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
 .contract-chat-composer textarea:focus {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgb(255 153 0 / 16%);
+  border-color: #FF4D00;
+  box-shadow: 0 0 0 3px rgba(255, 77, 0, 0.12);
 }
 
-.contract-chat-composer button {
-  align-self: center;
-  display: flex;
-  width: 3.2rem;
-  min-width: 3.2rem;
-  height: 3.2rem;
-  align-items: center;
-  justify-content: center;
-  padding: 0.45rem;
-  border: 0;
-  border-radius: 10px;
-  background: var(--primary-color);
-  box-shadow: 0 2px 6px rgb(255 153 0 / 24%);
-  cursor: pointer;
-  transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+.contract-chat-composer .contract-chat-send-button {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: grid;
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid #E84B0B;
+  border-radius: 7px;
+  background: #E84B0B;
+  color: #fff;
+  opacity: 1;
 }
 
-.contract-chat-composer button:hover:not(:disabled) {
-  background: var(--secondary-color);
-  box-shadow: 0 3px 8px rgb(255 119 0 / 28%);
-  transform: translateY(-1px);
+.contract-chat-composer .contract-chat-send-button.has-text {
+  border-color: #E84B0B;
+  background: #E84B0B;
+  color: #fff;
 }
 
-.contract-chat-composer button:active:not(:disabled) {
-  transform: translateY(0);
+.contract-chat-composer .contract-chat-send-button.has-text:hover:not(:disabled) {
+  border-color: #D9430A;
+  background: #D9430A;
 }
 
-.contract-chat-composer button:focus-visible {
-  outline: 3px solid rgb(255 153 0 / 32%);
-  outline-offset: 2px;
+.contract-chat-composer .contract-chat-send-button:hover:not(:disabled) {
+  border-color: #D9430A;
+  background: #D9430A;
 }
 
-.contract-chat-composer button img {
-  width: 1.6rem;
-  height: 1.6rem;
-  object-fit: contain;
+.contract-chat-send-button svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.5;
 }
 
-.contract-chat-composer button:disabled {
-  background: #f4c77b;
-  box-shadow: none;
+.contract-chat-composer .contract-chat-send-button:disabled:not(.has-text) {
+  border-color: #EAECF0;
+  background: #F2F4F7;
+  color: #98A2B3;
+  opacity: 1;
   cursor: not-allowed;
+}
+
+.contract-chat-composer .contract-chat-send-button:focus-visible {
+  outline: 2px solid #344054;
+  outline-offset: 2px;
 }
 
 @media (max-width: 600px) {
@@ -386,15 +653,11 @@
   }
 
   .contract-chat-list-item {
-    padding-right: 0.5rem;
+    padding-right: 0.55rem;
     padding-left: 0.7rem;
   }
 
-  .contract-chat-list-item-preview {
-    display: none;
-  }
-
-  .contract-chat-message {
+  .contract-chat-message-group {
     max-width: 92%;
   }
 
@@ -402,4 +665,5 @@
   .contract-chat-messages {
     padding: 0.75rem;
   }
+
 }

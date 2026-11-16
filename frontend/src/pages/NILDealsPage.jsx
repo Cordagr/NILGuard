@@ -1,6 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import logo from '../assets/NILGUARD.png';
+import {
+  educationStorageKey,
+  getStudentEducationCourseProgress,
+  saveStudentEducationProgress
+} from '../services/educationApi';
 import '../styles/pages/NILDeals.css';
 
 const lessons = [
@@ -216,9 +222,13 @@ const lessons = [
 
 function NILDealsPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const progressStorageKey = user?.id
+    ? educationStorageKey(user.id, 'nilDealsProgress')
+    : null;
 
   const [currentLesson, setCurrentLesson] = useState(() => {
-    const savedProgress = localStorage.getItem('nilDealsProgress');
+    const savedProgress = progressStorageKey ? localStorage.getItem(progressStorageKey) : null;
 
     if (savedProgress) {
       try {
@@ -233,7 +243,7 @@ function NILDealsPage() {
   });
 
   const [completedLessons, setCompletedLessons] = useState(() => {
-    const savedProgress = localStorage.getItem('nilDealsProgress');
+    const savedProgress = progressStorageKey ? localStorage.getItem(progressStorageKey) : null;
 
     if (savedProgress) {
       try {
@@ -246,6 +256,39 @@ function NILDealsPage() {
 
     return [];
   });
+  const [isProgressLoaded, setIsProgressLoaded] = useState(false);
+  const [canSyncProgress, setCanSyncProgress] = useState(false);
+
+  useEffect(() => {
+    if (!user?.id) {
+      return;
+    }
+
+    let isActive = true;
+    getStudentEducationCourseProgress(user.id, 'nilDeals')
+      .then((progress) => {
+        if (!isActive) {
+          return;
+        }
+        setCurrentLesson(progress.currentLesson);
+        setCompletedLessons(progress.completedLessons);
+        setCanSyncProgress(true);
+        setIsProgressLoaded(true);
+      })
+      .catch((error) => {
+        console.error('Unable to load NIL Deals progress:', error);
+        window.dispatchEvent(new CustomEvent('nilguard:education-sync-error', {
+          detail: { message: error.message || 'Unable to load NIL Deals progress.' }
+        }));
+        if (isActive) {
+          setIsProgressLoaded(true);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     const progress = {
@@ -253,11 +296,19 @@ function NILDealsPage() {
       completedLessons,
     };
 
-    localStorage.setItem(
-      'nilDealsProgress',
-      JSON.stringify(progress)
-    );
-  }, [currentLesson, completedLessons]);
+    if (!progressStorageKey) {
+      return;
+    }
+
+    localStorage.setItem(progressStorageKey, JSON.stringify(progress));
+    if (!isProgressLoaded || !canSyncProgress) {
+      return;
+    }
+
+    saveStudentEducationProgress('nilDeals', progress).catch((error) => {
+      console.error('Unable to sync NIL Deals progress:', error);
+    });
+  }, [currentLesson, completedLessons, progressStorageKey, isProgressLoaded, canSyncProgress]);
 
   const markLessonCompleted = (lessonIndex) => {
     setCompletedLessons((previous) => {

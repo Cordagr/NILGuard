@@ -1,6 +1,8 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { persistEducationQuizResult } from '../services/educationApi';
 import '../styles/pages/MoneyBasicsQuiz.css';
 
 const questions = [
@@ -63,6 +65,7 @@ const questions = [
 
 function MoneyBasicsQuizPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
@@ -103,10 +106,14 @@ function MoneyBasicsQuizPage() {
       completedAt: new Date().toISOString()
     };
 
-    localStorage.setItem(
+    persistEducationQuizResult(
+      user?.id,
+      'moneyBasics',
       'moneyBasicsQuizResult',
-      JSON.stringify(quizResult)
-    );
+      quizResult
+    ).catch((error) => {
+      console.error('Unable to sync Money Basics assessment:', error);
+    });
 
     return {
       percentage,
@@ -175,7 +182,8 @@ function MoneyBasicsQuizPage() {
      * continue showing the old result while the student is
      * taking the assessment again.
      */
-    localStorage.removeItem('moneyBasicsQuizResult');
+    persistEducationQuizResult(user?.id, 'moneyBasics', 'moneyBasicsQuizResult', null)
+      .catch((error) => console.error('Unable to reset Money Basics assessment:', error));
 
     setCurrentQuestion(0);
     setSelectedAnswer(null);

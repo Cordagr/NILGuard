@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { ToastMessage } from '../components/ui/toast';
 import '../styles/pages/Login.css';
 import logo from '../assets/NILGUARD.png';
 import { getDashboardRouteForRole, getNormalizedRole, ROLE_LABELS } from '../utils/roleRouting';
-import { loginUser } from '../services/authApi';
+import { loginUser, resendEmailVerification } from '../services/authApi';
 import { useAuth } from '../context/AuthContext';
 
 function LoginPage() {
@@ -14,6 +15,8 @@ function LoginPage() {
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [verificationMessage, setVerificationMessage] = useState('');
+  const [isResendingVerification, setIsResendingVerification] = useState(false);
 
   const [selectedRole, setSelectedRole] = useState(
     () => getNormalizedRole(searchParams.get('role'))
@@ -36,8 +39,22 @@ function LoginPage() {
       navigate(getDashboardRouteForRole(response.user.role));
     } catch (error) {
       setErrorMessage(error.message || 'Login failed. Please try again.');
+      setVerificationMessage(error.message?.includes('Verify your email address') ? 'Your account needs email verification.' : '');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    setIsResendingVerification(true);
+    setVerificationMessage('');
+    try {
+      const response = await resendEmailVerification(email);
+      setVerificationMessage(response.message);
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to send a verification email.');
+    } finally {
+      setIsResendingVerification(false);
     }
   };
 
@@ -103,10 +120,21 @@ function LoginPage() {
           </div>
 
           {errorMessage && (
-            <p className="login-error" role="alert">
-              {errorMessage}
-            </p>
+            <ToastMessage message={errorMessage} variant="error" title="Sign in failed" />
           )}
+          {verificationMessage ? (
+            <div className="login-verification-prompt">
+              <p>{verificationMessage}</p>
+              <button
+                type="button"
+                className="btn btn-secondary btn-block"
+                onClick={handleResendVerification}
+                disabled={isResendingVerification}
+              >
+                {isResendingVerification ? 'Sending...' : 'Resend verification email'}
+              </button>
+            </div>
+          ) : null}
 
           <button type="submit" className="btn btn-primary btn-block btn-lg">
             {isSubmitting ? 'Signing in...' : 'Submit'}

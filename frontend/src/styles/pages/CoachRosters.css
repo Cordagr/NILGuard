@@ -1,544 +1,893 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 .coach-page {
   min-height: 100vh;
-  padding: 0 32px 40px;
-  background: #F5F0E8;
-  color: #181818;
-  font-family: 'Inter', sans-serif;
+  background: #f4efe8;
+  color: #0f172a;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
-/* ── Header ── */
-.coach-header {
+.coach-shell {
+  display: grid;
+  min-height: 100vh;
+  grid-template-columns: 232px minmax(0, 1fr);
+}
+
+.coach-sidebar {
+  position: sticky;
+  top: 0;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 0.75rem 1.25rem;
-  background: transparent;
-  border-bottom: none;
-  box-shadow: none;
+  height: 100vh;
+  flex-direction: column;
+  padding: 14px 14px 16px;
+  border-right: 1px solid #e5e0d8;
+  background: #fff;
+}
+
+.coach-brand {
+  display: flex;
+  min-height: 84px;
+  align-items: center;
+  padding: 0 2px;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.coach-brand:hover {
+  color: #0f172a;
+  text-decoration: none;
+}
+
+.coach-brand img {
+  display: block;
+  width: 204px;
+  height: 86px;
+  object-fit: cover;
+  object-position: center 50%;
+}
+
+.coach-sidebar-nav {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+}
+
+.coach-sidebar-nav a {
+  padding: 9px 10px;
+  border-left: 3px solid transparent;
+  border-radius: 4px;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.coach-sidebar-nav a:hover,
+.coach-sidebar-nav a[aria-current='page'] {
+  border-left-color: #ff4d00;
+  background: #f4efe8;
+  color: #0f172a;
+  text-decoration: none;
+}
+
+.coach-sidebar-account {
+  display: grid;
+  gap: 3px;
+  margin-top: auto;
+  padding: 16px 8px 0;
+  border-top: 1px solid #e5e0d8;
+}
+
+.coach-account-school {
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.coach-account-profile {
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.coach-account-profile:hover {
+  color: #ff4d00;
+  text-decoration: underline;
+}
+
+.coach-account-email {
+  overflow: hidden;
+  color: #475569;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.coach-text-button {
+  justify-self: start;
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.coach-text-button:hover {
+  background: none;
+  color: #0f172a;
+  text-decoration: underline;
+}
+
+.coach-workspace {
+  min-width: 0;
+  background: #f4efe8;
+}
+
+.coach-workspace-header {
   position: relative;
-  z-index: 10;
-  overflow: visible;
+  height: 100px;
+  min-height: 100px;
+  overflow: hidden;
+  background: #b49b7d;
+}
+
+.coach-banner-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: right center;
+  image-rendering: pixelated;
+}
+
+.coach-banner-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  flex-direction: column;
+  justify-content: center;
+  margin: 0;
+  padding: 8px 40px 0;
+}
+
+.coach-eyebrow {
+  margin: 0 0 1px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.coach-workspace-header h1 {
+  margin: 0;
+  color: #fff;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  text-shadow: 0 1px 4px rgba(15, 23, 42, 0.9);
+  text-transform: none;
+}
+
+.coach-header-context {
+  margin: 1px 0 0;
+  color: #fff;
+  font-size: 13px;
+  text-shadow: 0 1px 3px rgba(15, 23, 42, 0.9);
+}
+
+.coach-content {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0 40px 56px;
+}
+
+.coach-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  padding: 22px 0 0;
+}
+
+.coach-stat-tile {
+  display: flex;
+  box-sizing: border-box;
+  height: 84px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 18px;
+  border: 1px solid #e5e0d8;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.coach-stat-icon {
+  display: grid;
+  box-sizing: border-box;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  place-items: center;
+  border-radius: 12px;
+  background: #ff4d00;
+  color: #fff;
+}
+
+.coach-stat-icon svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2px;
+}
+
+.coach-stat-tile strong {
+  color: #0f172a;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.coach-stat-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.coach-stat-label {
+  color: #5b6475;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.coach-section {
+  margin-top: 18px;
+  padding: 24px;
+  border: 1px solid #e5e0d8;
+  border-radius: 12px;
+  background: #fff;
+  scroll-margin-top: 20px;
+}
+
+.coach-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.coach-section-heading h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  text-transform: none;
+}
+
+.coach-section-heading p {
+  margin: 3px 0 0;
+  color: #475569;
+  font-size: 13px;
+}
+
+.coach-upload-section {
+  padding-top: 24px;
+}
+
+.coach-upload-section .coach-section-heading {
+  align-items: center;
   margin-bottom: 0;
 }
 
-.coach-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding-top: 0.5rem;
-}
-
-/* ── Logo ── */
-.coach-logo-wrap {
-  display: flex;
-  align-items: flex-start;
-  overflow: visible;
-}
-
-.coach-logo {
-  height: 112px;
-  width: auto;
-  margin: 0;
-  position: relative;
-  z-index: 5;
-}
-
-/* ── Title block (center of header) ── */
-.coach-header-title-block {
-  text-align: center;
-  flex: 1;
-}
-
-.coach-header-title {
-  font-family: 'Inter', Arial, sans-serif;
-  font-size: clamp(2rem, 5vw, 3.8rem);
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  color: #181818;
-  margin: 0;
-  line-height: 1;
-}
-
-.coach-header-identity {
-  font-family: 'Inter', sans-serif;
-  font-size: 0.78rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: #FF4D00;
-  margin: 0.3rem 0 0 0;
-}
-
-/* ── Assigned school block ── */
-.coach-assigned-school {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-  color: #FF4D00;
-}
-
-.coach-assigned-school strong {
-  font-size: 0.78rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: #FF4D00;
-  margin: 0.3rem 0 0 0;
-}
-
-/* ── Logout button ── */
-.coach-logout-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 120px;
-  height: 44px;
-  border-radius: 2em;
-  border: none;
-  background: #FF4D00;
-  color: #fff;
-  font-family: 'Inter', Arial, sans-serif;
-  font-size: 1rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  cursor: pointer;
-  transition: background 0.18s;
-}
-
-.coach-logout-link:hover {
-  background: #181818;
-}
-
-/* ── Main layout ── */
-.coach-layout {
-  display: grid;
-  grid-template-columns: 1.1fr 1fr;
-  gap: 26px;
-  padding-top: 1rem;
-}
-
-.coach-panel {
-  background: #ffffff;
-  border-radius: 18px;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.05);
-  padding: 24px;
-}
-
-.coach-left-column {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+.coach-upload-note {
+  margin: 14px 0 0;
+  color: #475569;
+  font-size: 13px;
 }
 
 .roster-upload-input {
-  display: none;
-}
-
-/* ── Upload button ── */
-.upload-roster-btn {
-  width: 100%;
-  max-width: 320px;
-  height: 56px;
-  border-radius: 2em;
-  border: none;
-  background: #FF4D00;
-  color: #fff;
-  font-family: 'Inter', Arial, sans-serif;
-  font-size: 1.15rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  line-height: 1;
-  cursor: pointer;
-  margin-top: 8px;
-  transition: background 0.18s, transform 0.14s, box-shadow 0.18s;
-  box-shadow: 0 4px 20px rgba(255,77,0,0.25);
-}
-
-.upload-roster-btn:hover:not(:disabled) {
-  background: #181818;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 28px rgba(24,24,24,0.2);
-}
-
-.upload-roster-btn:disabled {
-  cursor: wait;
-  opacity: 0.75;
-}
-
-.coach-panel h2 {
-  margin: 0;
-  font-size: 34px;
-  color: #0f172a;
-}
-
-.coach-panel-subtext {
-  margin: 10px 0 0;
-  font-size: 18px;
-  line-height: 1.45;
-  color: #4b5563;
-}
-
-.coach-assignment-note {
-  margin: 12px 0 0;
-  font-size: 14px;
-  line-height: 1.45;
-  color: #1e3a8a;
-}
-
-.roster-feedback {
-  margin: 14px 0 0;
-  font-size: 14px;
-  line-height: 1.45;
-  color: #4b5563;
-}
-
-.roster-error {
-  color: #b91c1c;
-}
-
-.roster-success {
-  color: #166534;
-}
-
-/* ── Sample CSV card ── */
-.sample-csv-card {
-  width: 100%;
-  margin-top: 18px;
-  border: 1px solid #d1d5db;
-  border-radius: 12px;
+  position: absolute;
+  width: 1px;
+  height: 1px;
   overflow: hidden;
-  background: #ffffff;
-  min-height: 330px;
+  opacity: 0;
+  pointer-events: none;
 }
 
-.sample-csv-head {
-  padding: 16px 18px;
-  font-size: 22px;
-  font-weight: 700;
-  color: #111827;
-  background: #ffffff;
-  border-bottom: 1px solid #d1d5db;
+.roster-upload-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
 }
 
-.sample-csv-row {
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 19px;
-  color: #374151;
-  line-height: 1.4;
-  padding: 14px 18px;
-  border-bottom: 1px solid #e5e7eb;
+.roster-upload-controls .roster-drop-zone {
+  display: flex;
+  min-width: 0;
+  min-height: 44px;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 7px 12px;
+  border: 1px dashed #ff4d00;
+  border-radius: 8px;
+  background: #fff0e8;
+  color: #0f172a;
+  cursor: pointer;
+  text-align: left;
+  white-space: normal;
+  transition: background-color 120ms ease, border-color 120ms ease;
 }
 
-.sample-csv-row:last-child {
-  border-bottom: none;
+.roster-upload-controls .roster-drop-zone:hover:not(:disabled),
+.roster-upload-controls .roster-drop-zone.is-drag-over {
+  border-color: #e8431a;
+  background: #ffe6d9;
+}
+
+.roster-upload-controls .roster-drop-zone[aria-disabled='true'] {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.roster-upload-controls .roster-drop-zone:focus-visible {
+  outline: 2px solid #2447c8;
+  outline-offset: 2px;
+}
+
+.roster-upload-controls .roster-drop-zone > svg {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  fill: none;
+  stroke: #ff4d00;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.roster-upload-controls .roster-drop-zone > span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.roster-upload-controls .roster-drop-zone strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roster-upload-controls .roster-drop-zone small {
+  color: #475569;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 .sample-csv-links {
   display: flex;
-  gap: 14px;
   flex-wrap: wrap;
-  margin-top: 14px;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 12px;
+  color: #475569;
+  font-size: 13px;
 }
 
 .interactive-link {
-  color: #1d4ed8;
+  color: #2447c8;
+  font-size: 13px;
+  font-weight: 500;
   text-decoration: none;
-  font-weight: 600;
-  border-bottom: 2px solid transparent;
-  transition: border-color 150ms ease, color 150ms ease;
-  cursor: pointer;
 }
 
 .interactive-link:hover {
-  border-bottom-color: #1d4ed8;
-  color: #1e40af;
+  color: #1d379d;
+  text-decoration: underline;
 }
 
-/* ── Old Roster list (Kept for fallback/other pages) ── */
-.roster-list-card {
-  margin-top: 18px;
-  width: 100%;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  overflow: hidden;
-  background: #ffffff;
-}
-
-.roster-list-header,
-.roster-item {
-  display: grid;
-  grid-template-columns: minmax(180px, 1.5fr) minmax(70px, 0.6fr) minmax(120px, 1fr) minmax(70px, 0.5fr) minmax(160px, 1fr);
-  gap: 12px;
-  padding: 12px 14px;
-  align-items: center;
-}
-
-.roster-list-header {
-  background: #f3f4f6;
-  color: #111827;
-  font-size: 14px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-}
-
-.roster-item {
-  border-top: 1px solid #e5e7eb;
-  color: #374151;
-  font-size: 15px;
-}
-
-.roster-school {
-  font-weight: 600;
-  color: #1d4ed8;
-}
-
-.roster-file-name {
-  margin-top: 4px;
-  font-size: 12px;
-  color: #374151;
-  word-break: break-word;
-}
-
-.roster-sport {
-  color: #0f172a;
-}
-
-.roster-updated {
-  margin-top: 4px;
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.roster-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-start;
-  flex-wrap: wrap;
-}
-
-.roster-action-button {
-  min-width: 74px;
-  padding: 8px 12px;
-  border: 1px solid #cbd5e1;
-  border-radius: 999px;
-  background: #ffffff;
-  color: #0f172a;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.roster-open-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-
-.roster-open-lock {
-  display: inline-flex;
-  width: 14px;
-  max-width: 0;
-  opacity: 0;
-  overflow: hidden;
-  color: #475569;
-  transform: translateX(-4px) scale(0.7);
-  visibility: hidden;
-  transition: max-width 150ms ease, opacity 150ms ease, transform 150ms ease, visibility 150ms ease;
-}
-
-.roster-open-lock svg {
-  width: 14px;
-  height: 14px;
-  flex: 0 0 14px;
-}
-
-.roster-open-button:hover .roster-open-lock,
-.roster-open-button:focus-visible .roster-open-lock {
-  max-width: 14px;
-  opacity: 1;
-  transform: translateX(0) scale(1);
-  visibility: visible;
-}
-
-.roster-action-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.roster-delete-button {
-  border-color: #fecaca;
-  color: #b91c1c;
-}
-
-.roster-empty-state {
-  padding: 18px 14px;
-  border-top: 1px solid #e5e7eb;
-  color: #6b7280;
-}
-
-/* ── Assigned Teams Layout (New Right Column) ── */
-.assigned-teams-wrapper {
-  margin-top: 18px;
-}
-
-.team-group {
-  margin-bottom: 36px;
-}
-
-.team-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  border-bottom: 2px solid #e5e7eb;
-  padding-bottom: 8px;
-  margin-bottom: 12px;
-}
-
-.team-header h3 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 800;
-  color: #111827;
-}
-
-.team-count {
-  font-size: 13px;
-  color: #6b7280;
-}
-
-.team-table-container {
-  border: 1px solid #e5e7eb;
+.roster-upload-controls .upload-roster-btn {
+  align-self: center;
+  min-height: 40px;
+  min-width: 132px;
+  height: 40px;
+  padding: 8px 18px;
   border-radius: 8px;
-  overflow: hidden;
-  background-color: #fdfcfb;
-}
-
-.team-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-}
-
-.team-table thead {
-  background-color: #f4f1eb;
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.team-table th {
-  padding: 14px 16px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.team-table tbody tr {
-  border-top: 1px solid #e5e7eb;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-
-.team-table tbody tr:hover {
-  background-color: #f5f0e8;
-}
-
-.team-table td {
-  padding: 14px 16px;
-  color: #4b5563;
+  color: #fff;
   font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 2px 0 #b83700;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, transform 80ms ease, box-shadow 80ms ease;
 }
 
-.team-player-name {
-  color: #111827 !important;
+.roster-upload-controls .upload-roster-btn:hover:not(:disabled) {
+  border-color: #ff6120;
+  background: #ff6120;
+  color: #fff;
+}
+
+.roster-upload-controls .upload-roster-btn:active:not(:disabled) {
+  box-shadow: 0 0 0 #b83700;
+  transform: translateY(2px);
+}
+
+.roster-upload-controls .upload-roster-btn:focus-visible {
+  outline: 2px solid #2447c8;
+  outline-offset: 3px;
+}
+
+.roster-upload-controls .upload-roster-btn:disabled:not(.is-uploading) {
+  border-color: #e5e0d8;
+  background: #f3f4f6;
+  color: #64748b;
+  cursor: not-allowed;
+  opacity: 1;
+  box-shadow: 0 2px 0 #e5e0d8;
+}
+
+.roster-upload-controls .upload-roster-btn.is-uploading:disabled {
+  border-color: #ff4d00;
+  background: #ff4d00;
+  color: #fff;
+  cursor: progress;
+  opacity: 1;
+}
+
+.upload-roster-icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.upload-spinner {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  color: currentColor;
+  animation: roster-upload-spin 700ms linear infinite;
+}
+
+@keyframes roster-upload-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.coach-sidebar-account .coach-text-button {
+  min-height: auto;
+  justify-self: start;
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #334155;
+  font-size: 14px;
   font-weight: 500;
 }
 
+.coach-sidebar-account .coach-text-button:hover:not(:disabled) {
+  background: transparent;
+  color: #0f172a;
+  text-decoration: underline;
+}
 
-/* ── Responsive ── */
-@media (max-width: 900px) {
-  .coach-page {
-    padding: 0 16px 30px;
-  }
+.coach-sidebar-nav a:focus-visible,
+.interactive-link:focus-visible {
+  outline: 2px solid #2447c8;
+  outline-offset: 2px;
+}
 
-  .coach-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
+.athlete-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(0, 2fr);
+  align-items: end;
+  gap: 16px;
+  margin-bottom: 16px;
+}
 
-  .coach-header-actions {
-    width: 100%;
-    justify-content: space-between;
-  }
+.athlete-search-label,
+.athlete-filter-grid label,
+.roster-player-form label {
+  display: grid;
+  gap: 5px;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 500;
+}
 
-  .coach-assigned-school {
-    align-items: flex-start;
-  }
+.athlete-search-input,
+.athlete-filter-grid select,
+.roster-player-form input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 13px;
+}
 
-  .coach-logo {
-    height: 78px;
-    margin: 0;
-  }
+.athlete-search-input:focus,
+.athlete-filter-grid select:focus,
+.roster-player-form input:focus {
+  border-color: #2447c8;
+  outline: 2px solid rgba(36, 71, 200, 0.18);
+}
 
-  .coach-layout {
-    grid-template-columns: 1fr;
-    gap: 18px;
-  }
+.athlete-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(100px, 1fr)) auto;
+  align-items: end;
+  gap: 10px;
+}
 
-  .coach-panel h2 {
-    font-size: 28px;
-  }
+.athlete-filter-reset {
+  min-width: 68px;
+}
 
-  .coach-panel-subtext {
-    font-size: 16px;
-  }
+.coach-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
 
-  .sample-csv-head {
-    font-size: 18px;
-    padding: 12px 14px;
-  }
+.coach-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  color: #0f172a;
+  text-align: left;
+}
 
-  .sample-csv-row {
-    font-size: 14px;
-    padding: 10px 12px;
-  }
+.athlete-directory-table {
+  min-width: 610px;
+}
 
-  .roster-list-header,
-  .roster-item {
-    grid-template-columns: minmax(120px, 1.4fr) minmax(60px, 0.7fr) minmax(90px, 1fr) minmax(55px, 0.5fr) minmax(120px, 1fr);
-    gap: 8px;
-    font-size: 13px;
-  }
-  .team-table-container {
-    overflow-x: auto;
-  }
+.roster-table {
+  min-width: 760px;
+}
+
+.coach-data-table thead {
+  border-bottom: 1px solid #e5e0d8;
+}
+
+.coach-data-table th {
+  padding: 10px 12px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.coach-data-table td {
+  padding: 13px 12px;
+  border-bottom: 0;
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.coach-data-table tbody tr:not(.roster-expanded-row) {
+  border-bottom: 1px solid #e5e0d8;
+}
+
+.coach-data-table tbody tr:not(.roster-expanded-row):hover {
+  background: #f4efe8;
+}
+
+.coach-data-table tbody tr.roster-table-row.is-expanded,
+.coach-data-table tbody tr.roster-table-row.is-expanded:hover {
+  background: #fff4ec;
+}
+
+.coach-data-table tbody tr.roster-table-row.is-expanded > td:first-child {
+  border-left: 3px solid #ff4d00;
+}
+
+.coach-table-primary {
+  display: block;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.roster-file-name {
+  display: block;
+  margin-top: 2px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+button.roster-sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  text-transform: inherit;
+}
+
+button.roster-sort-button:hover:not(:disabled) {
+  background: transparent;
+  color: #0f172a;
+}
+
+.roster-sort-button span {
+  color: #475569;
+  font-size: 13px;
+}
+
+.coach-sport-tag,
+.coach-status-pill {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.coach-sport-tag {
+  background: #e6faf7;
+  color: #0f766e;
+}
+
+.coach-status-pill.is-shared {
+  background: #d7f7f1;
+  color: #0f766e;
+}
+
+.coach-status-pill.is-not-shared {
+  background: #eef0f3;
+  color: #475569;
+}
+
+.coach-status-pill.is-linked {
+  background: #d7f7f1;
+  color: #0f766e;
+}
+
+.coach-status-pill.is-invited {
+  background: #fff1dc;
+  color: #9a5b00;
+}
+
+.coach-status-pill.is-no-account {
+  background: #eef0f3;
+  color: #475569;
+}
+
+.coach-status-pill.is-needs-review {
+  background: #fff0ed;
+  color: #b93815;
+}
+
+.coach-status-pill.is-edited {
+  margin-top: 0;
+  margin-left: 8px;
+  background: #e8eefb;
+  color: #2447c8;
+}
+
+.coach-delete-action,
+.coach-delete-button {
+  color: #e8431a !important;
+}
+
+.coach-delete-action:hover:not(:disabled),
+.coach-delete-button:hover:not(:disabled) {
+  border-color: #f5b7a9;
+  background: #fff4f0;
+  color: #c93816 !important;
+}
+
+.coach-table-message {
+  padding: 28px 12px !important;
+  color: #475569 !important;
+  text-align: center;
+}
+
+.coach-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.roster-menu-cell {
+  width: 48px;
+  text-align: right;
+}
+
+.roster-row-menu {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+}
+
+button.roster-row-menu-trigger {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #334155;
+}
+
+button.roster-row-menu-trigger:hover:not(:disabled),
+button.roster-row-menu-trigger[aria-expanded='true'] {
+  border-color: #e5e0d8;
+  background: #f4efe8;
+  color: #0f172a;
+}
+
+.roster-row-menu-trigger svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.roster-row-menu-list {
+  position: fixed;
+  z-index: 1000;
+  box-sizing: border-box;
+  width: 200px;
+  min-width: 200px;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid #e5e0d8;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
+}
+
+.roster-row-menu-list .roster-menu-item {
+  display: flex;
+  width: 100%;
+  height: 34px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: left;
+  white-space: normal;
+  cursor: pointer;
+}
+
+.roster-row-menu-list .roster-menu-item svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+
+.roster-row-menu-list .roster-menu-item:hover:not(:disabled),
+.roster-row-menu-list .roster-menu-item:focus-visible:not(:disabled) {
+  background: #f4efe8;
+  color: #0f172a;
+}
+
+.roster-row-menu-list .roster-menu-item:focus-visible {
+  outline: 2px solid #2447c8;
+  outline-offset: -2px;
+}
+
+.roster-row-menu-list .roster-menu-item:disabled {
+  cursor: not-allowed;
+  color: #94a3b8;
+}
+
+.roster-row-menu-list .roster-menu-item.is-destructive {
+  color: #e8431a;
+}
+
+.roster-row-menu-list .roster-menu-item.is-destructive:hover:not(:disabled),
+.roster-row-menu-list .roster-menu-item.is-destructive:focus-visible:not(:disabled) {
+  background: #fff4f0;
+  color: #e8431a;
+}
+
+.roster-menu-divider {
+  height: 1px;
+  margin: 4px 6px;
+  background: #e5e0d8;
+}
+
+.roster-expanded-row > td {
+  padding: 12px 16px;
+  background: #fff;
 }
 
 .roster-players-panel {
   padding: 16px;
-  border-top: 1px solid #e5e7eb;
-  background: #fafafa;
+  border: 1px solid #e5e0d8;
+  border-radius: 10px;
+  background: #faf7f2;
 }
 
-.roster-players-panel h3 {
-  margin: 0 0 12px;
-  font-size: 18px;
-  color: #111827;
+.roster-expanded-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
-.roster-players-panel p {
+.roster-expanded-heading h3 {
   margin: 0;
-  color: #6b7280;
-  font-size: 14px;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 600;
+  text-transform: none;
+}
+
+.roster-detail-empty {
+  margin: 0;
+  color: #475569;
+  font-size: 13px;
 }
 
 .roster-players-list {
@@ -547,71 +896,699 @@
 }
 
 .roster-player {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 10px 12px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
+  gap: 10px 18px;
+  padding: 14px;
+  border: 1px solid #e5e0d8;
   border-radius: 8px;
-  color: #181818;
+  background: #fff;
+  color: #0f172a;
+  transition: opacity 120ms ease;
+}
+
+.roster-player.is-editing {
+  min-height: 0;
+  padding: 8px 16px;
+  border-left: 3px solid #ff4d00;
+}
+
+.roster-player.is-dimmed {
+  opacity: 0.75;
+}
+
+.roster-player-details {
+  display: grid;
+  gap: 2px;
 }
 
 .roster-player-id {
-  font-size: 12px;
-  color: #6b7280;
-}
-/* Athlete-first directory */
-.athlete-search-label {
-  display: block;
-  margin-top: 18px;
-  font-weight: 700;
-  color: #374151;
-}
-
-.athlete-search-input {
-  box-sizing: border-box;
-  width: 100%;
-  margin: 8px 0 16px;
-  padding: 12px 14px;
-  border: 1px solid #d1d5db;
-  border-radius: 10px;
-  font: inherit;
-}
-
-.athlete-directory-list {
-  display: grid;
-  gap: 10px;
-  max-height: 520px;
-  overflow-y: auto;
-}
-
-.athlete-directory-card {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  background: #fff;
-}
-
-.athlete-directory-identity h3 {
-  margin: 0 0 5px;
-  color: #111827;
-  font-size: 17px;
-}
-
-.athlete-directory-details {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  color: #4b5563;
+  color: #475569;
   font-size: 13px;
 }
 
-.athlete-rosters-heading {
-  margin-top: 28px !important;
+.roster-player-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.roster-player-edit-form {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0 18px;
+}
+
+.roster-player-edit-fields {
+  display: grid;
+  grid-column: 1;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 90px minmax(0, 0.8fr) minmax(0, 0.7fr) minmax(0, 1.3fr);
+  min-width: 0;
+  align-items: end;
+  gap: 8px;
+}
+
+.roster-player-edit-field {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  color: #8a8378;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.roster-player-edit-field input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 2px 3px 1px;
+  border: 0;
+  border-bottom: 1px solid #cfc7ba;
+  border-radius: 0;
+  background: transparent;
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.2;
+  text-transform: none;
+}
+
+.roster-player-edit-field input:hover:not(:focus) {
+  background: #faf7f2;
+}
+
+.roster-player-edit-field input:focus {
+  border-bottom-color: transparent;
+  background: #fff8f3;
+  box-shadow: inset 0 -2px 0 #ff4d00;
+  outline: none;
+}
+
+.roster-player-field-error {
+  color: #e8431a;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.roster-player-edit-actions {
+  display: flex;
+  grid-column: 2;
+  align-items: flex-end;
+  align-self: end;
+  justify-self: end;
+  gap: 8px;
+}
+
+.roster-player-education {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #e5e0d8;
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.roster-player-education.is-hidden-for-edit {
+  display: none;
+}
+
+.roster-invite-button {
+  justify-self: start;
+}
+
+.roster-share-prompt {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e5e0d8;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.roster-share-prompt-content {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.roster-share-prompt-title {
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.roster-share-prompt-description {
+  color: #6b6258;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.roster-share-prompt .roster-invite-button {
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.roster-player-education strong {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.roster-education-courses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 16px;
+  color: #475569;
+  font-size: 13px;
+}
+
+.roster-player-profile-shares {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  gap: 6px 12px;
+  color: #475569;
+  font-size: 13px;
+}
+
+.roster-player-email {
+  color: #475569;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.roster-csv-warnings {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0 0;
+  padding-left: 20px;
+  color: #9a5b00;
+  font-size: 13px;
+}
+
+.roster-education-invite {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  color: #475569;
+  font-size: 13px;
+}
+
+.roster-education-invite-expiry {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #6b6258;
+  font-size: 13px;
+}
+
+.roster-education-invite-expiry svg {
+  width: 14px;
+  height: 14px;
+}
+
+.roster-education-invite-expiry.is-warning {
+  color: #ff4d00;
+}
+
+.roster-education-invite-expiry.is-critical {
+  color: #e8431a;
+}
+
+.roster-education-invite-expiry.is-expired {
+  color: #8a8378;
+  font-weight: 600;
+}
+
+.roster-education-invite-codebox {
+  display: inline-flex;
+  width: max-content;
+  max-width: none;
+  min-width: max-content;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border: 0;
+  border-radius: 6px;
+  background: #f4efe8;
+  color: #0f172a;
+}
+
+.roster-education-invite-codebox.is-expired {
+  color: #94a3b8;
+}
+
+.roster-education-invite-code {
+  display: block;
+  flex: 0 0 auto;
+  min-width: max-content;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #0f172a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 15px;
+  font-variant-numeric: slashed-zero;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: pre;
+}
+
+.roster-invite-copy-button svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+
+.roster-education-invite-codebox.is-expired .roster-invite-copy-button {
+  color: #94a3b8;
+}
+
+.roster-education-invite-meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.roster-education-invite-meta-separator {
+  color: #8a8378;
+  font-size: 12px;
+}
+
+.roster-player-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 12px 0 16px;
+  padding: 14px;
+  border: 1px solid #e5e0d8;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.roster-player-form-actions {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+}
+
+@media (max-width: 1000px) {
+  .coach-shell {
+    grid-template-columns: 200px minmax(0, 1fr);
+  }
+
+  .coach-content {
+    padding-right: 24px;
+    padding-left: 24px;
+  }
+
+  .coach-banner-content {
+    padding-right: 24px;
+    padding-left: 24px;
+  }
+
+  .athlete-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .coach-shell {
+    display: block;
+  }
+
+  .coach-sidebar {
+    position: static;
+    height: auto;
+    padding: 10px 16px;
+    border-right: 0;
+    border-bottom: 1px solid #e5e0d8;
+  }
+
+  .coach-brand {
+    min-height: 74px;
+  }
+
+  .coach-brand img {
+    width: 184px;
+    height: 70px;
+  }
+
+  .coach-sidebar-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    margin-top: 8px;
+  }
+
+  .coach-sidebar-nav a {
+    padding: 7px 9px;
+    font-size: 13px;
+  }
+
+  .coach-sidebar-account {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+    padding: 8px 8px 0;
+  }
+
+  .coach-account-email {
+    display: none;
+  }
+
+  .coach-text-button {
+    margin: 0 0 0 auto;
+  }
+
+  .coach-sidebar-account .coach-text-button {
+    margin: 0 0 0 auto;
+  }
+
+  .coach-workspace-header {
+    height: 100px;
+    min-height: 100px;
+    padding: 0;
+  }
+
+  .coach-banner-image {
+    clip-path: inset(0 0 0 40%);
+  }
+
+  .coach-banner-content {
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+
+  .coach-workspace-header h1 {
+    font-size: 23px;
+  }
+
+  .coach-content {
+    padding: 0 20px 36px;
+  }
+
+  .coach-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .athlete-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .roster-player-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 460px) {
+  .coach-section-heading {
+    align-items: flex-start;
+  }
+
+  .coach-upload-section .coach-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .roster-upload-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .upload-roster-btn {
+    min-width: 0;
+  }
+
+  .coach-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .athlete-filter-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .roster-players-panel {
+    padding: 16px 12px;
+  }
+
+  .roster-player {
+    grid-template-columns: 1fr;
+  }
+
+  .roster-player-edit-form {
+    grid-template-columns: 1fr;
+    row-gap: 8px;
+  }
+
+  .roster-player-edit-fields {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 90px;
+  }
+
+  .roster-player-edit-actions {
+    grid-column: 1;
+    justify-self: start;
+  }
+
+  .roster-player-form-actions {
+    align-items: center;
+  }
+}
+
+.coach-page .shadcn-button {
+  box-sizing: border-box;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.student-dashboard-container .student-dashboard-shared-button.shadcn-button {
+  box-sizing: border-box;
+  height: 38px;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.student-dashboard-container .student-dashboard-shared-button.shadcn-button {
+  width: auto;
+  min-width: 0;
+  gap: 8px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.coach-page .shadcn-button-size-icon {
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+  justify-content: center;
+}
+
+.coach-page .shadcn-button-default {
+  border-color: #ff4d00;
+  background: #ff4d00;
+  color: #fff;
+}
+
+.student-dashboard-container .student-dashboard-shared-button.shadcn-button-default {
+  border-color: #e84b0b;
+  background: #e84b0b;
+  color: #fff;
+}
+
+.coach-page .shadcn-button-default:hover:not(:disabled) {
+  border-color: #e8431a;
+  background: #e8431a;
+  color: #fff;
+}
+
+.student-dashboard-container .student-dashboard-shared-button.shadcn-button-default:hover:not(:disabled) {
+  border-color: #d9430a;
+  background: #d9430a;
+  color: #fff;
+}
+
+.coach-page .shadcn-button-outline,
+.coach-page .shadcn-button-secondary {
+  border: 1px solid #d8d2c8;
+  background: #fff;
+  color: #0f172a;
+}
+
+.student-dashboard-container .student-dashboard-shared-button.shadcn-button-outline,
+.student-dashboard-container .student-dashboard-shared-button.shadcn-button-secondary {
+  border: 1px solid #d8d2c8;
+  background: #fff;
+  color: #0f172a;
+}
+
+.coach-page .shadcn-button-outline:hover:not(:disabled),
+.coach-page .shadcn-button-secondary:hover:not(:disabled) {
+  border-color: #d8d2c8;
+  background: #f4efe8;
+  color: #0f172a;
+}
+
+.student-dashboard-container .student-dashboard-shared-button.shadcn-button-outline:hover:not(:disabled),
+.student-dashboard-container .student-dashboard-shared-button.shadcn-button-secondary:hover:not(:disabled) {
+  border-color: #d8d2c8;
+  background: #f7f8fa;
+  color: #0f172a;
+}
+
+.coach-page .shadcn-button-ghost,
+.coach-page .shadcn-button-link {
+  border: 1px solid transparent;
+  background: transparent;
+  color: #0f172a;
+}
+
+.coach-page .shadcn-button-ghost:hover:not(:disabled),
+.coach-page .shadcn-button-ghost:focus-visible:not(:disabled),
+.coach-page .shadcn-button-link:hover:not(:disabled),
+.coach-page .shadcn-button-link:focus-visible:not(:disabled) {
+  border-color: transparent;
+  background: #f4efe8;
+  color: #0f172a;
+}
+
+.coach-page .coach-delete-action,
+.coach-page .coach-delete-button {
+  color: #e8431a !important;
+}
+
+.coach-page .coach-delete-action:hover:not(:disabled),
+.coach-page .coach-delete-button:hover:not(:disabled) {
+  border-color: transparent;
+  background: #fff1eb;
+  color: #e8431a !important;
+}
+
+.student-dashboard-container .student-dashboard-shared-button.coach-delete-button {
+  border-color: #d8d2c8;
+  background: #fff;
+  color: #b42318;
+}
+
+.student-dashboard-container .student-dashboard-shared-button.coach-delete-button:hover:not(:disabled) {
+  border-color: #e2b9b5;
+  background: #fef2f2;
+  color: #b42318;
+}
+
+.coach-page .roster-sort-button {
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  text-align: left;
+  text-transform: inherit;
+}
+
+.coach-page .roster-sort-button:hover:not(:disabled) {
+  border: 0;
+  background: transparent;
+  color: #0f172a;
+}
+
+.coach-page .roster-player-actions {
+  transition: opacity 120ms ease;
+}
+
+.coach-page .roster-refresh-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.coach-page .roster-refresh-button.is-refreshing svg {
+  animation: roster-refresh-spin 800ms linear infinite;
+}
+
+@keyframes roster-refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (hover: hover) {
+  .coach-page .roster-player-actions {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .coach-page .roster-player:hover .roster-player-actions,
+  .coach-page .roster-player:focus-within .roster-player-actions,
+  .coach-page .roster-player.is-dimmed .roster-player-actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+@media (hover: none) {
+  .coach-page .roster-player-actions {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coach-page .roster-refresh-button.is-refreshing svg {
+    animation: none;
+  }
+}
+
+.coach-page .roster-invite-toggle-button {
+  height: auto;
+  min-width: 3em;
+  min-height: 0;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.coach-page .roster-invite-toggle-button:hover:not(:disabled),
+.coach-page .roster-invite-toggle-button:focus-visible:not(:disabled) {
+  border: 0;
+  background: transparent;
+  color: #0f172a;
+}
+
+.coach-page .roster-invite-copy-button:focus-visible:not(:disabled),
+.coach-page .roster-invite-toggle-button:focus-visible:not(:disabled) {
+  outline: 2px solid #ff4d00;
+  outline-offset: -2px;
+  box-shadow: none;
 }

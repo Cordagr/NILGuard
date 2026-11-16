@@ -1,7 +1,13 @@
 ``
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import logo from '../assets/NILGUARD.png';
+import {
+  educationStorageKey,
+  getStudentEducationCourseProgress,
+  saveStudentEducationProgress
+} from '../services/educationApi';
 import '../styles/pages/MoneyBasics.css';
 
 const lessons = [
@@ -303,9 +309,13 @@ const lessons = [
 
 function MoneyBasicsPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const progressStorageKey = user?.id
+    ? educationStorageKey(user.id, 'moneyBasicsProgress')
+    : null;
 
   const [currentLesson, setCurrentLesson] = useState(() => {
-    const savedProgress = localStorage.getItem('moneyBasicsProgress');
+    const savedProgress = progressStorageKey ? localStorage.getItem(progressStorageKey) : null;
 
     if (savedProgress) {
       try {
@@ -327,7 +337,7 @@ function MoneyBasicsPage() {
   });
 
   const [completedLessons, setCompletedLessons] = useState(() => {
-    const savedProgress = localStorage.getItem('moneyBasicsProgress');
+    const savedProgress = progressStorageKey ? localStorage.getItem(progressStorageKey) : null;
 
     if (savedProgress) {
       try {
@@ -343,6 +353,39 @@ function MoneyBasicsPage() {
 
     return [];
   });
+  const [isProgressLoaded, setIsProgressLoaded] = useState(false);
+  const [canSyncProgress, setCanSyncProgress] = useState(false);
+
+  useEffect(() => {
+    if (!user?.id) {
+      return;
+    }
+
+    let isActive = true;
+    getStudentEducationCourseProgress(user.id, 'moneyBasics')
+      .then((progress) => {
+        if (!isActive) {
+          return;
+        }
+        setCurrentLesson(progress.currentLesson);
+        setCompletedLessons(progress.completedLessons);
+        setCanSyncProgress(true);
+        setIsProgressLoaded(true);
+      })
+      .catch((error) => {
+        console.error('Unable to load Money Basics progress:', error);
+        window.dispatchEvent(new CustomEvent('nilguard:education-sync-error', {
+          detail: { message: error.message || 'Unable to load Money Basics progress.' }
+        }));
+        if (isActive) {
+          setIsProgressLoaded(true);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [user?.id]);
 
   /*
    * Save progress whenever the current lesson or completed lessons change.
@@ -353,11 +396,19 @@ function MoneyBasicsPage() {
       completedLessons
     };
 
-    localStorage.setItem(
-      'moneyBasicsProgress',
-      JSON.stringify(progress)
-    );
-  }, [currentLesson, completedLessons]);
+    if (!progressStorageKey) {
+      return;
+    }
+
+    localStorage.setItem(progressStorageKey, JSON.stringify(progress));
+    if (!isProgressLoaded || !canSyncProgress) {
+      return;
+    }
+
+    saveStudentEducationProgress('moneyBasics', progress).catch((error) => {
+      console.error('Unable to sync Money Basics progress:', error);
+    });
+  }, [currentLesson, completedLessons, progressStorageKey, isProgressLoaded, canSyncProgress]);
 
   const lesson = lessons[currentLesson];
 

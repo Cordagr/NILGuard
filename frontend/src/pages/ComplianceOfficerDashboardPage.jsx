@@ -1,11 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { ToastMessage } from '../components/ui/toast';
+import { LogOut } from 'lucide-react';
 import '../styles/pages/StudentDashboard.css';
+import '../styles/pages/CoachRosters.css';
+import { Button } from '../components/ui/button';
+import UserAvatar from '../components/UserAvatar';
 import ContractChatCenter from '../components/ContractChatCenter';
 import exitIcon from '../assets/exit.png';
 import MessengerIcon from '../assets/messenger.png';
 import logo from '../assets/NILGUARD.png';
+import pixelBanner from '../assets/SoccerPixel3.PNG?url';
 import {
   createAccountByCompliance,
   getComplianceRequestFileUrl,
@@ -16,7 +22,6 @@ import {
   updateComplianceRequestStatus
 } from '../services/complianceApi';
 import InboxIcon from '../assets/inbox.png';
-import ProfileIcon from '../assets/ProfileIcon.png';
 
 function getCurrentUser() {
   const storedUser = localStorage.getItem('nilguard_user');
@@ -52,10 +57,8 @@ function ComplianceOfficerDashboardPage() {
   const [requests, setRequests] = useState([]);
   const [isLoadingRequests, setIsLoadingRequests] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
-  const [menuOpen, setMenuOpen] = useState(false);
   const [updatingRequestId, setUpdatingRequestId] = useState('');
 
-  const menuRef = useRef(null);
   const [isInboxOpen, setIsInboxOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const notificationsRef = useRef(null);
@@ -73,7 +76,8 @@ function ComplianceOfficerDashboardPage() {
   const [createAccountSuccess, setCreateAccountSuccess] = useState('');
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
 
-  const currentUser = useAuth().user || { role: 'compliance', school: '', ncaaDivision: '' };
+  const { user: authUser, logout } = useAuth();
+  const currentUser = authUser || { role: 'compliance', school: '', ncaaDivision: '' };
   const pendingRequests = requests.filter((request) => request.status === 'pending');
   const reviewedRequests = requests.filter((request) => request.status !== 'pending');
   const unreadChatCount = messages.filter(
@@ -112,12 +116,6 @@ function ComplianceOfficerDashboardPage() {
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(event.target)
-      ) {
-        setMenuOpen(false);
-      }
       if (
         notificationsRef.current &&
         !notificationsRef.current.contains(event.target)
@@ -229,33 +227,51 @@ function ComplianceOfficerDashboardPage() {
   };
 
   return (
-    <div className={`student-dashboard-container ${isInboxOpen ? 'inbox-overlay-open' : ''}`}>
-      <header className="student-dashboard-header">
-        <div className="student-dashboard-header-logo-wrap">
-          <img
-            src={logo}
-            alt="NILGuard Logo"
-            className="student-dashboard-header-logo"
-          />
-        </div>
+    <div className={`coach-page ${isInboxOpen ? 'inbox-overlay-open' : ''}`}>
+      <div className="coach-shell compliance-dashboard-shell">
+        <aside className="coach-sidebar">
+          <a className="coach-brand" href="#overview" aria-label="NILGuard compliance workspace">
+            <img src={logo} alt="NILGuard" />
+          </a>
 
-        <div className="student-dashboard-title-block">
-          <h1>Compliance Officer Dashboard</h1>
+          <nav className="coach-sidebar-nav" aria-label="Compliance dashboard">
+            <a href="#overview" aria-current="page">Overview</a>
+            <a href="#received">Received contracts</a>
+            <a href="#reviewed">Reviewed</a>
+          </nav>
 
-          {currentUser?.school ? (
-            <p className="student-dashboard-identity">
-              {currentUser.school} · {currentUser.ncaaDivision}
-            </p>
-          ) : null}
-        </div>
+          <div className="coach-sidebar-account">
+            <UserAvatar src={currentUser?.avatar} alt="" />
+            <span className="coach-account-school">{currentUser?.school || 'Compliance account'}</span>
+            {currentUser?.email ? <span className="coach-account-email">{currentUser.email}</span> : null}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="coach-text-button logout-icon-button"
+              onClick={logout}
+              aria-label="Log out"
+              title="Log out"
+            >
+              <LogOut size={14} className="logout-action-icon" aria-hidden="true" />
+            </Button>
+          </div>
+        </aside>
 
-        {currentUser?.email ? (
-          <span style={{ marginRight: '0.75rem', fontSize: '0.9rem', color: '#555' }}>{currentUser.email}</span>
-        ) : null}
+        <div className="coach-workspace">
+          <header className="coach-workspace-header" id="overview">
+            <img className="coach-banner-image" src={pixelBanner} alt="" />
+            <div className="coach-banner-content">
+              <p className="coach-eyebrow">Contract review</p>
+              <h1>Compliance Officer Dashboard</h1>
+              <p className="coach-header-context">
+                {[currentUser?.school, currentUser?.ncaaDivision].filter(Boolean).join(' · ') || 'Review submitted contracts'}
+              </p>
+            </div>
+
         <div className="profile-menu dashboard-communication-actions" ref={notificationsRef}>
           <button
             type="button"
-            className={`profile-menu-trigger inbox-trigger${unreadNotificationCount > 0 ? ' has-unread' : ''}`}
+            className={`profile-menu-trigger inbox-trigger dashboard-header-control${unreadNotificationCount > 0 ? ' has-unread' : ''}`}
             onClick={() => {
               setIsInboxOpen((previous) => !previous);
               setIsChatOpen(false);
@@ -266,9 +282,9 @@ function ComplianceOfficerDashboardPage() {
             aria-expanded={isInboxOpen}
           >
             <img className="inbox-icon" src={InboxIcon} alt="" aria-hidden="true" />
-            <span>Notifications</span>
+            <span className="dashboard-header-control-label">Notifications</span>
             {unreadNotificationCount > 0 ? (
-              <span className="inbox-unread-badge" aria-hidden="true">{unreadNotificationBadgeCount}</span>
+              <span className="inbox-unread-badge header-control-badge" aria-hidden="true">{unreadNotificationBadgeCount}</span>
             ) : null}
           </button>
 
@@ -287,7 +303,7 @@ function ComplianceOfficerDashboardPage() {
                 </button>
               </div>
               {notificationsError ? (
-                <div className="student-inbox-empty notification-error" role="alert">{notificationsError}</div>
+                <ToastMessage message={notificationsError} variant="error" title="Notifications unavailable" />
               ) : isLoadingNotifications ? (
                 <div className="student-inbox-empty">Loading notifications...</div>
               ) : notifications.length ? (
@@ -312,7 +328,7 @@ function ComplianceOfficerDashboardPage() {
           )}
           <button
             type="button"
-            className="profile-menu-trigger chat-launch-trigger"
+            className="profile-menu-trigger chat-launch-trigger dashboard-header-control"
             onClick={() => {
               setIsChatOpen(true);
               setIsInboxOpen(false);
@@ -323,9 +339,9 @@ function ComplianceOfficerDashboardPage() {
             aria-expanded={isChatOpen}
           >
             <img className="chat-launch-icon" src={MessengerIcon} alt="" aria-hidden="true" />
-            <span>Chats</span>
+            <span className="dashboard-header-control-label">Chats</span>
             {unreadChatCount > 0 ? (
-              <span className="inbox-unread-badge" aria-hidden="true">{unreadChatBadgeCount}</span>
+              <span className="inbox-unread-badge header-control-badge" aria-hidden="true">{unreadChatBadgeCount}</span>
             ) : null}
           </button>
           <ContractChatCenter
@@ -338,51 +354,13 @@ function ComplianceOfficerDashboardPage() {
             loadError={messagesError}
           />
         </div>
-        <div className="profile-menu" ref={menuRef}>
-          <button
-            type="button"
-            className="profile-menu-trigger"
-            onClick={() => setMenuOpen((prev) => !prev)}
-            aria-label="Open menu"
-          >
-            <img
-              src={ProfileIcon}
-              alt="Profile"
-              className="profile-icon-img"
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: '50%',
-                objectFit: 'cover',
-                border: '2px solid #222',
-                background: '#fff'
-              }}
-            />
-          </button>
+          </header>
 
-          {menuOpen && (
-            <div className="profile-menu-dropdown">
-              <button
-                type="button"
-                onClick={() => {
-                  logout();
-                  setMenuOpen(false);
-                }}
-              >
-                Logout
-              </button>
-            </div>
-          )}
-        </div>
-      </header>
-
-      <main className="student-dashboard-content">
+          <main className="coach-content">
         <div className="contracts-toolbar">
           <div className="active-contracts-actions-block">
             {errorMessage ? (
-              <p className="contracts-feedback contracts-error notification-error" role="alert">
-                {errorMessage}
-              </p>
+              <ToastMessage message={errorMessage} variant="error" title="Review action failed" />
             ) : (
               <p className="contracts-feedback">
                 Showing contracts submitted to compliance groups you belong to. Only the designated lead reviewer can make the final decision.
@@ -392,7 +370,7 @@ function ComplianceOfficerDashboardPage() {
         </div>
 
         {/* PENDING / RECEIVED CONTRACTS */}
-        <section className="contracts-column">
+        <section className="contracts-column" id="received">
           <div className="contracts-column-header">
             <h2>Received Contracts</h2>
           </div>
@@ -522,7 +500,7 @@ function ComplianceOfficerDashboardPage() {
         </section>
 
         {/* REVIEWED CONTRACTS */}
-        <section className="contracts-column past-contracts-column">
+        <section className="contracts-column past-contracts-column" id="reviewed">
           <div className="contracts-column-header">
             <h2>Reviewed</h2>
           </div>
@@ -594,6 +572,8 @@ function ComplianceOfficerDashboardPage() {
           </div>
         </section>
       </main>
+        </div>
+      </div>
     </div>
   );
 }

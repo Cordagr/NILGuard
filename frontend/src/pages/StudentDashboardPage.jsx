@@ -1,16 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { CheckCircle2, Clock, FileText, LogOut } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { Button } from '../components/ui/button';
 
 import '../styles/pages/StudentDashboard.css';
+import '../styles/pages/CoachRosters.css';
 
 import ContractChatCenter from '../components/ContractChatCenter';
+import UserAvatar from '../components/UserAvatar';
 import exitIcon from '../assets/exit.png';
 import MessengerIcon from '../assets/messenger.png';
 import logo from '../assets/NILGUARD.png';
 import FilterIcon from '../assets/filter.png';
-import InboxIcon from '../assets/inbox.png';
-import ProfileIcon from '../assets/ProfileIcon.png';
 
 import {
   deleteContract,
@@ -22,10 +24,8 @@ import {
 
 import {
   listComplianceMessages,
-  listComplianceNotifications,
   listComplianceOfficers,
   listComplianceRequests,
-  markComplianceNotificationRead,
   saveComplianceOfficer,
   submitComplianceRequest
 } from '../services/complianceApi';
@@ -336,24 +336,16 @@ function StudentDashboardPage() {
   const navigate = useNavigate();
   const { user: currentUser, logout } = useAuth();
 
-  const menuRef = useRef(null);
   const sortMenuRef = useRef(null);
   const fileInputRef = useRef(null);
-  const notificationsRef = useRef(null);
 
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [messagesError, setMessagesError] = useState('');
-  const [notifications, setNotifications] = useState([]);
   const unreadChatCount = messages.filter(
     (message) => !message.isRead && message.recipientUserId === String(currentUser?.id)
   ).length;
-  const unreadNotificationCount = notifications.filter((notification) => !notification.isRead).length;
   const unreadChatBadgeCount = unreadChatCount > 99 ? '99+' : unreadChatCount;
-  const unreadNotificationBadgeCount =
-    unreadNotificationCount > 99 ? '99+' : unreadNotificationCount;
   const [complianceOfficers, setComplianceOfficers] = useState([]);
   const [savedComplianceOfficerIds, setSavedComplianceOfficerIds] = useState([]);
   const [isLoadingComplianceOfficers, setIsLoadingComplianceOfficers] = useState(false);
@@ -376,6 +368,9 @@ function StudentDashboardPage() {
 
   const [isUploading, setIsUploading] =
     useState(false);
+
+  const [selectedContractFile, setSelectedContractFile] = useState(null);
+  const [isContractDragOver, setIsContractDragOver] = useState(false);
 
   const [deletingContractId, setDeletingContractId] =
     useState('');
@@ -424,6 +419,8 @@ function StudentDashboardPage() {
     useState('lastAccessedAt');
   const [isSortMenuOpen, setIsSortMenuOpen] =
     useState(false);
+  const [openContractActionMenuId, setOpenContractActionMenuId] =
+    useState('');
 
   const [selectedHistoricalContractId, setSelectedHistoricalContractId] =
     useState('');
@@ -527,28 +524,6 @@ function StudentDashboardPage() {
     }
   };
 
-  const fetchNotifications = async () => {
-    try {
-      const response = await listComplianceNotifications();
-      setNotifications(response.notifications || []);
-    } catch (error) {
-      setErrorMessage(error.message || 'Unable to load notifications.');
-    }
-  };
-
-  const handleOpenNotification = async (notification) => {
-    if (notification.isRead) return;
-
-    try {
-      await markComplianceNotificationRead(notification.id);
-      setNotifications((previous) => previous.map((item) =>
-        item.id === notification.id ? { ...item, isRead: true } : item
-      ));
-    } catch (error) {
-      setErrorMessage(error.message || 'Unable to mark notification as read.');
-    }
-  };
-
   useEffect(() => {
     if (!currentUser?.id) {
       navigate('/login');
@@ -556,22 +531,21 @@ function StudentDashboardPage() {
     }
 
     const handleClickOutside = (event) => {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(event.target)
-      ) {
-        setMenuOpen(false);
-      }
-
       if (sortMenuRef.current && !sortMenuRef.current.contains(event.target)) {
         setIsSortMenuOpen(false);
       }
 
       if (
-        notificationsRef.current &&
-        !notificationsRef.current.contains(event.target)
+        !(event.target instanceof Element) ||
+        !event.target.closest('[data-contract-action-menu]')
       ) {
-        setNotificationsOpen(false);
+        setOpenContractActionMenuId('');
+      }
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setOpenContractActionMenuId('');
       }
     };
 
@@ -579,18 +553,19 @@ function StudentDashboardPage() {
       'mousedown',
       handleClickOutside
     );
+    document.addEventListener('keydown', handleEscape);
 
     fetchContracts();
     fetchComplianceRequests();
     fetchComplianceOfficers();
     fetchMessages();
-    fetchNotifications();
 
     return () => {
       document.removeEventListener(
         'mousedown',
         handleClickOutside
       );
+      document.removeEventListener('keydown', handleEscape);
     };
   }, [navigate]);
 
@@ -602,17 +577,19 @@ function StudentDashboardPage() {
   };
 
   const handleUploadClick = () => {
-    fileInputRef.current?.click();
+    if (!isUploading) {
+      fileInputRef.current?.click();
+    }
   };
 
-  const handleFileSelection = async (event) => {
-    const selectedFile = event.target.files?.[0];
-
-    event.target.value = '';
-
-    if (!selectedFile) {
+  const selectContractFile = (selectedFile) => {
+    if (!selectedFile || isUploading) {
       return;
     }
+
+    setSelectedContractFile(null);
+    setErrorMessage('');
+    setSuccessMessage('');
 
     const isPdfFile =
       selectedFile.type === 'application/pdf' ||
@@ -636,6 +613,26 @@ function StudentDashboardPage() {
       return;
     }
 
+    setSelectedContractFile(selectedFile);
+  };
+
+  const handleFileSelection = (event) => {
+    const selectedFile = event.target.files?.[0];
+    event.target.value = '';
+    selectContractFile(selectedFile);
+  };
+
+  const handleFileDrop = (event) => {
+    event.preventDefault();
+    setIsContractDragOver(false);
+    selectContractFile(event.dataTransfer.files?.[0]);
+  };
+
+  const handleContractUpload = async () => {
+    if (!selectedContractFile || isUploading) {
+      return;
+    }
+
     setErrorMessage('');
     setSuccessMessage('');
     setIsUploading(true);
@@ -643,7 +640,7 @@ function StudentDashboardPage() {
     try {
       const response = await uploadContract(
         currentUser,
-        selectedFile
+        selectedContractFile
       );
 
       const uploadedContract = response.contract;
@@ -667,6 +664,11 @@ function StudentDashboardPage() {
           uploadedContract.id,
           serverMetadata
         );
+      }
+
+      setSelectedContractFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
       }
 
       setSuccessMessage(
@@ -1138,7 +1140,7 @@ function StudentDashboardPage() {
       : [];
 
   return (
-    <div className={`student-dashboard-container ${notificationsOpen ? 'inbox-overlay-open' : ''}`}>
+    <div className="student-dashboard-container">
       {successMessage && (
         <div
           className="contract-success-toast"
@@ -1179,15 +1181,43 @@ function StudentDashboardPage() {
         </div>
       )}
 
-      <header className="student-dashboard-header">
-        <div className="student-dashboard-header-logo-wrap">
-          <img
-            src={logo}
-            alt="NILGuard Logo"
-            className="student-dashboard-header-logo"
-          />
-        </div>
+      <div className="coach-shell student-dashboard-shell">
+        <aside className="coach-sidebar">
+          <a className="coach-brand" href="#overview" aria-label="NILGuard student workspace">
+            <img src={logo} alt="NILGuard" />
+          </a>
 
+          <nav className="coach-sidebar-nav" aria-label="Student dashboard">
+            <a href="#overview" aria-current="page">Overview</a>
+            <a href="#contracts">Contracts</a>
+            <Link to="/student/education">Education</Link>
+            <Link to="/profile">Profile</Link>
+          </nav>
+
+          <div className="coach-sidebar-account">
+            <UserAvatar src={currentUser?.avatar} alt="" />
+            {[currentUser?.firstName, currentUser?.lastName].filter(Boolean).length ? (
+              <Link className="coach-account-profile" to="/profile">
+                {[currentUser?.firstName, currentUser?.lastName].filter(Boolean).join(' ')}
+              </Link>
+            ) : null}
+            <span className="coach-account-school">{currentUser?.school || 'Student account'}</span>
+            {currentUser?.email ? <span className="coach-account-email">{currentUser.email}</span> : null}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="coach-text-button logout-icon-button"
+              onClick={logout}
+              aria-label="Log out"
+              title="Log out"
+            >
+              <LogOut size={14} className="logout-action-icon" aria-hidden="true" />
+            </Button>
+          </div>
+        </aside>
+
+        <div className="coach-workspace student-dashboard-workspace">
+      <header className="student-dashboard-header student-athlete-header" id="overview">
         <div className="student-dashboard-title-block">
           <h1>
             Student-Athlete Dashboard
@@ -1201,79 +1231,20 @@ function StudentDashboardPage() {
           ) : null}
         </div>
 
-        <div className="profile-menu dashboard-communication-actions" ref={notificationsRef}>
+        <div className="profile-menu dashboard-communication-actions">
           <button
             type="button"
-            className={`profile-menu-trigger inbox-trigger${unreadNotificationCount > 0 ? ' has-unread' : ''}`}
-            onClick={() => {
-              setNotificationsOpen((previous) => !previous);
-              setIsChatOpen(false);
-            }}
-            aria-label={unreadNotificationCount > 0
-              ? `Open notifications, ${unreadNotificationBadgeCount} unread`
-              : 'Open notifications'}
-            aria-expanded={notificationsOpen}
-          >
-            <img className="inbox-icon" src={InboxIcon} alt="" aria-hidden="true" />
-            <span>Notifications</span>
-            {unreadNotificationCount > 0 ? (
-              <span className="inbox-unread-badge" aria-hidden="true">
-                {unreadNotificationBadgeCount}
-              </span>
-            ) : null}
-          </button>
-
-          {notificationsOpen ? (
-            <div className="profile-menu-dropdown student-inbox-dropdown">
-              <div className="student-inbox-heading">
-                <strong>Notifications</strong>
-                <button
-                  type="button"
-                  className="app-close-button"
-                  onClick={() => setNotificationsOpen(false)}
-                  aria-label="Close notifications"
-                  title="Close notifications"
-                >
-                  <img src={exitIcon} alt="" aria-hidden="true" />
-                </button>
-              </div>
-              {notifications.length ? (
-                <div className="student-notification-list">
-                  {notifications.map((notification) => (
-                    <button
-                      type="button"
-                      className={`student-notification ${notification.isRead ? '' : 'student-notification-unread'}`}
-                      key={notification.id}
-                      onClick={() => handleOpenNotification(notification)}
-                    >
-                      <strong>{notification.title}</strong>
-                      <span>{notification.body}</span>
-                      <small>{formatDateTime(notification.createdAt)}</small>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="student-inbox-empty">No notifications yet.</div>
-              )}
-            </div>
-          ) : null}
-
-          <button
-            type="button"
-            className="profile-menu-trigger chat-launch-trigger"
-            onClick={() => {
-              setIsChatOpen(true);
-              setNotificationsOpen(false);
-            }}
+            className="profile-menu-trigger chat-launch-trigger dashboard-header-control student-dashboard-shared-button shadcn-button shadcn-button-outline shadcn-button-size-default"
+            onClick={() => setIsChatOpen(true)}
             aria-label={unreadChatCount > 0
               ? `Open contract chats, ${unreadChatBadgeCount} unread`
               : 'Open contract chats'}
             aria-expanded={isChatOpen}
           >
             <img className="chat-launch-icon" src={MessengerIcon} alt="" aria-hidden="true" />
-            <span>Chats</span>
+            <span className="dashboard-header-control-label">Chats</span>
             {unreadChatCount > 0 ? (
-              <span className="inbox-unread-badge" aria-hidden="true">
+              <span className="inbox-unread-badge header-control-badge" aria-hidden="true">
                 {unreadChatBadgeCount}
               </span>
             ) : null}
@@ -1289,173 +1260,138 @@ function StudentDashboardPage() {
           />
         </div>
 
-        <div
-          className="profile-menu"
-          ref={menuRef}
-        >
-          <button
-            type="button"
-            className="profile-menu-trigger"
-            onClick={() =>
-              setMenuOpen(
-                (previous) => !previous
-              )
-            }
-            aria-label="Open menu"
-          >
-            <img
-              src={ProfileIcon}
-              alt="Profile"
-              className="profile-icon-img"
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: '50%',
-                objectFit: 'cover',
-                border: '2px solid #d8c8b5',
-                background: '#F5F0E8'
-              }}
-            />
-          </button>
-
-          {menuOpen ? (
-            <div className="profile-menu-dropdown">
-              <button
-                type="button"
-                onClick={() => {
-                  setMenuOpen(false);
-                  logout();
-                }}
-              >
-                Logout
-              </button>
-            </div>
-          ) : null}
-        </div>
       </header>
 
       <main className="student-dashboard-content">
-
-        <section className="education-dashboard-entry">
-  <div>
-    <h2>Education & Financial Literacy</h2>
-    <p>
-      Learn about managing your money, evaluating NIL opportunities,
-      and understanding important contract terms.
-    </p>
-  </div>
-
-  <button
-    type="button"
-    className="dashboard-secondary-button btn-97"
-    onClick={() => navigate('/student/education')}
-  >
-    Start Learning
-  </button>
-</section>
+        <section className="coach-stats student-dashboard-stats" aria-label="Contract summary">
+          <article className="coach-stat-tile">
+            <span className="coach-stat-icon" aria-hidden="true">
+              <FileText strokeWidth={2} />
+            </span>
+            <div className="coach-stat-copy">
+              <strong>{isLoadingContractProgress ? '...' : contractProgress.total}</strong>
+              <span className="coach-stat-label">Total contracts</span>
+            </div>
+          </article>
+          <article className="coach-stat-tile">
+            <span className="coach-stat-icon" aria-hidden="true">
+              <Clock strokeWidth={2} />
+            </span>
+            <div className="coach-stat-copy">
+              <strong>{isLoadingContractProgress ? '...' : contractProgress.inReview}</strong>
+              <span className="coach-stat-label">In review</span>
+            </div>
+          </article>
+          <article className="coach-stat-tile">
+            <span className="coach-stat-icon" aria-hidden="true">
+              <CheckCircle2 strokeWidth={2} />
+            </span>
+            <div className="coach-stat-copy">
+              <strong>{isLoadingContractProgress ? '...' : contractProgress.approved}</strong>
+              <span className="coach-stat-label">Approved</span>
+            </div>
+          </article>
+        </section>
 
         {/* UPLOAD TOOLBAR */}
 
 
         <div className="contracts-toolbar">
           <div className="active-contracts-actions-block">
-            <div className="active-contracts-actions">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="application/pdf,.pdf"
-                className="contract-upload-input"
-                onChange={
-                  handleFileSelection
-                }
-              />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/pdf,.pdf"
+              className="contract-upload-input"
+              onChange={handleFileSelection}
+            />
 
-              <button
+            <div className="roster-upload-controls">
+              <Button
                 type="button"
-                className="upload-button btn-97"
+                variant="outline"
+                className={`roster-drop-zone${isContractDragOver ? ' is-drag-over' : ''}`}
+                tabIndex={isUploading ? -1 : 0}
+                aria-label={selectedContractFile?.name || 'Choose a contract PDF file or drop it here'}
+                aria-disabled={isUploading}
                 onClick={handleUploadClick}
-                disabled={isUploading}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    handleUploadClick();
+                  }
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  if (!isUploading) {
+                    setIsContractDragOver(true);
+                  }
+                }}
+                onDragLeave={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) {
+                    setIsContractDragOver(false);
+                  }
+                }}
+                onDrop={handleFileDrop}
               >
-                {isUploading
-                  ? 'Screening PDF...'
-                  : 'Upload Contract PDF'}
-              </button>
-            </div>
-
-            <p className="contracts-feedback">
-              PDF uploads only, up to 12 MB per
-              file. NILGuard screens each PDF
-              before storing it.
-            </p>
-          </div>
-
-          <div className="contracts-sort-menu" ref={sortMenuRef}>
-            <button
-              type="button"
-              className="contracts-filter-button"
-              aria-label="Filter current contracts"
-              aria-expanded={isSortMenuOpen}
-              aria-controls="contracts-sort-options"
-              onClick={() => setIsSortMenuOpen((open) => !open)}
-            >
-              <img src={FilterIcon} alt="" aria-hidden="true" />
-            </button>
-            {isSortMenuOpen && (
-              <div
-                id="contracts-sort-options"
-                className="contracts-sort-popover"
-                role="group"
-                aria-label="Sort current contracts"
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" />
+                </svg>
+                <span>
+                  <strong>{selectedContractFile?.name || 'Drop a contract PDF'}</strong>
+                  {selectedContractFile ? <small>PDF ready to upload</small> : null}
+                </span>
+              </Button>
+              <Button
+                type="button"
+                variant="default"
+                className="student-dashboard-shared-button"
+                onClick={handleContractUpload}
+                disabled={!selectedContractFile || isUploading}
+                aria-busy={isUploading}
               >
-                <span className="contracts-sort-popover-title">Filter by</span>
-                {Object.entries(sortOptions).map(([value, option]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={`contracts-sort-option ${sortMode === value ? 'is-selected' : ''}`}
-                    aria-pressed={sortMode === value}
-                    onClick={() => handleSortChange(value)}
+                {isUploading ? 'Screening PDF...' : 'Upload contract PDF'}
+              </Button>
+              <div className="contracts-sort-menu" ref={sortMenuRef}>
+                <button
+                  type="button"
+                  className="contracts-filter-button"
+                  aria-label="Filter current contracts"
+                  aria-expanded={isSortMenuOpen}
+                  aria-controls="contracts-sort-options"
+                  onClick={() => setIsSortMenuOpen((open) => !open)}
+                >
+                  <img src={FilterIcon} alt="" aria-hidden="true" />
+                </button>
+                {isSortMenuOpen && (
+                  <div
+                    id="contracts-sort-options"
+                    className="contracts-sort-popover"
+                    role="group"
+                    aria-label="Sort current contracts"
                   >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <details className="contracts-progress-summary">
-            <summary className="contracts-progress-toggle">
-              <span>Your NIL Progress</span>
-              <span className="contracts-progress-toggle-label">View summary</span>
-            </summary>
-            <div className="contracts-progress-stats">
-              <div className="contracts-progress-stat contracts-progress-stat-tracked">
-                <strong>{isLoadingContractProgress ? '...' : contractProgress.total}</strong>
-                <span>Tracked</span>
-              </div>
-              <div className="contracts-progress-stat contracts-progress-stat-not-submitted">
-                <strong>{isLoadingContractProgress ? '...' : contractProgress.notSubmitted}</strong>
-                <span>Not Submitted</span>
-              </div>
-              <div className="contracts-progress-stat contracts-progress-stat-review">
-                <strong>{isLoadingContractProgress ? '...' : contractProgress.inReview}</strong>
-                <span>In Review</span>
-              </div>
-              <div className="contracts-progress-stat contracts-progress-stat-approved">
-                <strong>{isLoadingContractProgress ? '...' : contractProgress.approved}</strong>
-                <span>Approved</span>
-              </div>
-              <div className="contracts-progress-stat contracts-progress-stat-rejected">
-                <strong>{isLoadingContractProgress ? '...' : contractProgress.rejected}</strong>
-                <span>Rejected</span>
+                    <span className="contracts-sort-popover-title">Filter by</span>
+                    {Object.entries(sortOptions).map(([value, option]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        className={`contracts-sort-option ${sortMode === value ? 'is-selected' : ''}`}
+                        aria-pressed={sortMode === value}
+                        onClick={() => handleSortChange(value)}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
-          </details>
+          </div>
         </div>
 
         {/* ACTIVE CONTRACTS */}
 
-        <section className="contracts-column">
+        <section className="contracts-column" id="contracts">
           <div className="contracts-column-header">
             <h2>
               Active Contracts
@@ -1476,11 +1412,11 @@ function StudentDashboardPage() {
                 </div>
                 <button
                   type="button"
-                  className="dashboard-secondary-button"
+                  className="student-dashboard-shared-button shadcn-button shadcn-button-outline shadcn-button-size-default"
                   onClick={handleUploadClick}
                   disabled={isUploading}
                 >
-                  Upload a Contract
+                  Upload a contract
                 </button>
               </div>
             ) : (
@@ -1558,7 +1494,21 @@ function StudentDashboardPage() {
                       <div className="contract-action-row">
                         <button
                           type="button"
-                          className="contract-action-link btn-97"
+                          className="student-dashboard-shared-button shadcn-button shadcn-button-default shadcn-button-size-default"
+                          onClick={() =>
+                            navigate(
+                              `/contracts/analyze?contractId=${contract.id}&fileName=${encodeURIComponent(
+                                contract.fileName
+                              )}`
+                            )
+                          }
+                        >
+                          Analyze contract
+                        </button>
+
+                        <button
+                          type="button"
+                          className="student-dashboard-shared-button shadcn-button shadcn-button-outline shadcn-button-size-default"
                           onClick={() =>
                             handleOpenContract(
                               contract.id
@@ -1570,85 +1520,77 @@ function StudentDashboardPage() {
 
                         <button
                           type="button"
-                          className="dashboard-secondary-button btn-97"
+                          className="student-dashboard-shared-button shadcn-button shadcn-button-outline shadcn-button-size-default"
                           onClick={() =>
                             openMetadataDialog(
                               contract
                             )
                           }
                         >
-                          Edit Agreement
+                          Edit agreement
                         </button>
 
-                        <button
-                          type="button"
-                          className="dashboard-secondary-button btn-97"
-                          onClick={() =>
-                            setSelectedHistoricalContractId(
-                              contract.id
-                            )
-                          }
-                        >
-                          View Complete Record
-                        </button>
-
-                        <button
-                          type="button"
-                          className="dashboard-secondary-button btn-97"
-                          onClick={() =>
-                            navigate(
-                              `/contracts/analyze?contractId=${contract.id}&fileName=${encodeURIComponent(
-                                contract.fileName
-                              )}`
-                            )
-                          }
-                        >
-                          Analyze Contract
-                        </button>
-
-                        <button
-                          type="button"
-                          className="dashboard-secondary-button btn-97"
-                          onClick={() =>
-                            openSendDialog(
-                              contract.id
-                            )
-                          }
-                          disabled={
-                            isSubmittingRequestForContractId ===
-                            contract.id
-                          }
-                        >
-                          {isSubmittingRequestForContractId ===
-                          contract.id
-                            ? 'Sending...'
-                            : 'Send to Compliance'}
-                        </button>
-
-                        <button
-                          type="button"
-                          className="dashboard-secondary-button dashboard-delete-button btn-97"
-                          style={{
-                            color: '#b00020',
-                            borderColor:
-                              '#b00020',
-                            marginLeft: 8
-                          }}
-                          onClick={() =>
-                            handleDeleteContract(
-                              contract
-                            )
-                          }
-                          disabled={
-                            deletingContractId ===
-                            contract.id
-                          }
-                        >
-                          {deletingContractId ===
-                          contract.id
-                            ? 'Deleting...'
-                            : 'Delete'}
-                        </button>
+                        <div className="contract-action-overflow" data-contract-action-menu>
+                          <button
+                            type="button"
+                            className="student-dashboard-shared-button shadcn-button shadcn-button-ghost shadcn-button-size-icon contract-action-overflow-trigger"
+                            aria-label="More actions"
+                            aria-haspopup="menu"
+                            aria-expanded={openContractActionMenuId === `active:${contract.id}`}
+                            onClick={() =>
+                              setOpenContractActionMenuId((openId) =>
+                                openId === `active:${contract.id}` ? '' : `active:${contract.id}`
+                              )
+                            }
+                          >
+                            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                              <circle cx="12" cy="5" r="1.5" fill="currentColor" />
+                              <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+                              <circle cx="12" cy="19" r="1.5" fill="currentColor" />
+                            </svg>
+                          </button>
+                          {openContractActionMenuId === `active:${contract.id}` ? (
+                            <div className="contract-action-overflow-menu" role="group" aria-label="More contract actions">
+                              <button
+                                type="button"
+                                className="contract-action-menu-item"
+                                onClick={() => {
+                                  setOpenContractActionMenuId('');
+                                  setSelectedHistoricalContractId(contract.id);
+                                }}
+                              >
+                                View complete record
+                              </button>
+                              <button
+                                type="button"
+                                className="contract-action-menu-item"
+                                onClick={() => {
+                                  setOpenContractActionMenuId('');
+                                  openSendDialog(contract.id);
+                                }}
+                                disabled={isSubmittingRequestForContractId === contract.id}
+                                aria-busy={isSubmittingRequestForContractId === contract.id}
+                              >
+                                {isSubmittingRequestForContractId === contract.id
+                                  ? 'Sending...'
+                                  : 'Send to compliance'}
+                              </button>
+                              <div className="contract-action-menu-divider" role="separator" />
+                              <button
+                                type="button"
+                                className="contract-action-menu-item is-destructive"
+                                onClick={() => {
+                                  setOpenContractActionMenuId('');
+                                  handleDeleteContract(contract);
+                                }}
+                                disabled={deletingContractId === contract.id}
+                                aria-busy={deletingContractId === contract.id}
+                              >
+                                {deletingContractId === contract.id ? 'Deleting...' : 'Delete'}
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                     </article>
                   );
@@ -1805,39 +1747,62 @@ function StudentDashboardPage() {
                       <div className="contract-action-row">
                         <button
                           type="button"
-                          className="dashboard-secondary-button btn-97"
-                          onClick={() =>
-                            setSelectedHistoricalContractId(
-                              contract.id
-                            )
-                          }
-                        >
-                          View Complete Record
-                        </button>
-
-                        <button
-                          type="button"
-                          className="contract-action-link btn-97"
+                          className="student-dashboard-shared-button shadcn-button shadcn-button-outline shadcn-button-size-default"
                           onClick={() =>
                             handleOpenContract(
                               contract.id
                             )
                           }
                         >
-                          Open Original PDF
+                          Open original PDF
                         </button>
 
                         <button
                           type="button"
-                          className="dashboard-secondary-button btn-97"
+                          className="student-dashboard-shared-button shadcn-button shadcn-button-outline shadcn-button-size-default"
                           onClick={() =>
                             openMetadataDialog(
                               contract
                             )
                           }
                         >
-                          Edit Agreement
+                          Edit agreement
                         </button>
+
+                        <div className="contract-action-overflow" data-contract-action-menu>
+                          <button
+                            type="button"
+                            className="student-dashboard-shared-button shadcn-button shadcn-button-ghost shadcn-button-size-icon contract-action-overflow-trigger"
+                            aria-label="More actions"
+                            aria-haspopup="menu"
+                            aria-expanded={openContractActionMenuId === `historical:${contract.id}`}
+                            onClick={() =>
+                              setOpenContractActionMenuId((openId) =>
+                                openId === `historical:${contract.id}` ? '' : `historical:${contract.id}`
+                              )
+                            }
+                          >
+                            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                              <circle cx="12" cy="5" r="1.5" fill="currentColor" />
+                              <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+                              <circle cx="12" cy="19" r="1.5" fill="currentColor" />
+                            </svg>
+                          </button>
+                          {openContractActionMenuId === `historical:${contract.id}` ? (
+                            <div className="contract-action-overflow-menu" role="group" aria-label="More contract actions">
+                              <button
+                                type="button"
+                                className="contract-action-menu-item"
+                                onClick={() => {
+                                  setOpenContractActionMenuId('');
+                                  setSelectedHistoricalContractId(contract.id);
+                                }}
+                              >
+                                View complete record
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                     </article>
                   );
@@ -1847,6 +1812,8 @@ function StudentDashboardPage() {
           </div>
         </section>
       </main>
+        </div>
+      </div>
 
       {/* SEND TO COMPLIANCE DIALOG */}
 
@@ -1899,7 +1866,7 @@ function StudentDashboardPage() {
                 />
                 <button
                   type="submit"
-                  className="dashboard-secondary-button btn-97"
+                  className="student-dashboard-shared-button shadcn-button shadcn-button-outline shadcn-button-size-default"
                   disabled={isSavingComplianceOfficer || !newComplianceOfficerEmail.trim()}
                 >
                   {isSavingComplianceOfficer ? 'Adding...' : 'Add'}
@@ -2004,7 +1971,7 @@ function StudentDashboardPage() {
             <div className="contract-action-row">
               <button
                 type="button"
-                className="dashboard-secondary-button btn-97"
+                className="student-dashboard-shared-button shadcn-button shadcn-button-outline shadcn-button-size-default"
                 onClick={
                   closeSendDialog
                 }
@@ -2014,7 +1981,7 @@ function StudentDashboardPage() {
 
               <button
                 type="button"
-                className="dashboard-secondary-button btn-97"
+                className="student-dashboard-shared-button shadcn-button shadcn-button-default shadcn-button-size-default"
                 onClick={
                   handleSubmitToCompliance
                 }
@@ -2831,7 +2798,7 @@ function StudentDashboardPage() {
             >
               <button
                 type="button"
-                className="dashboard-secondary-button dashboard-accept-button"
+                className="dashboard-secondary-button"
                 onClick={() =>
                   handleOpenContract(
                     selectedHistoricalContract.id

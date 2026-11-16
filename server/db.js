@@ -7,7 +7,8 @@ const collectionNames = new Set([
   'document_requests',
   'audit_logs',
   'messages',
-  'notifications'
+  'notifications',
+  'roster_link_invites'
 ]);
 
 const dateFieldPattern = /(?:At|Until|Date)$/;
@@ -348,6 +349,7 @@ export async function initializeDatabase(pool) {
     'CREATE UNIQUE INDEX IF NOT EXISTS contracts_owner_id_unique ON contracts ((data->>\'contractId\'), (data->>\'userId\'))',
     'CREATE INDEX IF NOT EXISTS rosters_user_updated ON rosters ((data->>\'userId\'), (data->>\'updatedAt\') DESC)',
     'CREATE UNIQUE INDEX IF NOT EXISTS rosters_owner_group_unique ON rosters ((data->>\'userId\'), (data->>\'school\'), (data->>\'sport\'), (data->>\'year\'))',
+    'CREATE UNIQUE INDEX IF NOT EXISTS roster_link_invites_code_hash_unique ON roster_link_invites ((data->>\'codeHash\'))',
     'CREATE UNIQUE INDEX IF NOT EXISTS document_requests_id_unique ON document_requests ((data->>\'requestId\'))',
     'CREATE INDEX IF NOT EXISTS document_requests_student_submitted ON document_requests ((data->>\'studentUserId\'), (data->>\'submittedAt\') DESC)',
     'CREATE INDEX IF NOT EXISTS document_requests_compliance_lead ON document_requests ((data->>\'assignedComplianceUserId\'), (data->>\'submittedAt\') DESC)',
@@ -373,6 +375,7 @@ export function createCollections(pool) {
     documentRequestsCollection: new PgCollection(pool, 'document_requests'),
     auditLogsCollection: new PgCollection(pool, 'audit_logs'),
     messagesCollection: new PgCollection(pool, 'messages'),
-    notificationsCollection: new PgCollection(pool, 'notifications')
+    notificationsCollection: new PgCollection(pool, 'notifications'),
+    rosterLinkInvitesCollection: new PgCollection(pool, 'roster_link_invites')
   };
 }

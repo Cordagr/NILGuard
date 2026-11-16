@@ -11,6 +11,7 @@
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
+    "nodemailer": "^7.0.13",
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "5.4.296",
     "pg": "^8.23.1"

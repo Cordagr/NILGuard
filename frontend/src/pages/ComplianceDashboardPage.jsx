@@ -1,23 +1,24 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { ToastMessage } from '../components/ui/toast';
+import { CheckCircle2, Clock, ClipboardList, LogOut } from 'lucide-react';
 import '../styles/pages/StudentDashboard.css';
+import '../styles/pages/CoachRosters.css';
+import '../styles/pages/ComplianceDashboard.css';
+import { Button } from '../components/ui/button';
+import UserAvatar from '../components/UserAvatar';
 import ContractChatCenter from '../components/ContractChatCenter';
-import exitIcon from '../assets/exit.png';
 import MessengerIcon from '../assets/messenger.png';
 import logo from '../assets/NILGUARD.png';
+import pixelBanner from '../assets/SoccerPixel3.PNG?url';
 import {
   getComplianceRequestFileUrl,
   listComplianceMessages,
-  listComplianceNotifications,
   listComplianceRequests,
-  markComplianceNotificationRead,
   saveComplianceGuidelines,
   updateComplianceRequestStatus
 } from '../services/complianceApi';
-import InboxIcon from '../assets/inbox.png';
-import ProfileIcon from '../assets/ProfileIcon.png';
-import inboxIcon from '../assets/inbox.png';
 
 function toInputDate(value) {
   if (!value) return '';
@@ -49,7 +50,6 @@ function ComplianceDashboardPage() {
   const { user: currentUser, logout } = useAuth();
   const [rejectionReasons, setRejectionReasons] = useState({});
   const [validationPopup, setValidationPopup] = useState('');
-  const [menuOpen, setMenuOpen] = useState(false);
   const [requests, setRequests] = useState([]);
   const [isLoadingRequests, setIsLoadingRequests] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
@@ -59,48 +59,13 @@ function ComplianceDashboardPage() {
   const [guidelineDrafts, setGuidelineDrafts] = useState({});
   const [savingGuidelinesId, setSavingGuidelinesId] = useState('');
   const [messages, setMessages] = useState([]);
-  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [messagesError, setMessagesError] = useState('');
-  const menuRef = useRef(null);
-  const notificationsRef = useRef(null);
-  const [notifications, setNotifications] = useState([]);
-  const [notificationsError, setNotificationsError] = useState('');
-  const [isLoadingNotifications, setIsLoadingNotifications] = useState(true);
 
   const unreadChatCount = messages.filter(
     (message) => !message.isRead && message.recipientUserId === String(currentUser?.id)
   ).length;
-  const unreadNotificationCount = notifications.filter((notification) => !notification.isRead).length;
   const unreadChatBadgeCount = unreadChatCount > 99 ? '99+' : unreadChatCount;
-  const unreadNotificationBadgeCount =
-    unreadNotificationCount > 99 ? '99+' : unreadNotificationCount;
-
-  const fetchNotifications = async () => {
-    setIsLoadingNotifications(true);
-    try {
-      const response = await listComplianceNotifications();
-      setNotifications(response.notifications || []);
-      setNotificationsError('');
-    } catch (error) {
-      setNotificationsError(error.message || 'Unable to load notifications.');
-    } finally {
-      setIsLoadingNotifications(false);
-    }
-  };
-
-  const handleOpenNotification = async (notification) => {
-    if (notification.isRead) return;
-
-    try {
-      await markComplianceNotificationRead(notification.id);
-      setNotifications((previous) => previous.map((item) =>
-        item.id === notification.id ? { ...item, isRead: true } : item
-      ));
-    } catch (error) {
-      setNotificationsError(error.message || 'Unable to mark notification as read.');
-    }
-  };
   const fetchRequests = async () => {
     if (!currentUser?.id) {
       navigate('/login');
@@ -227,23 +192,8 @@ function ComplianceDashboardPage() {
       return undefined;
     }
 
-    const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setMenuOpen(false);
-      }
-      if (notificationsRef.current && !notificationsRef.current.contains(event.target)) {
-        setIsNotificationsOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
     fetchRequests();
-    fetchNotifications();
     fetchMessages();
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
   }, [navigate]);
 
   const pendingRequests = useMemo(
@@ -344,94 +294,65 @@ function ComplianceDashboardPage() {
 
 
   return (
-    <div className="student-dashboard-container">
-      <header className="student-dashboard-header">
-        <div className="student-dashboard-header-logo-wrap">
-          <img src={logo} alt="NILGuard Logo" className="student-dashboard-header-logo" />
-        </div>
+    <div className="coach-page">
+      <div className="coach-shell compliance-dashboard-shell">
+        <aside className="coach-sidebar">
+          <a className="coach-brand" href="#overview" aria-label="NILGuard compliance workspace">
+            <img src={logo} alt="NILGuard" />
+          </a>
 
-        <div className="student-dashboard-title-block">
-          <h1>Compliance Dashboard</h1>
-          {currentUser?.school ? (
-            <p className="student-dashboard-identity">{currentUser.school} · {currentUser.ncaaDivision}</p>
-          ) : null}
-        </div>
+          <nav className="coach-sidebar-nav" aria-label="Compliance dashboard">
+            <a href="#overview" aria-current="page">Overview</a>
+            <a href="#received">Pending submissions</a>
+            <a href="#reviewed">Reviewed</a>
+            <Link to="/profile">Profile</Link>
+          </nav>
 
-        <div className="profile-menu dashboard-communication-actions" ref={notificationsRef}>
-          <button
-            type="button"
-            className={`profile-menu-trigger inbox-trigger${unreadNotificationCount > 0 ? ' has-unread' : ''}`}
-            onClick={() => {
-              setIsNotificationsOpen((previous) => !previous);
-              setIsChatOpen(false);
-            }}
-            aria-label={unreadNotificationCount > 0
-              ? `Open notifications, ${unreadNotificationBadgeCount} unread`
-              : 'Open notifications'}
-            aria-expanded={isNotificationsOpen}
-          >
-            <img className="inbox-icon" src={InboxIcon} alt="" aria-hidden="true" />
-            <span>Notifications</span>
-            {unreadNotificationCount > 0 ? (
-              <span className="inbox-unread-badge" aria-hidden="true">
-                {unreadNotificationBadgeCount}
-              </span>
-            ) : null}
-          </button>
-          {isNotificationsOpen ? (
-            <div className="profile-menu-dropdown student-inbox-dropdown">
-              <div className="student-inbox-heading">
-                <strong>Notifications</strong>
-                <button
-                  type="button"
-                  className="app-close-button"
-                  onClick={() => setIsNotificationsOpen(false)}
-                  aria-label="Close notifications"
-                  title="Close notifications"
-                >
-                  <img src={exitIcon} alt="" aria-hidden="true" />
-                </button>
-              </div>
-              {notificationsError ? (
-                <div className="student-inbox-empty notification-error" role="alert">{notificationsError}</div>
-              ) : isLoadingNotifications ? (
-                <div className="student-inbox-empty">Loading notifications...</div>
-              ) : notifications.length ? (
-                <div className="student-notification-list">
-                  {notifications.map((notification) => (
-                    <button
-                      type="button"
-                      key={notification.id}
-                      className={`student-notification ${notification.isRead ? '' : 'student-notification-unread'}`}
-                      onClick={() => handleOpenNotification(notification)}
-                    >
-                      <strong>{notification.title}</strong>
-                      <span>{notification.body}</span>
-                      <small>{formatDateTime(notification.createdAt)}</small>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="student-inbox-empty">No notifications yet.</div>
-              )}
+          <div className="coach-sidebar-account">
+            <UserAvatar src={currentUser?.avatar} alt="" />
+            <span className="coach-account-school">{currentUser?.school || 'Compliance account'}</span>
+            {currentUser?.email ? <span className="coach-account-email">{currentUser.email}</span> : null}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="coach-text-button logout-icon-button"
+              onClick={() => {
+                logout();
+                navigate('/login');
+              }}
+              aria-label="Log out"
+              title="Log out"
+            >
+              <LogOut size={14} className="logout-action-icon" aria-hidden="true" />
+            </Button>
+          </div>
+        </aside>
+
+        <div className="coach-workspace">
+          <header className="coach-workspace-header" id="overview">
+            <img className="coach-banner-image" src={pixelBanner} alt="" />
+            <div className="coach-banner-content">
+              <p className="coach-eyebrow">Contract review</p>
+              <h1>Compliance Dashboard</h1>
+              <p className="coach-header-context">
+                {[currentUser?.school, currentUser?.ncaaDivision].filter(Boolean).join(' · ') || 'Review submitted contracts'}
+              </p>
             </div>
-          ) : null}
+
+        <div className="profile-menu dashboard-communication-actions">
           <button
             type="button"
-            className="profile-menu-trigger chat-launch-trigger"
-            onClick={() => {
-              setIsChatOpen(true);
-              setIsNotificationsOpen(false);
-            }}
+            className="profile-menu-trigger chat-launch-trigger dashboard-header-control student-dashboard-shared-button shadcn-button shadcn-button-outline shadcn-button-size-default"
+            onClick={() => setIsChatOpen(true)}
             aria-label={unreadChatCount > 0
               ? `Open contract chats, ${unreadChatBadgeCount} unread`
               : 'Open contract chats'}
             aria-expanded={isChatOpen}
           >
             <img className="chat-launch-icon" src={MessengerIcon} alt="" aria-hidden="true" />
-            <span>Chats</span>
+            <span className="dashboard-header-control-label">Chats</span>
             {unreadChatCount > 0 ? (
-              <span className="inbox-unread-badge" aria-hidden="true">{unreadChatBadgeCount}</span>
+              <span className="inbox-unread-badge header-control-badge" aria-hidden="true">{unreadChatBadgeCount}</span>
             ) : null}
           </button>
           <ContractChatCenter
@@ -445,31 +366,7 @@ function ComplianceDashboardPage() {
           />
         </div>
 
-        <div className="profile-menu" ref={menuRef}>
-          <button
-            type="button"
-            className="profile-menu-trigger"
-            onClick={() => setMenuOpen((prev) => !prev)}
-            aria-label="Open menu"
-          >
-            <img src={ProfileIcon} alt="Profile" className="profile-icon-img" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', border: '2px solid #222', background: '#fff' }} />
-          </button>
-
-          {menuOpen && (
-            <div className="profile-menu-dropdown">
-              <button
-                type="button"
-                onClick={() => {
-                  logout();
-                  setMenuOpen(false);
-                  navigate('/login');
-                }}
-              >
-                Logout
-              </button>
-            </div>
-          )}
-
+        <div className="profile-menu">
           {validationPopup && (
             <div
               className="compliance-modal-overlay"
@@ -497,31 +394,51 @@ function ComplianceDashboardPage() {
           )}
 
         </div>
-      </header>
+          </header>
 
-      <main className="student-dashboard-content">
+          <main className="coach-content">
+            <section className="coach-stats" aria-label="Request summary">
+              <article className="coach-stat-tile">
+                <span className="coach-stat-icon" aria-hidden="true">
+                  <Clock strokeWidth={2} />
+                </span>
+                <div className="coach-stat-copy">
+                  <strong>{pendingRequests.length}</strong>
+                  <span className="coach-stat-label">Pending</span>
+                </div>
+              </article>
+              <article className="coach-stat-tile">
+                <span className="coach-stat-icon" aria-hidden="true">
+                  <ClipboardList strokeWidth={2} />
+                </span>
+                <div className="coach-stat-copy">
+                  <strong>{reviewedRequests.length}</strong>
+                  <span className="coach-stat-label">Reviewed</span>
+                </div>
+              </article>
+              <article className="coach-stat-tile">
+                <span className="coach-stat-icon" aria-hidden="true">
+                  <CheckCircle2 strokeWidth={2} />
+                </span>
+                <div className="coach-stat-copy">
+                  <strong>{reviewedRequests.filter((request) => request.status === 'accepted').length}</strong>
+                  <span className="coach-stat-label">Accepted</span>
+                </div>
+              </article>
+            </section>
         <div className="contracts-toolbar">
           <div className="active-contracts-actions-block">
-            <div className="dashboard-summary-panel">
-              <strong>{pendingRequests.length}</strong>
-              <span>Pending student submissions awaiting review</span>
-            </div>
-
             {errorMessage ? (
-              <p className="contracts-feedback contracts-error notification-error" role="alert">{errorMessage}</p>
+              <ToastMessage message={errorMessage} variant="error" title="Review action failed" />
             ) : successMessage ? (
-              <p className="contracts-feedback contracts-success">{successMessage}</p>
-            ) : (
-              <p className="contracts-feedback">
-                Review student-submitted documents for your assigned school. You can open each file, then accept or reject it.
-              </p>
-            )}
+              <ToastMessage message={successMessage} variant="success" title="Success" />
+          ) : null}
           </div>
         </div>
 
-        <section className="contracts-column">
+        <section className="contracts-column" id="received">
           <div className="contracts-column-header">
-            <h2>Pending Requests</h2>
+            <h2>Pending requests <span className="compliance-section-count">{pendingRequests.length}</span></h2>
           </div>
 
           <div className="contracts-list">
@@ -554,7 +471,7 @@ function ComplianceDashboardPage() {
                   : conditions.length === 0
                     ? 'Add and save at least one NIL condition before making a decision.'
                     : !allConditionsReviewed
-                      ? 'Choose a result for every condition, then save. Accept requires every condition to meet requirements; Reject requires at least one condition to need changes.'
+                      ? 'Set a result for each condition, then save.'
                       : !allConditionsHaveDeadlines
                         ? 'Set a student deadline for every condition, then save before making a decision.'
                         : needsChangesConditions.some((guideline) => !guideline.feedback?.trim())
@@ -567,33 +484,20 @@ function ComplianceDashboardPage() {
 
                 return (
                 <article key={request.id} className="contract-card contract-card-detailed">
-                  <div className="contract-card-meta">Request ID: {request.id}</div>
-                  <h3>{request.contractFileName}</h3>
-                  <p>
-                    <strong>Student:</strong> {request.studentEmail}
-                  </p>
+                  <div className="compliance-card-topline">
+                    <p className="contract-card-meta">Contract ID: {request.contractId || 'Not assigned'}</p>
+                    <div className="compliance-request-date">
+                      <strong>Uploaded on:</strong>{' '}
+                      <time dateTime={request.submittedAt}>{formatDateTime(request.submittedAt)}</time>
+                    </div>
+                  </div>
+                  <div className="compliance-request-head">
+                    <div className="compliance-request-title">
+                      <h3>{request.contractFileName}</h3>
+                    </div>
+                  </div>
                   <p>
                     <strong>Lead reviewer:</strong> {request.assignedComplianceEmail || 'Not assigned'}
-                  </p>
-                  <p>
-                    <strong>Group members:</strong>{' '}
-                    {(request.complianceParticipantEmails || []).join(', ')}
-                  </p>
-                  {request.studentSchool && (
-                    <p>
-                      <strong>School:</strong> {request.studentSchool}
-                    </p>
-                  )}
-                  {request.studentDivision && (
-                    <p>
-                      <strong>Division:</strong> {request.studentDivision}
-                    </p>
-                  )}
-                  <p>
-                    <strong>Contract ID:</strong> {request.contractId}
-                  </p>
-                  <p>
-                    <strong>Submitted:</strong> {formatDateTime(request.submittedAt)}
                   </p>
                   {request.reviewHistory?.length > 0 && (
                     <div className="compliance-review-history">
@@ -634,7 +538,6 @@ function ComplianceDashboardPage() {
                       ))}
                     </div>
                   )}
-                  <p>Status: <span className="request-status-pill request-status-pending">Pending</span></p>
                   {!isLeadReviewer ? (
                     <p className="contracts-feedback contract-review-guidance">
                       You can discuss this contract with the group. Only {request.assignedComplianceEmail} can edit conditions or make the final decision.
@@ -753,33 +656,39 @@ function ComplianceDashboardPage() {
                     </section>
                   ) : null}
                   <div className="contract-action-row">
-                    <button type="button" className="contract-action-link" onClick={() => handleOpenDocument(request.id)}>
-                      Open PDF
-                    </button>
-                    <button
+                    <Button
                       type="button"
-                      className="dashboard-secondary-button"
+                      variant="outline"
+                      className="compliance-open-pdf-button"
+                      onClick={() => handleOpenDocument(request.id)}
+                    >
+                      Open PDF
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
                       onClick={() => openGuidelineEditor(request)}
                       disabled={!isLeadReviewer || isEditing || processingRequestId === request.id || savingGuidelinesId === request.id}
                     >
                       {isEditing ? 'Editing conditions' : guidelineClausesLocked ? 'Review conditions' : 'Edit NIL conditions'}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      className="dashboard-secondary-button dashboard-accept-button"
+                      variant="default"
                       onClick={() => handleReviewRequest(request.id, 'accepted')}
                       disabled={!isLeadReviewer || processingRequestId === request.id || isEditing || !canApprove}
                     >
                       {processingRequestId === request.id ? 'Saving...' : 'Accept'}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      className="dashboard-secondary-button dashboard-reject-button"
+                      variant="outline"
+                      className="compliance-reject-button"
                       onClick={() => handleReviewRequest(request.id, 'rejected')}
                       disabled={!isLeadReviewer || processingRequestId === request.id || isEditing || !canReject}
                     >
                       {processingRequestId === request.id ? 'Saving...' : 'Reject'}
-                    </button>
+                    </Button>
                   </div>
                   <p className="contracts-feedback contract-review-guidance" role="status">
                     {decisionGuidance}
@@ -791,9 +700,9 @@ function ComplianceDashboardPage() {
           </div>
         </section>
 
-        <section className="contracts-column past-contracts-column">
+        <section className="contracts-column past-contracts-column" id="reviewed">
           <div className="contracts-column-header">
-            <h2>Reviewed Requests</h2>
+            <h2>Reviewed requests <span className="compliance-section-count">{reviewedRequests.length}</span></h2>
           </div>
 
           <div className="contracts-list contracts-list-compact">
@@ -804,10 +713,15 @@ function ComplianceDashboardPage() {
             ) : (
               reviewedRequests.map((request) => (
                 <article key={request.id} className="contract-card contract-card-detailed">
-                  <div className="contract-card-meta">Request ID: {request.id}</div>
-                  <h3>{request.contractFileName}</h3>
+                  <p className="contract-card-meta">Contract ID: {request.contractId || 'Not assigned'}</p>
+                  <div className="compliance-request-title">
+                    <h3>{request.contractFileName}</h3>
+                  </div>
                   <p>
-                    <strong>Student:</strong> {request.studentEmail}
+                    <strong>Student:</strong> {request.studentName || request.studentEmail}
+                  </p>
+                  <p>
+                    <strong>Lead reviewer:</strong> {request.assignedComplianceEmail || 'Not assigned'}
                   </p>
                   {request.studentSchool && (
                     <p>
@@ -820,21 +734,18 @@ function ComplianceDashboardPage() {
                     </p>
                   )}
                   <p>
-                    <strong>Contract ID:</strong> {request.contractId}
-                  </p>
-                  <p>
                     <strong>Submitted:</strong> {formatDateTime(request.submittedAt)}
                   </p>
                   {request.reviewHistory?.length > 0 && (
                     <div className="compliance-review-history">
-                      <h4>Previous Review History</h4>
+                      <h4>Review history</h4>
                       {[...request.reviewHistory].reverse().map((review, index) => (
                         <div
                           className="compliance-review-history-entry"
                           key={`${review.reviewedAt || index}-${review.outcome}-${index}`}
                         >
                           <p>
-                            <strong>Previous decision:</strong>{' '}
+                            <strong>Decision:</strong>{' '}
                             <span
                               className={`request-status-pill ${
                                 review.outcome === 'accepted'
@@ -864,25 +775,24 @@ function ComplianceDashboardPage() {
                       ))}
                     </div>
                   )}
-                  <p>
-                    Status:{' '}
-                    <span
-                      className={`request-status-pill ${
-                        request.status === 'accepted' ? 'request-status-accepted' : 'request-status-rejected'
-                      }`}
+                  <div className="contract-action-row">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="compliance-open-pdf-button"
+                      onClick={() => handleOpenDocument(request.id)}
                     >
-                      {request.status}
-                    </span>
-                  </p>
-                  <button type="button" className="contract-action-link" onClick={() => handleOpenDocument(request.id)}>
-                    Open PDF
-                  </button>
+                      Open PDF
+                    </Button>
+                  </div>
                 </article>
               ))
             )}
           </div>
         </section>
       </main>
+        </div>
+      </div>
     </div>
   );
 }
