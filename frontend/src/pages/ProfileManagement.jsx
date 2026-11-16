@@ -31,8 +31,7 @@ function getInitialDraft(user) {
     contactEmail: user?.contactEmail || '',
     profileVisibility: Object.fromEntries(
       visibilityFields.map(([field]) => [field, user?.profileVisibility?.[field] === true])
-    ),
-    educationSharingEnabled: user?.educationSharingEnabled === true
+    )
   };
 }
 
@@ -189,7 +188,16 @@ function ProfileManagement() {
     setIsSaving(true);
     try {
       const profilePayload = isAthlete
-        ? draft
+        ? {
+            firstName: draft.firstName,
+            lastName: draft.lastName,
+            preferredName: draft.preferredName,
+            avatar: draft.avatar,
+            sport: draft.sport,
+            year: draft.year,
+            contactEmail: draft.contactEmail,
+            profileVisibility: draft.profileVisibility
+          }
         : {
             firstName: draft.firstName,
             lastName: draft.lastName,
@@ -332,17 +340,6 @@ function ProfileManagement() {
                         <span>Share {label.toLowerCase()} with my school’s coaches</span>
                       </label>
                     ))}
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={draft.educationSharingEnabled}
-                        onChange={(event) => setDraft((previous) => ({
-                          ...previous,
-                          educationSharingEnabled: event.target.checked
-                        }))}
-                      />
-                      <span>Share my education progress with my school’s coaches</span>
-                    </label>
                   </fieldset>
                 ) : null}
 
