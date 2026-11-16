@@ -9,14 +9,10 @@ import moneyIcon from '../assets/moneyModule.png';
 import dealIcon from '../assets/dealModule.png';
 import contractIcon from '../assets/contractModule.png';
 import {
-  acceptRosterEducationInvite,
   educationCourses,
-  getEducationSharing,
   getStudentEducationProgress,
   mergeEducationCourseProgress,
-  previewRosterEducationInvite,
   readLocalEducationProgress,
-  revokeEducationSharing,
   saveStudentEducationProgress,
   writeLocalEducationCourse
 } from '../services/educationApi';
@@ -35,30 +31,17 @@ function EducationDashboardPage() {
   const [nilDealsQuizResult, setNilDealsQuizResult] = useState(null);
   const [contracts101Progress, setContracts101Progress] = useState(null);
   const [contracts101QuizResult, setContracts101QuizResult] = useState(null);
-  const [shares, setShares] = useState([]);
-  const [inviteCode, setInviteCode] = useState('');
-  const [invitePreview, setInvitePreview] = useState(null);
-  const [isLoadingSharing, setIsLoadingSharing] = useState(true);
-  const [isPreviewingInvite, setIsPreviewingInvite] = useState(false);
-  const [isAcceptingInvite, setIsAcceptingInvite] = useState(false);
-  const [isRevokingSharing, setIsRevokingSharing] = useState(false);
-  const [sharingError, setSharingError] = useState('');
-  const [sharingMessage, setSharingMessage] = useState('');
-  const [shareConsentConfirmed, setShareConsentConfirmed] = useState(false);
+  const [educationError, setEducationError] = useState('');
 
   const loadEducationData = async () => {
     if (!user?.id) {
       return;
     }
 
-    setIsLoadingSharing(true);
-    setSharingError('');
+    setEducationError('');
 
     try {
-      const [progressResponse, sharingResponse] = await Promise.all([
-        getStudentEducationProgress(),
-        getEducationSharing()
-      ]);
+      const progressResponse = await getStudentEducationProgress();
       const localProgress = readLocalEducationProgress(user.id);
       const savedProgress = {};
 
@@ -84,11 +67,8 @@ function EducationDashboardPage() {
       setNilDealsQuizResult(savedProgress.nilDeals?.quizResult || null);
       setContracts101Progress(savedProgress.contracts101 || null);
       setContracts101QuizResult(savedProgress.contracts101?.quizResult || null);
-      setShares(sharingResponse.shares || []);
     } catch (error) {
-      setSharingError(error.message || 'Unable to load education progress and sharing settings.');
-    } finally {
-      setIsLoadingSharing(false);
+      setEducationError(error.message || 'Unable to load education progress.');
     }
   };
 
@@ -130,70 +110,6 @@ function EducationDashboardPage() {
     setContracts101Progress(null);
     setContracts101QuizResult(null);
     navigate('/student/education/contracts');
-  };
-
-  const handlePreviewInvite = async (event) => {
-    event.preventDefault();
-    setIsPreviewingInvite(true);
-    setSharingError('');
-    setSharingMessage('');
-    setInvitePreview(null);
-    setShareConsentConfirmed(false);
-
-    try {
-      const response = await previewRosterEducationInvite(inviteCode);
-      setInvitePreview(response.invitation);
-    } catch (error) {
-      setSharingError(error.message || 'Unable to verify this sharing code.');
-    } finally {
-      setIsPreviewingInvite(false);
-    }
-  };
-
-  const handleAcceptInvite = async () => {
-    if (!invitePreview || !shareConsentConfirmed || !user?.id) {
-      return;
-    }
-
-    setIsAcceptingInvite(true);
-    setSharingError('');
-    setSharingMessage('');
-
-    try {
-      const response = await acceptRosterEducationInvite(
-        inviteCode,
-        readLocalEducationProgress(user.id)
-      );
-      setSharingMessage(response.message || 'Education progress sharing is enabled.');
-      setInviteCode('');
-      setInvitePreview(null);
-      setShareConsentConfirmed(false);
-      await loadEducationData();
-    } catch (error) {
-      setSharingError(error.message || 'Unable to link this roster entry.');
-    } finally {
-      setIsAcceptingInvite(false);
-    }
-  };
-
-  const handleRevokeSharing = async () => {
-    if (!window.confirm('Stop sharing your education progress with all linked roster coaches?')) {
-      return;
-    }
-
-    setIsRevokingSharing(true);
-    setSharingError('');
-    setSharingMessage('');
-
-    try {
-      const response = await revokeEducationSharing();
-      setShares([]);
-      setSharingMessage(response.message || 'Education progress sharing was revoked.');
-    } catch (error) {
-      setSharingError(error.message || 'Unable to revoke education progress sharing.');
-    } finally {
-      setIsRevokingSharing(false);
-    }
   };
 
   const completedCount = moneyBasicsProgress.completedLessons.length;
@@ -300,95 +216,7 @@ return (
           </p>
         </section>
 
-        <section className="education-sharing-card" aria-labelledby="education-sharing-title">
-          <div className="education-sharing-heading">
-            <div>
-              <h2 id="education-sharing-title">Share NIL education progress</h2>
-              <p>
-                A linked roster coach can see completed lesson counts and whether an assessment was passed.
-                Quiz scores, answers, contracts, and other account details are not shared. You can revoke access at any time.
-              </p>
-            </div>
-            {shares.length > 0 ? (
-              <button
-                type="button"
-                className="education-sharing-revoke"
-                onClick={handleRevokeSharing}
-                disabled={isRevokingSharing}
-              >
-                {isRevokingSharing ? 'Revoking...' : 'Revoke all sharing'}
-              </button>
-            ) : null}
-          </div>
-
-          <ToastMessage message={sharingError} variant="error" title="Education sharing failed" />
-          <ToastMessage message={sharingMessage} variant="success" title="Education sharing updated" />
-
-          {isLoadingSharing ? (
-            <p className="education-sharing-muted">Loading your sharing settings...</p>
-          ) : shares.length > 0 ? (
-            <div className="education-sharing-list">
-              <h3>Linked roster entries</h3>
-              {shares.map((share, index) => (
-                <p key={`${share.school}-${share.sport}-${share.year}-${index}`}>
-                  {share.athleteName} · {share.sport}, {share.year} · {share.school}
-                </p>
-              ))}
-            </div>
-          ) : (
-            <p className="education-sharing-muted">
-              Your education progress is not currently shared with a roster coach.
-            </p>
-          )}
-
-          <form className="education-invite-form" onSubmit={handlePreviewInvite}>
-            <label htmlFor="roster-education-invite">Coach invitation code</label>
-            <div className="education-invite-controls">
-              <input
-                id="roster-education-invite"
-                value={inviteCode}
-                onChange={(event) => {
-                  setInviteCode(event.target.value.toUpperCase());
-                  setInvitePreview(null);
-                  setShareConsentConfirmed(false);
-                }}
-                autoComplete="off"
-                maxLength={64}
-                required
-                placeholder="Enter the code your coach shared"
-              />
-              <button type="submit" disabled={isPreviewingInvite || !inviteCode.trim()}>
-                {isPreviewingInvite ? 'Checking...' : 'Review invitation'}
-              </button>
-            </div>
-          </form>
-
-          {invitePreview ? (
-            <div className="education-invite-preview">
-              <h3>Confirm this is your roster entry</h3>
-              <p>
-                {invitePreview.athleteName} · Student ID {invitePreview.studentId} · {invitePreview.sport}, {invitePreview.year} · {invitePreview.school}
-              </p>
-              <label className="education-consent-label">
-                <input
-                  type="checkbox"
-                  checked={shareConsentConfirmed}
-                  onChange={(event) => setShareConsentConfirmed(event.target.checked)}
-                />
-                <span>
-                  This is my roster entry. I agree to share my NIL education lesson completion and assessment pass status with this roster’s coach.
-                </span>
-              </label>
-              <button
-                type="button"
-                onClick={handleAcceptInvite}
-                disabled={!shareConsentConfirmed || isAcceptingInvite}
-              >
-                {isAcceptingInvite ? 'Linking...' : 'Confirm and share progress'}
-              </button>
-            </div>
-          ) : null}
-        </section>
+        <ToastMessage message={educationError} variant="error" title="Education progress failed" />
 
         <section className="education-module-grid">
 
