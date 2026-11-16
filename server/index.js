@@ -30,6 +30,7 @@ import {
   unlinkRosterPlayerForEmailChange
 } from './utils/rosterLinking.js';
 
+
 dotenv.config();
 
 dns.setServers(['8.8.8.8', '1.1.1.1']);
@@ -1440,6 +1441,8 @@ app.get('/api/contracts', async (req, res, next) => {
     next(error);
   }
 });
+
+
 
 app.get('/api/rosters', async (req, res, next) => {
   try {
