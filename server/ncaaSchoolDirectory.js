@@ -79,6 +79,17 @@ export function getSupportedSchoolCounts() {
   }));
 }
 
+export function isEmailOnSchoolDomain(email, schoolDomain) {
+  const emailDomain = String(email || '').toLowerCase().trim().split('@')[1] || '';
+  const domain = String(schoolDomain || '').toLowerCase().trim();
+
+  if (!emailDomain || !domain) {
+    return false;
+  }
+
+  return emailDomain === domain || emailDomain.endsWith(`.${domain}`);
+}
+
 export function resolveSchoolFromEmail(email) {
   const normalizedEmail = String(email || '').toLowerCase().trim();
   const emailDomain = normalizedEmail.split('@')[1] || '';

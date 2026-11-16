@@ -9,11 +9,13 @@
 /* ── Header ── */
 .student-dashboard-header {
   display: grid;
-  grid-template-columns: 210px minmax(0, 1fr) minmax(0, auto) auto auto;
-  column-gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  column-gap: 12px;
   align-items: center;
-  height: 116px;
-  padding: 14px 48px 14px 1.5vw;
+  height: 100px;
+  min-height: 100px;
+  box-sizing: border-box;
+  padding: 0 40px;
   background: transparent;
   position: relative;
   z-index: 10;
@@ -22,78 +24,40 @@
 .student-dashboard-header::before {
   content: '';
   position: absolute;
-  inset: 14px 1.5vw;
-  border: 1px solid rgba(24, 24, 24, 0.08);
-  border-radius: 12px;
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.08)),
-    url('../../assets/SoccerPixel3.PNG');
+  inset: 0;
+  background: url('../../assets/SoccerPixel3.PNG') center center / cover no-repeat;
   background-color: #a88f78;
-  background-position: center, center;
-  background-size: 100% 100%, auto 100%;
-  background-repeat: no-repeat;
-  box-shadow: 0 5px 16px rgba(24, 24, 24, 0.08);
 }
 
-.student-dashboard-header-logo-wrap {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 88px;
-  padding: 0;
-  overflow: hidden;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.student-dashboard-header-logo {
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  position: relative;
-  z-index: 5;
-  object-fit: contain;
-  object-position: center;
-  border-radius: 0;
-  filter: none;
-  transform: translate(-6px, 3px) scale(1.95);
-  transform-origin: center;
-}
-
-/* ── Title block (center of header) ── */
+/* ── Title block ── */
 .student-dashboard-title-block {
   position: relative;
   z-index: 1;
   min-width: 0;
-  text-align: center;
+  text-align: left;
 }
 
 .student-dashboard-title-block h1 {
   font-family: 'Inter', Arial, sans-serif;
-  font-size: 1.65rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  color: #181818;
+  font-size: 24px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: -0.02em;
+  color: #fff;
   margin: 0;
-  line-height: 1;
-  text-shadow: 0 1px 4px rgba(255, 255, 255, 0.9);
+  line-height: 1.25;
+  text-shadow: 0 1px 4px rgba(15, 23, 42, 0.9);
 }
 
 .student-dashboard-identity {
   font-family: 'Inter', sans-serif;
-  font-size: 0.66rem;
+  font-size: 13px;
   font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: #FF4D00;
-  margin: 0.15rem 0 0 0;
-  text-shadow: 0 1px 3px rgba(255, 255, 255, 0.95);
+  text-transform: none;
+  letter-spacing: normal;
+  color: #fff;
+  margin: 1px 0 0;
+  text-shadow: 0 1px 3px rgba(15, 23, 42, 0.9);
 }
 
 /* ── Profile menu button ── */
@@ -101,6 +65,12 @@
   position: relative;
   z-index: 1;
   justify-self: end;
+}
+
+.dashboard-communication-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .profile-menu-trigger {
@@ -138,10 +108,6 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-}
-
-.inbox-trigger.has-unread {
-  padding-right: 1.9rem;
 }
 
 .inbox-icon {
@@ -198,20 +164,19 @@
 }
 
 .inbox-unread-badge {
-  position: absolute;
-  top: -6px;
-  right: 3px;
-  z-index: 3;
-  min-width: 20px;
-  height: 20px;
-  border: 2px solid #F5F0E8;
+  position: static;
+  z-index: auto;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 8px;
+  border: 0;
   border-radius: 999px;
-  background: #FF4D00;
+  background: #E8431A;
   color: #fff;
-  font-size: 0.65rem;
+  font-size: 11px;
   font-weight: 700;
   line-height: 1;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0 4px;
@@ -506,11 +471,29 @@ main.student-dashboard-content,
 .student-dashboard-content {
   display: grid !important;
   grid-template-columns: 2fr 1fr !important;
-  grid-template-rows: auto 1fr !important;
+  grid-template-rows: auto auto 1fr !important;
   column-gap: 2rem !important;
   row-gap: 0 !important;
   padding: 1rem 2.5rem 4rem 2.5rem !important;
   align-items: start;
+}
+
+.student-dashboard-content > .student-dashboard-stats {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.student-dashboard-content > .contracts-toolbar {
+  grid-row: 2;
+  margin-top: 24px;
+}
+
+.student-dashboard-content > .contracts-column:not(.past-contracts-column) {
+  grid-row: 3;
+}
+
+.student-dashboard-content > .past-contracts-column {
+  grid-row: 3;
 }
 
 .contracts-toolbar {
@@ -539,7 +522,13 @@ main.student-dashboard-content,
   main.student-dashboard-content,
   .student-dashboard-content {
     grid-template-columns: 1fr !important;
+    grid-template-rows: auto !important;
     padding: 1rem 1rem 3rem 1rem !important;
+  }
+  .student-dashboard-content > .student-dashboard-stats,
+  .student-dashboard-content > .contracts-toolbar {
+    grid-column: 1 !important;
+    grid-row: auto !important;
   }
   .contracts-column:not(.past-contracts-column),
   .past-contracts-column {
@@ -547,24 +536,20 @@ main.student-dashboard-content,
     grid-row: auto !important;
   }
   .student-dashboard-header {
-    grid-template-columns: 150px minmax(0, 1fr) auto auto auto;
-    column-gap: 0.5rem;
-    height: 96px;
-    padding: 10px 32px 10px 1.5vw;
+    grid-template-columns: minmax(0, 1fr) auto 42px;
+    column-gap: 8px;
+    height: 100px;
+    min-height: 100px;
+    padding: 0 24px;
   }
   .student-dashboard-header::before {
-    inset: 10px 1.5vw;
-  }
-  .student-dashboard-header-logo-wrap {
-    width: 100%;
-    height: 76px;
-    padding: 10px 14px;
+    inset: 0;
   }
   .student-dashboard-title-block h1 {
-    font-size: 1.35rem;
+    font-size: 20px;
   }
   .student-dashboard-identity {
-    font-size: 0.58rem;
+    font-size: 13px;
   }
   .student-dashboard-header > span {
     display: none;
@@ -573,30 +558,58 @@ main.student-dashboard-content,
 
 @media (max-width: 600px) {
   .student-dashboard-header {
-    grid-template-columns: 92px minmax(0, 1fr) auto auto auto;
-    column-gap: 0.3rem;
-    height: 78px;
-    padding: 8px 24px 8px 0.5rem;
+    grid-template-columns: minmax(0, 1fr) 36px;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    column-gap: 6px;
+    row-gap: 0;
+    height: 100px;
+    min-height: 100px;
+    padding: 4px 10px;
   }
 
   .student-dashboard-header::before {
-    inset: 8px 0.5rem;
+    inset: 0;
   }
 
-  .student-dashboard-header-logo-wrap {
-    width: 100%;
-    height: 62px;
-    padding: 6px 10px;
+  .student-dashboard-title-block {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: end;
   }
 
   .student-dashboard-title-block h1 {
-    font-size: 1rem;
+    font-size: 18px;
     line-height: 1.1;
   }
 
   .student-dashboard-identity {
-    font-size: 0.5rem;
-    letter-spacing: 0.02em;
+    font-size: 13px;
+    letter-spacing: normal;
+    line-height: 1.1;
+  }
+
+  .dashboard-communication-actions {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: start;
+    justify-self: start;
+    gap: 8px;
+  }
+
+  .dashboard-communication-actions .profile-menu-trigger img {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .student-dashboard-header > .profile-menu:last-child:not(.dashboard-communication-actions) {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    align-self: center;
+  }
+
+  .student-dashboard-header > .profile-menu:last-child:not(.dashboard-communication-actions) > .profile-menu-trigger {
+    width: 34px;
+    height: 34px;
   }
 
   .inbox-trigger {
@@ -607,14 +620,31 @@ main.student-dashboard-content,
     font-size: 0.68rem;
   }
 
-  .profile-menu-trigger {
-    width: 34px;
-    height: 34px;
-  }
-
-  .profile-menu-trigger img {
+  .student-dashboard-header > .profile-menu:last-child:not(.dashboard-communication-actions) > .profile-menu-trigger img {
     width: 28px !important;
     height: 28px !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .student-dashboard-header {
+    grid-template-columns: minmax(0, 1fr) 38px;
+    column-gap: 6px;
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+
+  .student-dashboard-title-block h1 {
+    font-size: 16px;
+  }
+
+  .dashboard-communication-actions {
+    gap: 6px;
+  }
+
+  .student-dashboard-header > .profile-menu:last-child:not(.dashboard-communication-actions) > .profile-menu-trigger {
+    width: 32px;
+    height: 32px;
   }
 }
 
@@ -633,7 +663,9 @@ main.student-dashboard-content,
   flex: 0 0 100%;
   width: 100%;
   margin-top: 0.25rem;
-  border-bottom: 1px solid #d8c8b5;
+  border: 1px solid #E5E0D8;
+  border-radius: 12px;
+  background: #fff;
   font-family: var(--font-family);
 }
 
@@ -643,15 +675,14 @@ main.student-dashboard-content,
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.65rem 0.85rem;
-  border-radius: 4px;
-  border-left: 3px solid #ff4d00;
-  background: #242424;
-  color: #fff;
+  padding: 12px 14px;
+  border-radius: 11px;
+  background: #fff;
+  color: #0F172A;
   cursor: pointer;
-  font-size: var(--font-size-xl);
-  font-weight: 800;
-  text-transform: uppercase;
+  font-size: 16px;
+  font-weight: 600;
+  text-transform: none;
 }
 
 .contracts-progress-toggle::-webkit-details-marker {
@@ -659,22 +690,15 @@ main.student-dashboard-content,
 }
 
 .contracts-progress-toggle::after {
-  content: '+';
-  color: #ff4d00;
-  font-size: 1.35rem;
-  line-height: 1;
+  display: none;
 }
 
 .contracts-progress-summary[open] .contracts-progress-toggle::after {
-  content: '\2212';
+  display: none;
 }
 
 .contracts-progress-toggle-label {
   margin-left: auto;
-  color: #fff;
-  font-size: inherit;
-  font-weight: 800;
-  text-transform: uppercase;
 }
 
 .contracts-progress-stats {
@@ -912,6 +936,11 @@ main.student-dashboard-content,
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
+}
+
+.student-dashboard-container .active-contracts-actions-block {
+  flex: 1;
+  min-width: 0;
 }
 
 .active-contracts-actions {
@@ -1218,9 +1247,8 @@ main.student-dashboard-content,
     margin-top: 0;
   }
 
-  .contracts-progress-toggle,
-  .contracts-progress-toggle-label {
-    font-size: var(--font-size-md);
+  .contracts-progress-toggle {
+    font-size: 16px;
   }
 
   .contracts-progress-stats {
@@ -1690,6 +1718,10 @@ main.student-dashboard-content,
   margin-top: 0.4rem;
 }
 
+.student-dashboard-container .send-compliance-dialog h2::after {
+  display: none;
+}
+
 .dashboard-dialog-copy {
   font-family: 'Inter', sans-serif;
   font-size: 0.92rem;
@@ -2119,6 +2151,39 @@ main.student-dashboard-content,
   outline-offset: 1px;
 }
 
+.student-dashboard-content .contracts-column-header {
+  margin-bottom: 8px;
+}
+
+.student-dashboard-content .contracts-column-header h2,
+.student-dashboard-content .education-dashboard-entry h2 {
+  color: #0F172A;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: normal;
+  line-height: 1.35;
+  text-transform: lowercase;
+}
+
+.student-dashboard-content .contracts-column-header h2 {
+  height: auto;
+  margin: 0 0 4px;
+  position: static;
+}
+
+.student-dashboard-content .contracts-column-header h2::after {
+  display: none;
+}
+
+.student-dashboard-content .contracts-column-header h2::first-letter,
+.student-dashboard-content .education-dashboard-entry h2::first-letter {
+  text-transform: uppercase;
+}
+
+.student-dashboard-content .education-dashboard-entry h2 {
+  margin: 0 0 4px;
+}
+
 @media (max-width: 600px) {
   .compliance-guidelines {
     padding: 12px;
@@ -2257,4 +2322,599 @@ main.student-dashboard-content,
   padding: 10px 14px;
   color: #b42318;
   font-size: 0.85rem;
+}
+
+.student-dashboard-container {
+  --student-button-primary: #E84B0B;
+  --student-button-primary-hover: #D9430A;
+  --student-button-border: #D8D2C8;
+  --student-button-text: #0F172A;
+  --student-button-danger: #B42318;
+}
+
+.student-dashboard-container:not(.coach-page) button:not(.student-notification):not(.inbox-conversation) {
+  box-sizing: border-box;
+  height: 38px;
+  min-height: 38px;
+  border-radius: 7px;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  box-shadow: none;
+  transform: none;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+
+.student-dashboard-container:not(.coach-page) button:not(.student-notification):not(.inbox-conversation):focus-visible {
+  outline: 2px solid #344054;
+  outline-offset: 2px;
+}
+
+.student-dashboard-container:not(.coach-page) button:not(.student-notification):not(.inbox-conversation):disabled,
+.student-dashboard-container:not(.coach-page) button:not(.student-notification):not(.inbox-conversation)[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.student-dashboard-container:not(.coach-page) button:not(.student-notification):not(.inbox-conversation)[aria-busy='true'] {
+  cursor: progress;
+  opacity: 0.8;
+}
+
+.student-dashboard-container:not(.coach-page) .student-dashboard-shared-button.shadcn-button {
+  width: auto;
+  min-width: 0;
+  height: 38px;
+  min-height: 38px;
+  gap: 8px;
+  padding: 0 14px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.student-dashboard-container:not(.coach-page) .student-dashboard-shared-button.shadcn-button-size-icon,
+.student-dashboard-container:not(.coach-page) .contract-action-overflow-trigger {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  justify-content: center;
+}
+
+.student-dashboard-container:not(.coach-page) .student-dashboard-shared-button.shadcn-button-default,
+.student-dashboard-container:not(.coach-page) .dashboard-secondary-button.dashboard-accept-button {
+  border: 1px solid var(--student-button-primary);
+  background: var(--student-button-primary);
+  color: #fff;
+}
+
+.student-dashboard-container:not(.coach-page) .student-dashboard-shared-button.shadcn-button-default:hover:not(:disabled),
+.student-dashboard-container:not(.coach-page) .dashboard-secondary-button.dashboard-accept-button:hover:not(:disabled) {
+  border-color: var(--student-button-primary-hover);
+  background: var(--student-button-primary-hover);
+  color: #fff;
+}
+
+.student-dashboard-container:not(.coach-page) .student-dashboard-shared-button.shadcn-button-outline,
+.student-dashboard-container:not(.coach-page) .student-dashboard-shared-button.shadcn-button-secondary,
+.student-dashboard-container:not(.coach-page) .dashboard-secondary-button:not(.dashboard-accept-button):not(.dashboard-reject-button) {
+  border: 1px solid var(--student-button-border);
+  background: #fff;
+  color: var(--student-button-text);
+}
+
+.student-dashboard-container:not(.coach-page) .student-dashboard-shared-button.shadcn-button-outline:hover:not(:disabled),
+.student-dashboard-container:not(.coach-page) .student-dashboard-shared-button.shadcn-button-secondary:hover:not(:disabled),
+.student-dashboard-container:not(.coach-page) .dashboard-secondary-button:not(.dashboard-accept-button):not(.dashboard-reject-button):hover:not(:disabled) {
+  border-color: var(--student-button-border);
+  background: #F7F8FA;
+  color: var(--student-button-text);
+}
+
+.student-dashboard-container:not(.coach-page) .student-dashboard-shared-button.shadcn-button-ghost {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--student-button-text);
+}
+
+.student-dashboard-container:not(.coach-page) .student-dashboard-shared-button.shadcn-button-ghost:hover:not(:disabled) {
+  border-color: var(--student-button-border);
+  background: #F7F8FA;
+  color: var(--student-button-text);
+}
+
+.student-dashboard-container:not(.coach-page) .student-dashboard-shared-button.coach-delete-button,
+.student-dashboard-container:not(.coach-page) .dashboard-secondary-button.dashboard-reject-button {
+  border: 1px solid var(--student-button-border);
+  background: #fff;
+  color: var(--student-button-danger);
+}
+
+.student-dashboard-container:not(.coach-page) .student-dashboard-shared-button.coach-delete-button:hover:not(:disabled),
+.student-dashboard-container:not(.coach-page) .dashboard-secondary-button.dashboard-reject-button:hover:not(:disabled) {
+  border-color: #E2B9B5;
+  background: #FEF2F2;
+  color: var(--student-button-danger);
+}
+
+.student-dashboard-container:not(.coach-page) .student-dashboard-header .dashboard-communication-actions .inbox-icon,
+.student-dashboard-container:not(.coach-page) .student-dashboard-header .dashboard-communication-actions .chat-launch-icon {
+  margin-right: 8px;
+  filter: none;
+}
+
+.student-dashboard-container:not(.coach-page) .dashboard-communication-actions .student-dashboard-shared-button {
+  gap: 0;
+}
+
+.student-dashboard-container:not(.coach-page) .student-dashboard-header > .profile-menu:last-child:not(.dashboard-communication-actions) > .profile-menu-trigger {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
+  border: 1px solid var(--student-button-border);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--student-button-text);
+}
+
+.student-dashboard-container:not(.coach-page) .student-dashboard-header .dashboard-communication-actions .dashboard-header-control,
+.student-dashboard-header .dashboard-communication-actions .dashboard-header-control {
+  box-sizing: border-box;
+  display: inline-flex;
+  width: auto;
+  min-width: 0;
+  position: relative;
+  height: 34px;
+  min-height: 34px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  overflow: visible;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 8px;
+  background: rgba(20, 24, 40, 0.72) !important;
+  color: #fff !important;
+  box-shadow: none;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.student-dashboard-container:not(.coach-page) .student-dashboard-header .dashboard-communication-actions .dashboard-header-control:hover:not(:disabled),
+.student-dashboard-header .dashboard-communication-actions .dashboard-header-control:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.6);
+  background: rgba(20, 24, 40, 0.88) !important;
+  color: #fff !important;
+  box-shadow: none;
+}
+
+.student-dashboard-container:not(.coach-page) .student-dashboard-header .dashboard-communication-actions .dashboard-header-control:focus-visible,
+.student-dashboard-header .dashboard-communication-actions .dashboard-header-control:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.student-dashboard-container:not(.coach-page) .student-dashboard-header .dashboard-communication-actions .dashboard-header-control .inbox-icon,
+.student-dashboard-container:not(.coach-page) .student-dashboard-header .dashboard-communication-actions .dashboard-header-control .chat-launch-icon,
+.student-dashboard-header .dashboard-communication-actions .dashboard-header-control .inbox-icon,
+.student-dashboard-header .dashboard-communication-actions .dashboard-header-control .chat-launch-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  margin: 0;
+  filter: brightness(0) invert(1);
+}
+
+.dashboard-communication-actions .header-control-badge {
+  box-sizing: border-box;
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: #E94E16;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.student-dashboard-container:not(.coach-page) .profile-menu-trigger:hover:not(:disabled) {
+  border-color: var(--student-button-border);
+  background: #F7F8FA;
+  color: var(--student-button-text);
+}
+
+.student-dashboard-container:not(.coach-page) .coach-sidebar-account .coach-text-button {
+  border: 1px solid var(--student-button-border);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--student-button-text);
+  font-size: 13px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.student-dashboard-container:not(.coach-page) .coach-sidebar-account .coach-text-button:hover:not(:disabled) {
+  border-color: var(--student-button-border);
+  background: #F7F8FA;
+  color: var(--student-button-text);
+}
+
+.student-dashboard-container:not(.coach-page) .app-close-button,
+.student-dashboard-container:not(.coach-page) .contract-success-toast-dismiss {
+  display: inline-grid;
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--student-button-border);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--student-button-text);
+}
+
+.student-dashboard-container:not(.coach-page) .app-close-button:hover:not(:disabled),
+.student-dashboard-container:not(.coach-page) .contract-success-toast-dismiss:hover:not(:disabled) {
+  border-color: var(--student-button-border);
+  background: #F7F8FA;
+  color: var(--student-button-text);
+}
+
+.student-dashboard-container:not(.coach-page) .contracts-filter-button {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--student-button-text);
+  box-shadow: none;
+}
+
+.student-dashboard-container:not(.coach-page) .contracts-filter-button:hover,
+.student-dashboard-container:not(.coach-page) .contracts-filter-button[aria-expanded='true'] {
+  border-color: transparent;
+  background: transparent;
+  color: #243247;
+}
+
+.student-dashboard-container:not(.coach-page) .contracts-filter-button:focus-visible {
+  outline: 2px solid #243247;
+  outline-offset: 2px;
+}
+
+.student-dashboard-container:not(.coach-page) .roster-upload-controls .contracts-sort-menu {
+  align-self: center;
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.student-dashboard-header.student-athlete-header {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.student-dashboard-header.student-athlete-header .dashboard-communication-actions {
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .student-dashboard-header.student-athlete-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .student-dashboard-header.student-athlete-header .dashboard-communication-actions {
+    width: 100%;
+    min-width: 0;
+    justify-self: stretch;
+  }
+}
+
+@media (max-width: 900px) {
+  .student-dashboard-header.student-athlete-header .dashboard-communication-actions {
+    gap: 8px;
+  }
+
+  .student-dashboard-container:not(.coach-page) .student-dashboard-header.student-athlete-header .dashboard-communication-actions .dashboard-header-control,
+  .student-dashboard-container:not(.coach-page) .student-dashboard-header .dashboard-communication-actions .dashboard-header-control,
+  .student-dashboard-header .dashboard-communication-actions .dashboard-header-control {
+    width: 34px;
+    min-width: 34px;
+    max-width: 34px;
+    flex-basis: 34px;
+    gap: 0;
+    padding: 0;
+  }
+
+  .student-dashboard-container:not(.coach-page) .student-dashboard-header .dashboard-communication-actions .dashboard-header-control .dashboard-header-control-label,
+  .student-dashboard-header .dashboard-communication-actions .dashboard-header-control .dashboard-header-control-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    border: 0;
+    white-space: nowrap;
+  }
+
+  .dashboard-communication-actions .dashboard-header-control .header-control-badge {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    z-index: 1;
+    width: 8px;
+    min-width: 8px;
+    height: 8px;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 50%;
+    color: transparent;
+    font-size: 0;
+    line-height: 0;
+  }
+}
+
+.student-dashboard-container:not(.coach-page) .student-inbox-compose button,
+.student-dashboard-container:not(.coach-page) .inbox-reply-form button {
+  border: 1px solid var(--student-button-primary);
+  background: var(--student-button-primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.student-dashboard-container:not(.coach-page) .student-inbox-compose button:hover:not(:disabled),
+.student-dashboard-container:not(.coach-page) .inbox-reply-form button:hover:not(:disabled) {
+  border-color: var(--student-button-primary-hover);
+  background: var(--student-button-primary-hover);
+  color: #fff;
+}
+
+.student-dashboard-container:not(.coach-page) .inbox-reply-button {
+  border: 1px solid var(--student-button-border);
+  background: #fff;
+  color: var(--student-button-text);
+  font-size: 13px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.student-dashboard-container:not(.coach-page) .inbox-reply-button:hover:not(:disabled) {
+  border-color: var(--student-button-border);
+  background: #F7F8FA;
+  color: var(--student-button-text);
+}
+
+.student-dashboard-container:not(.coach-page) .inbox-send-button {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
+  border: 1px solid var(--student-button-primary);
+  border-radius: 7px;
+  background: var(--student-button-primary);
+  color: #fff;
+}
+
+.student-dashboard-container:not(.coach-page) .inbox-send-button:hover:not(:disabled) {
+  border-color: var(--student-button-primary-hover);
+  background: var(--student-button-primary-hover);
+}
+
+.student-dashboard-container:not(.coach-page) .inbox-send-button:disabled {
+  border-color: #EAECF0;
+  background: #F2F4F7;
+  color: #98A2B3;
+  opacity: 1;
+}
+
+.student-dashboard-container:not(.coach-page) .inbox-conversation {
+  border: 1px solid var(--student-button-border);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--student-button-text);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.student-dashboard-container:not(.coach-page) .inbox-conversation:hover,
+.student-dashboard-container:not(.coach-page) .inbox-conversation[aria-expanded='true'] {
+  border-color: var(--student-button-border);
+  background: #F7F8FA;
+  color: var(--student-button-text);
+}
+
+.student-dashboard-container:not(.coach-page) .inbox-conversation:focus-visible {
+  outline: 2px solid #344054;
+  outline-offset: 2px;
+}
+
+.student-dashboard-container:not(.coach-page) .contracts-sort-option {
+  color: var(--student-button-text);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.student-dashboard-container:not(.coach-page) .contracts-sort-option:hover,
+.student-dashboard-container:not(.coach-page) .contracts-sort-option.is-selected {
+  background: #F7F8FA;
+}
+
+.student-dashboard-container:not(.coach-page) .contracts-sort-option.is-selected {
+  box-shadow: inset 3px 0 var(--student-button-primary);
+  font-weight: 600;
+}
+
+.student-dashboard-container:not(.coach-page) .profile-menu-dropdown > button {
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+  color: var(--student-button-text);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.student-dashboard-container:not(.coach-page) .profile-menu-dropdown > button:hover:not(:disabled) {
+  background: #F7F8FA;
+  color: var(--student-button-text);
+}
+
+.student-dashboard-container:not(.coach-page) .student-notification {
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.student-dashboard-container:not(.coach-page) .student-notification:hover,
+.student-dashboard-container:not(.coach-page) .student-notification-unread {
+  background: #F7F8FA;
+}
+
+.student-dashboard-container:not(.coach-page) .student-notification:focus-visible {
+  outline: 2px solid #344054;
+  outline-offset: -2px;
+}
+
+.student-dashboard-container:not(.coach-page) .contracts-progress-toggle-label {
+  box-sizing: border-box;
+  height: 38px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--student-button-border);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--student-button-text);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.student-dashboard-container:not(.coach-page) .contract-action-row {
+  gap: 8px;
+}
+
+.student-dashboard-container:not(.coach-page) .contracts-column .contract-action-row {
+  justify-content: flex-start;
+  margin-top: 16px;
+}
+
+.student-dashboard-container:not(.coach-page) .contract-action-overflow {
+  display: flex;
+  align-items: center;
+  position: relative;
+  flex: 0 0 auto;
+  z-index: 4;
+}
+
+.student-dashboard-container:not(.coach-page) .contract-action-overflow-trigger {
+  box-sizing: border-box;
+  display: grid;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  min-height: 34px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #D8D2C8;
+  border-radius: 8px;
+  background: #fff;
+  color: #0F172A;
+}
+
+.student-dashboard-container:not(.coach-page) .contract-action-overflow-trigger:hover:not(:disabled),
+.student-dashboard-container:not(.coach-page) .contract-action-overflow-trigger[aria-expanded='true'] {
+  border-color: #D8D2C8;
+  background: #F4EFE8;
+  color: #0F172A;
+}
+
+.student-dashboard-container:not(.coach-page) .contract-action-overflow-trigger svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  color: #0F172A;
+}
+
+.student-dashboard-container #contracts .contracts-list > .contract-card:not(.contract-empty-state):hover {
+  border-color: #D8C8B5;
+  box-shadow: none;
+  transform: none;
+}
+
+.student-dashboard-container:not(.coach-page) .contract-action-overflow-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  min-width: 200px;
+  padding: 6px;
+  border: 1px solid var(--student-button-border);
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+.student-dashboard-container:not(.coach-page) .contract-action-menu-item {
+  width: 100%;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: #fff;
+  color: var(--student-button-text);
+  text-align: left;
+}
+
+.student-dashboard-container:not(.coach-page) .contract-action-menu-item:hover:not(:disabled) {
+  border-color: transparent;
+  background: #F7F8FA;
+}
+
+.student-dashboard-container:not(.coach-page) .contract-action-menu-divider {
+  height: 1px;
+  margin: 4px 2px;
+  background: #EAECF0;
+}
+
+.student-dashboard-container:not(.coach-page) .contract-action-menu-item.is-destructive {
+  color: var(--student-button-danger);
+}
+
+.student-dashboard-container:not(.coach-page) .contract-action-menu-item.is-destructive:hover:not(:disabled) {
+  background: #FEF2F2;
+  color: var(--student-button-danger);
+}
+
+@media (max-width: 600px) {
+  .student-dashboard-container:not(.coach-page) .contracts-column .contract-action-row {
+    flex-wrap: wrap;
+  }
 }

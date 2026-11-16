@@ -98,6 +98,70 @@ export async function uploadRosterCsv(user, file) {
   return parseJsonResponse(response);
 }
 
+export async function addRosterPlayer(user, rosterId, player) {
+  getUserId(user);
+
+  const response = await fetch(
+    `${API_BASE_URL}/rosters/${encodeURIComponent(rosterId)}/players`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(player)
+    }
+  );
+
+  return parseJsonResponse(response);
+}
+
+export async function updateRosterPlayer(user, rosterId, playerIndex, player) {
+  getUserId(user);
+
+  const response = await fetch(
+    `${API_BASE_URL}/rosters/${encodeURIComponent(rosterId)}/players/${playerIndex}`,
+    {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(player)
+    }
+  );
+
+  return parseJsonResponse(response);
+}
+
+export async function removeRosterPlayer(user, rosterId, playerIndex) {
+  getUserId(user);
+
+  const response = await fetch(
+    `${API_BASE_URL}/rosters/${encodeURIComponent(rosterId)}/players/${playerIndex}`,
+    {
+      method: 'DELETE',
+      credentials: 'include'
+    }
+  );
+
+  return parseJsonResponse(response);
+}
+
+export async function createRosterEducationInvite(user, rosterId, playerIndex) {
+  getUserId(user);
+
+  const response = await fetch(
+    `${API_BASE_URL}/rosters/${encodeURIComponent(rosterId)}/players/${playerIndex}/education-invite`,
+    {
+      method: 'POST',
+      credentials: 'include'
+    }
+  );
+
+  return parseJsonResponse(response);
+}
+
 export async function deleteRoster(user, rosterId) {
   const userId = getUserId(user);
 

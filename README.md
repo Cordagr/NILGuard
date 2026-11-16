@@ -10,7 +10,7 @@ a
 
 ### At the End of Sprint 1, a User Must Be Able To:
 - **(US-01)** Log in securely using valid credentials
-- **(US-02)** Register an account and await verification by a school representative
+- **(US-02)** Register an account after a coach invitation and verify the email address
 - **(US-03)** Be assigned a role (Student / Compliance Officer) after verification
 - **(US-04)** Access a role-based dashboard after login
 - **(US-05)** Create and manage a student profile
@@ -87,4 +87,6 @@ Requirements: Node.js 18 or later, npm, and PostgreSQL 14 or later. Docker Deskt
    ```
    Open the Vite URL shown in the terminal, normally `http://localhost:5173`.
 
-Application records are stored in PostgreSQL JSONB tables. Uploaded contract PDFs and roster CSVs remain in `server/uploads/` on the local filesystem. Existing MongoDB records are not imported automatically; a fresh PostgreSQL database starts empty. For a hosted PostgreSQL service, set `DATABASE_URL` to its connection string and set `DATABASE_SSL=true` when the provider requires TLS.
+Athlete sign-up requires a coach-issued roster invite. Email verification is disabled by default for the demo; set `REQUIRE_STUDENT_EMAIL_VERIFICATION=true` to require student email verification again. When enabled, verification emails require SMTP settings in `.env`: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, and `SMTP_FROM`. Set `APP_BASE_URL` to the public frontend origin for deployed verification and invite links. Roster CSVs require `student_id,first_name,last_name,email,school,sport,year`; duplicate emails are flagged for coach review, and non-school-domain email addresses produce warnings.
+
+Application records are stored in PostgreSQL JSONB tables. Uploaded contract PDFs and roster CSVs are stored under `server/uploads/` by default. For Render, attach a persistent disk to the server service (for example, mounted at `/var/data`) and set `UPLOADS_DIR=/var/data/uploads`; without a mounted persistent disk, uploaded files can disappear during redeploys or restarts. Files already lost from an ephemeral filesystem cannot be recovered and must be uploaded again. PDF routes remain authenticated, so users must be signed in to view their files. Existing MongoDB records are not imported automatically; a fresh PostgreSQL database starts empty. For a hosted PostgreSQL service, set `DATABASE_URL` to its connection string and set `DATABASE_SSL=true` when the provider requires TLS.

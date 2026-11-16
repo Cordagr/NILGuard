@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { ToastMessage } from '../components/ui/toast';
 import '../styles/pages/Register.css';
 import logo from '../assets/NILGUARD.png';
 import { getDashboardRouteForRole, getNormalizedRole, ROLE_LABELS } from '../utils/roleRouting';
-import { registerUser } from '../services/authApi';
+import { registerUser, resendEmailVerification } from '../services/authApi';
 import { useAuth } from '../context/AuthContext';
 
 function RegisterPage() {
@@ -15,8 +16,11 @@ function RegisterPage() {
     password: '',
     confirmPassword: ''
   });
+  const [inviteCode, setInviteCode] = useState(() => searchParams.get('inviteCode') || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [verificationPending, setVerificationPending] = useState(false);
+  const [isResendingVerification, setIsResendingVerification] = useState(false);
 
   const [selectedRole, setSelectedRole] = useState(
     () => getNormalizedRole(searchParams.get('role'))
@@ -45,14 +49,31 @@ function RegisterPage() {
       const response = await registerUser({
         email: formData.email,
         password: formData.password,
-        role: selectedRole
+        role: selectedRole,
+        inviteCode
       });
+      if (response.emailVerificationRequired) {
+        setVerificationPending(true);
+        return;
+      }
       startSession(response.user);
       navigate(getDashboardRouteForRole(response.user.role));
     } catch (error) {
       setErrorMessage(error.message || 'Registration failed. Please try again.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    setErrorMessage('');
+    setIsResendingVerification(true);
+    try {
+      await resendEmailVerification(formData.email);
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to send another verification email.');
+    } finally {
+      setIsResendingVerification(false);
     }
   };
 
@@ -63,6 +84,24 @@ function RegisterPage() {
           <img src={logo} alt="NILGuard Logo" />
         </div>
 
+        {verificationPending ? (
+          <div className="register-form" role="status">
+            <h2>Check your email</h2>
+            <p>A verification link was sent to {formData.email}. Verify your address before signing in.</p>
+            {errorMessage ? (
+              <ToastMessage message={errorMessage} variant="error" title="Verification email failed" />
+            ) : null}
+            <button
+              type="button"
+              className="btn btn-primary btn-block"
+              onClick={handleResendVerification}
+              disabled={isResendingVerification}
+            >
+              {isResendingVerification ? 'Sending...' : 'Resend verification email'}
+            </button>
+            <p className="register-footer"><Link to="/login">Return to login</Link></p>
+          </div>
+        ) : (
         <form className="register-form" onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="form-label" htmlFor="register-role">
@@ -89,6 +128,26 @@ function RegisterPage() {
           <p className="register-hint">
             Use your official university .edu email. NILGuard assigns your school and NCAA division from the email domain.
           </p>
+
+          {selectedRole === 'student' ? (
+            <>
+              <p className="register-hint">
+                Athlete registration requires an invitation sent by your coach. Use the email address and one-time code from that invitation.
+              </p>
+              <div className="form-group">
+                <label className="form-label" htmlFor="register-invite-code">Coach invite code</label>
+                <input
+                  id="register-invite-code"
+                  className="form-input"
+                  value={inviteCode}
+                  onChange={(event) => setInviteCode(event.target.value.toUpperCase())}
+                  maxLength={32}
+                  autoComplete="one-time-code"
+                  required
+                />
+              </div>
+            </>
+          ) : null}
 
           <div className="form-group">
             <label className="form-label">Email</label>
@@ -130,22 +189,21 @@ function RegisterPage() {
           </div>
 
           {errorMessage && (
-            <p className="register-error" role="alert">
-              {errorMessage}
-            </p>
+            <ToastMessage message={errorMessage} variant="error" title="Registration failed" />
           )}
 
           <button type="submit" className="btn btn-primary btn-block btn-lg">
             {isSubmitting ? 'Creating account...' : 'Submit'}
           </button>
         </form>
+        )}
 
-        <div className="register-footer">
+        {!verificationPending ? <div className="register-footer">
           <p>
             Already have an account?
             <Link to={`/login${selectedRole ? `?role=${selectedRole}` : ''}`}>Login here</Link>
           </p>
-        </div>
+        </div> : null}
       </div>
     </div>
   );

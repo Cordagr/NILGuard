@@ -1,6 +1,6 @@
-student_id,first_name,last_name,school,sport,year
-3101,Tyler,Johnson,Clemson University,Football,2026
-3102,Marcus,Bennett,Clemson University,Football,2026
-3103,Elijah,Carter,Clemson University,Football,2026
-3104,Cameron,Reed,Clemson University,Football,2026
-3105,Jordan,Mitchell,Clemson University,Football,2026
+student_id,first_name,last_name,email,school,sport,year
+3101,Tyler,Johnson,tyler.johnson@clemson.edu,Clemson University,Football,2026
+3102,Marcus,Bennett,marcus.bennett@clemson.edu,Clemson University,Football,2026
+3103,Elijah,Carter,elijah.carter@clemson.edu,Clemson University,Football,2026
+3104,Cameron,Reed,cameron.reed@clemson.edu,Clemson University,Football,2026
+3105,Jordan,Mitchell,jordan.mitchell@clemson.edu,Clemson University,Football,2026

@@ -2,6 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getCoachAthlete } from '../services/rosterApi';
+import { ToastMessage } from '../components/ui/toast';
+import { Button } from '../components/ui/button';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faArrowLeft } from '@fortawesome/free-solid-svg-icons';
+import logo from '../assets/NILGUARD.png';
+import '../styles/pages/ProfileManagement.css';
 import '../styles/pages/AthletesProfilePage.css';
 
 export default function AthletesProfilePage() {
@@ -13,8 +19,7 @@ export default function AthletesProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  
-useEffect(() => {
+  useEffect(() => {
     async function fetchProfile() {
         if (!user || !id) {
             setError('Missing coach session or athlete ID.');
@@ -44,15 +49,6 @@ useEffect(() => {
 }, [user, id]);
 
 
-  const handleMessageAthlete = () => {
-    if (athlete) {
-      // Constructs a generated email and opens the default email client
-      const athleteEmail = `${athlete.firstName.toLowerCase()}@example.edu`;
-      const subject = encodeURIComponent(`NILGuard: Message from Coach ${user.email}`);
-      window.location.href = `mailto:${athleteEmail}?subject=${subject}`;
-    }
-  };
-
   if (loading) {
     return (
       <div className="athlete-profile-page">
@@ -64,13 +60,13 @@ useEffect(() => {
   if (error) {
     return (
       <div className="athlete-profile-page">
-        <div className="profile-error notification-error" role="alert">
-          <h3>Error Loading Profile</h3>
-          <p>{error}</p>
-          <button className="profile-back-btn" onClick={() => navigate(-1)} style={{ marginTop: '16px' }}>
-            &larr; Go Back
-          </button>
-        </div>
+        <ToastMessage
+          message={error}
+          variant="error"
+          title="Error loading profile"
+          actionLabel="Go back"
+          onAction={() => navigate(-1)}
+        />
       </div>
     );
   }
@@ -80,24 +76,28 @@ useEffect(() => {
   return (
     <div className="athlete-profile-page">
       <div className="profile-container">
-        
-        <button className="profile-back-btn" onClick={() => navigate(-1)}>
-          &larr; BACK TO DASHBOARD
-        </button>
-        
+
+        <header className="profile-management-header">
+          <div className="profile-management-logo-wrap">
+            <img src={logo} alt="NILGuard" className="profile-management-logo" />
+          </div>
+          <div className="profile-management-title">
+            <h1>{athlete.firstName} {athlete.lastName}</h1>
+          </div>
+          <Button type="button" variant="outline" onClick={() => navigate(-1)}>
+            <FontAwesomeIcon icon={faArrowLeft} className="profile-action-icon" />
+            Back to dashboard
+          </Button>
+        </header>
+
         {/* HEADER SECTION */}
         <div className="profile-header-card">
-          <div className="profile-banner"></div>
           <div className="profile-header-content">
-            <div className="profile-avatar-large">{initials}</div>
-            <div className="profile-header-text">
-              <h1>{athlete.firstName} {athlete.lastName}</h1>
-              <p className="profile-school">{athlete.school} • ID: {athlete.studentId}</p>
+            <div className="profile-avatar-large">
+              {athlete.avatar ? <img src={athlete.avatar} alt="" className="profile-avatar-large-img" /> : initials}
             </div>
-            <div className="profile-header-actions">
-              <button className="action-btn primary" onClick={handleMessageAthlete}>
-                Message Athlete
-              </button>
+            <div className="profile-header-text">
+              <p className="profile-school">{athlete.school} • ID: {athlete.studentId}</p>
             </div>
           </div>
         </div>

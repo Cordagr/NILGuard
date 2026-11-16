@@ -1,6 +1,8 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { persistEducationQuizResult } from '../services/educationApi';
 import '../styles/pages/NILDealsQuiz.css';
 
 const questions = [
@@ -60,6 +62,7 @@ const PASSING_PERCENTAGE = 80;
 
 function NILDealsQuizPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState({});
@@ -100,10 +103,14 @@ function NILDealsQuizPage() {
       completedAt: new Date().toISOString()
     };
 
-    localStorage.setItem(
+    persistEducationQuizResult(
+      user?.id,
+      'nilDeals',
       'nilDealsQuizResult',
-      JSON.stringify(result)
-    );
+      result
+    ).catch((error) => {
+      console.error('Unable to sync NIL Deals assessment:', error);
+    });
   };
 
   const handleNext = () => {

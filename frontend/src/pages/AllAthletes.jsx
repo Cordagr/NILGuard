@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { listAthletes } from '../services/rosterApi';
+import { ToastMessage } from '../components/ui/toast';
 import '../styles/pages/AllAthletes.css';
 import { useAuth } from '../context/AuthContext';
 
@@ -199,7 +200,7 @@ export default function AllAthletes({ onSelectAthlete }) {
       {loading ? (
         <div className="loading-state">Loading athletes...</div>
       ) : error ? (
-        <div className="error-state notification-error" role="alert">{error}</div>
+        <ToastMessage message={error} variant="error" title="Unable to load athletes" />
       ) : Object.keys(groupedAthletes).length === 0 ? (
         <div className="empty-state">No athletes match your filters.</div>
       ) : (

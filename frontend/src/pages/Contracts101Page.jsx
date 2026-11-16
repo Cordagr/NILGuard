@@ -1,7 +1,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import logo from '../assets/NILGUARD.png';
+import {
+  educationStorageKey,
+  getStudentEducationCourseProgress,
+  saveStudentEducationProgress
+} from '../services/educationApi';
 import '../styles/pages/Contracts101.css';
 
 const lessons = [
@@ -133,25 +139,46 @@ const lessons = [
 
 function Contracts101Page() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const progressStorageKey = user?.id
+    ? educationStorageKey(user.id, 'contracts101Progress')
+    : null;
 
   const [currentLesson, setCurrentLesson] = useState(0);
   const [completedLessons, setCompletedLessons] = useState([]);
+  const [isProgressLoaded, setIsProgressLoaded] = useState(false);
+  const [canSyncProgress, setCanSyncProgress] = useState(false);
 
   useEffect(() => {
-    const savedProgress = localStorage.getItem('contracts101Progress');
-
-    if (savedProgress) {
-      try {
-        const progress = JSON.parse(savedProgress);
-
-        setCurrentLesson(progress.currentLesson ?? 0);
-        setCompletedLessons(progress.completedLessons ?? []);
-      } catch {
-        setCurrentLesson(0);
-        setCompletedLessons([]);
-      }
+    if (!user?.id) {
+      return;
     }
-  }, []);
+
+    let isActive = true;
+    getStudentEducationCourseProgress(user.id, 'contracts101')
+      .then((progress) => {
+        if (!isActive) {
+          return;
+        }
+        setCurrentLesson(progress.currentLesson);
+        setCompletedLessons(progress.completedLessons);
+        setCanSyncProgress(true);
+        setIsProgressLoaded(true);
+      })
+      .catch((error) => {
+        console.error('Unable to load Contracts 101 progress:', error);
+        window.dispatchEvent(new CustomEvent('nilguard:education-sync-error', {
+          detail: { message: error.message || 'Unable to load Contracts 101 progress.' }
+        }));
+        if (isActive) {
+          setIsProgressLoaded(true);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [user?.id]);
 
   const lesson = lessons[currentLesson];
 
@@ -161,10 +188,18 @@ function Contracts101Page() {
       completedLessons: nextCompletedLessons
     };
 
-    localStorage.setItem(
-      'contracts101Progress',
-      JSON.stringify(progress)
-    );
+    if (!progressStorageKey) {
+      return;
+    }
+
+    localStorage.setItem(progressStorageKey, JSON.stringify(progress));
+    if (!isProgressLoaded || !canSyncProgress) {
+      return;
+    }
+
+    saveStudentEducationProgress('contracts101', progress).catch((error) => {
+      console.error('Unable to sync Contracts 101 progress:', error);
+    });
   };
 
   const handleLessonSelect = (index) => {

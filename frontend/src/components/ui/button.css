@@ -1,0 +1,121 @@
+.shadcn-button {
+  display: inline-flex;
+  min-height: 38px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 13px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: #ff4d00;
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+  white-space: nowrap;
+  cursor: pointer;
+  outline: none;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.shadcn-button:focus-visible {
+  outline: 2px solid #2447c8;
+  outline-offset: 2px;
+}
+
+.shadcn-button:disabled {
+  pointer-events: none;
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.shadcn-button-default {
+  border-color: #ff4d00;
+  background: #ff4d00;
+  color: #fff;
+}
+
+.shadcn-button-default:hover:not(:disabled) {
+  border-color: #e8431a;
+  background: #e8431a;
+  color: #fff;
+}
+
+.shadcn-button-destructive {
+  border-color: #e8431a;
+  background: #e8431a;
+  color: #fff;
+}
+
+.shadcn-button-destructive:hover:not(:disabled) {
+  border-color: #c93816;
+  background: #c93816;
+  color: #fff;
+}
+
+.shadcn-button-outline {
+  border-color: #e5e0d8;
+  background: #fff;
+  color: #0f172a;
+}
+
+.shadcn-button-outline:hover:not(:disabled) {
+  background: #f4efe8;
+  color: #0f172a;
+}
+
+.shadcn-button-secondary {
+  border-color: #e5e0d8;
+  background: #f4efe8;
+  color: #0f172a;
+}
+
+.shadcn-button-secondary:hover:not(:disabled) {
+  background: #ebe4dc;
+  color: #0f172a;
+}
+
+.shadcn-button-ghost {
+  background: transparent;
+  color: #0f172a;
+}
+
+.shadcn-button-ghost:hover:not(:disabled) {
+  background: #f4efe8;
+  color: #0f172a;
+}
+
+.shadcn-button-link {
+  min-height: auto;
+  padding: 0;
+  background: transparent;
+  color: #2447c8;
+  text-underline-offset: 4px;
+}
+
+.shadcn-button-link:hover:not(:disabled) {
+  background: transparent;
+  color: #1d379d;
+  text-decoration: underline;
+}
+
+.shadcn-button-size-sm {
+  min-height: 34px;
+  padding: 7px 10px;
+}
+
+.shadcn-button-size-lg {
+  min-height: 42px;
+  padding: 10px 16px;
+}
+
+.shadcn-button-size-icon {
+  width: 36px;
+  min-height: 36px;
+  padding: 0;
+}

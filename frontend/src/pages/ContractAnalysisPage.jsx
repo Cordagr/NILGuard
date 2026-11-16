@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Document, Page, pdfjs } from 'react-pdf';
+import { ToastMessage } from '../components/ui/toast';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import '../styles/pages/ContractAnalysis.css';
@@ -477,21 +478,22 @@ function ContractAnalysisPage() {
                   </div>
                 </div>
               ) : errorMessage ? (
-                <div className="analysis-ai-message error notification-error" role="alert">
-                  <strong>Analysis could not be loaded</strong>
-                  <p>{errorMessage}</p>
-                  <button type="button" onClick={() => loadAnalysis({ refresh: true })}>
-                    Retry analysis
-                  </button>
-                </div>
+                <ToastMessage
+                  message={errorMessage}
+                  variant="error"
+                  title="Analysis could not be loaded"
+                  actionLabel="Retry analysis"
+                  onAction={() => loadAnalysis({ refresh: true })}
+                />
               ) : aiAnalysis ? (
                 <>
                   {aiStatus !== 'completed' && aiMessage && (
-                    <div className="analysis-ai-message error notification-error" role="alert">
-                      <strong>The latest AI review did not finish</strong>
-                      <p>{aiMessage}</p>
-                      {aiAnalysis && <span>The previous saved review is still shown below.</span>}
-                    </div>
+                    <ToastMessage
+                      message={aiMessage}
+                      variant="error"
+                      title="The latest AI review did not finish"
+                      detail={`${aiMessage}${aiAnalysis ? ' Previous saved review is still shown below.' : ''}`}
+                    />
                   )}
 
                   <div className="analysis-ai-summary">
@@ -578,15 +580,13 @@ function ContractAnalysisPage() {
                   </div>
                 </>
               ) : (
-                <div className={`analysis-ai-message ${canRetryAi ? 'error notification-error' : 'notice'}`} role={canRetryAi ? 'alert' : 'status'}>
-                  <strong>{getAiStatusLabel(aiStatus)}</strong>
-                  <p>{aiMessage || 'The AI review is not available for this agreement.'}</p>
-                  {canRetryAi && (
-                    <button type="button" onClick={() => loadAnalysis({ refresh: true })}>
-                      Retry AI review
-                    </button>
-                  )}
-                </div>
+                <ToastMessage
+                  message={aiMessage || 'The AI review is not available for this agreement.'}
+                  variant={canRetryAi ? 'error' : 'info'}
+                  title={getAiStatusLabel(aiStatus)}
+                  actionLabel={canRetryAi ? 'Retry AI review' : undefined}
+                  onAction={() => loadAnalysis({ refresh: true })}
+                />
               )}
 
               <p className="analysis-ai-disclaimer">
@@ -607,9 +607,7 @@ function ContractAnalysisPage() {
 
               {isLoading ? (
                 <div className="analysis-ai-empty">Loading the existing compliance checks…</div>
-              ) : errorMessage ? (
-                <div className="analysis-ai-empty notification-error" role="alert">{errorMessage}</div>
-              ) : (
+              ) : errorMessage ? null : (
                 <div className="analysis-legacy-content">
                   <div className="analysis-legacy-metrics">
                     <div><span>Rule risk score</span><strong>{metrics.riskScore}</strong></div>
@@ -715,7 +713,9 @@ function ContractAnalysisPage() {
                   />
                 ))}
               </Document>
-              {pdfLoadError && <div className="analysis-pdf-error notification-error" role="alert">{pdfLoadError}</div>}
+              {pdfLoadError ? (
+                <ToastMessage message={pdfLoadError} variant="error" title="PDF preview unavailable" />
+              ) : null}
             </div>
           ) : (
             <div className="analysis-pdf-loading">No contract PDF is available.</div>

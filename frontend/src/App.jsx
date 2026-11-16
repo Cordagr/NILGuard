@@ -1,9 +1,13 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ToastProvider, useToast } from './components/ui/toast';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
+import VerifyEmailPage from './pages/VerifyEmailPage.jsx';
+import ProfileManagement from './pages/ProfileManagement.jsx';
+import RosterInvitePage from './pages/RosterInvitePage.jsx';
 import LandingPage from './pages/LandingPage.jsx';
 import StudentDashboardPage from './pages/StudentDashboardPage.jsx';
 import ContractsPage from './pages/ContractsPage.jsx';
@@ -22,15 +26,53 @@ import AthletesProfilePage from './pages/AthletesProfilePage.jsx';
 import './styles/global.css';
 import './App.css';
 
+function EducationProgressSyncNotice() {
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    const handleSyncError = (event) => {
+      showToast({
+        variant: 'error',
+        title: 'Education progress sync failed',
+        detail: event.detail?.message || 'Education progress could not be synced.'
+      });
+    };
+
+    window.addEventListener('nilguard:education-sync-error', handleSyncError);
+    return () => window.removeEventListener('nilguard:education-sync-error', handleSyncError);
+  }, [showToast]);
+
+  return null;
+}
+
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <div className="App">
-          <Routes>
+    <ToastProvider>
+      <AuthProvider>
+        <Router>
+          <div className="App">
+            <EducationProgressSyncNotice />
+            <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/verify-email" element={<VerifyEmailPage />} />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <ProfileManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student/roster-invite"
+              element={
+                <ProtectedRoute allowedRole="student">
+                  <RosterInvitePage />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/dashboard/student"
               element={
@@ -111,11 +153,10 @@ function App() {
               }
             />
 
-            
             <Route
               path="/all-athletes"
               element={
-                <ProtectedRoute allowedRole="coach"> 
+                <ProtectedRoute allowedRole="coach">
                   <AllAthletes />
                 </ProtectedRoute>
               }
@@ -125,13 +166,20 @@ function App() {
               path="/athlete/:id"
               element={
                 <ProtectedRoute allowedRole="coach">
-                < AthletesProfilePage />
-                  </ProtectedRoute>
+                  <AthletesProfilePage />
+                </ProtectedRoute>
               }
             />
 
-          
-            
+
+            <Route
+              path="/coach/athletes/:id"
+              element={
+                <ProtectedRoute allowedRole="coach">
+                  <AthletesProfilePage />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/dashboard/school"
               element={
@@ -141,7 +189,7 @@ function App() {
               }
             />
 
-            
+
             <Route
               path="/dashboard/compliance"
               element={
@@ -166,10 +214,11 @@ function App() {
                 </ProtectedRoute>
               }
             />
-          </Routes>
-        </div>
-      </Router>
-    </AuthProvider>
+            </Routes>
+          </div>
+        </Router>
+      </AuthProvider>
+    </ToastProvider>
   );
 }
 

@@ -6,19 +6,29 @@ import dns from 'dns';
 import bcrypt from 'bcryptjs';
 import pg from 'pg';
 import multer from 'multer';
+import nodemailer from 'nodemailer';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createHash, randomUUID } from 'crypto';
+import { createHash, randomBytes, randomUUID } from 'crypto';
 import { analyzeContractPdf } from './contractClassifier.js';
 import { analyzeContractWithAi } from './contractAnalyzer.js';
 import { getAiConfig } from './aiClient.js';
 import { RUBRIC_VERSION } from './analysisRubric.js';
-import { resolveSchoolFromEmail } from './ncaaSchoolDirectory.js';
-import { isEduEmail, isStrongPassword } from './utils/validation.js';
+import { isEmailOnSchoolDomain, resolveSchoolFromEmail } from './ncaaSchoolDirectory.js';
+import { isEduEmail, isStrongPassword, isValidEmailAddress } from './utils/validation.js';
+import { validateAvatar } from './utils/avatar.js';
 import { signToken, setAuthCookie, clearAuthCookie } from './utils/jwt.js';
 import { makeRequireAuth } from './middleware/auth.js';
 import { createCollections, initializeDatabase } from './db.js';
+import {
+  canLinkRosterPlayer,
+  canRegisterWithCoachInvite,
+  markRosterEmailConflicts,
+  normalizeRosterEmail,
+  reconcileVerifiedRosterEmail,
+  unlinkRosterPlayerForEmailChange
+} from './utils/rosterLinking.js';
 
 
 dotenv.config();
@@ -35,8 +45,13 @@ const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
   .filter(Boolean);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const uploadsRoot = path.join(__dirname, 'uploads', 'contracts');
-const rosterUploadsRoot = path.join(__dirname, 'uploads', 'rosters');
+const uploadsDirectory = path.resolve(
+  process.env.UPLOADS_DIR || path.join(__dirname, 'uploads')
+);
+const uploadsRoot = path.join(uploadsDirectory, 'contracts');
+const rosterUploadsRoot = path.join(uploadsDirectory, 'rosters');
+const requireStudentEmailVerification =
+  String(process.env.REQUIRE_STUDENT_EMAIL_VERIFICATION || 'false').toLowerCase() === 'true';
 
 const allowedRoles = new Set(['student', 'coach', 'school', 'compliance']);
 const COMPLIANCE_REVIEW_DAYS = 5;
@@ -49,6 +64,23 @@ const NIL_GUIDELINES = [
   ['compliance-missing-nil-disclosure', 'NIL disclosure', 'Confirm the contract addresses Name, Image, and Likeness rights.'],
   ['compliance-missing-exclusivity', 'Exclusivity statement', 'Confirm exclusivity or non-exclusivity terms are clear.']
 ].map(([id, title, summary]) => ({ id, title, summary }));
+const EDUCATION_COURSES = {
+  moneyBasics: { totalLessons: 3 },
+  nilDeals: { totalLessons: 3 },
+  contracts101: { totalLessons: 3 }
+};
+
+async function storedFileExists(filePath) {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      return false;
+    }
+    throw error;
+  }
+}
 
 function buildGuidelineReviews(findings = [], dueAt) {
   const findingsById = new Map(findings.map((finding) => [finding.id, finding]));
@@ -156,7 +188,7 @@ app.use((req, res, next) => {
   }
   next();
 });
-app.use(express.json());
+app.use(express.json({ limit: '3mb' }));
 app.use(cookieParser());
 
 const { Pool } = pg;
@@ -171,6 +203,7 @@ let documentRequestsCollection;
 let auditLogsCollection;
 let messagesCollection;
 let notificationsCollection;
+let rosterLinkInvitesCollection;
 
 // checks the session cookie on every protected request
 const requireAuth = makeRequireAuth(() => usersCollection, recordAuditLog);
@@ -188,8 +221,55 @@ function serializeUser(user, resolvedSchool) {
     email: user.email,
     role: user.role,
     school: user.school || matchedSchool?.school || null,
-    ncaaDivision: user.ncaaDivision || matchedSchool?.division || null
+    ncaaDivision: user.ncaaDivision || matchedSchool?.division || null,
+    schoolEmailDomain: user.schoolEmailDomain || matchedSchool?.primaryDomain || null,
+    firstName: user.firstName || '',
+    lastName: user.lastName || '',
+    title: user.title || '',
+    phone: user.phone || '',
+    preferredName: user.preferredName || '',
+    avatar: user.avatar || '',
+    sport: user.sport || '',
+    year: user.year || '',
+    contactEmail: user.contactEmail || '',
+    studentId: user.studentId || '',
+    profileVisibility: user.profileVisibility || {},
+    educationSharingEnabled: Boolean(user.educationSharingEnabled),
+    emailVerified: Boolean(user.emailVerifiedAt)
   };
+}
+
+function createSmtpTransport() {
+  const host = String(process.env.SMTP_HOST || '').trim();
+  const user = String(process.env.SMTP_USER || '').trim();
+  const password = String(process.env.SMTP_PASSWORD || '');
+  const from = String(process.env.SMTP_FROM || '').trim();
+  const port = Number(process.env.SMTP_PORT || 587);
+
+  if (!host || !user || !password || !from || !Number.isInteger(port)) {
+    const error = new Error('Email delivery is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, and SMTP_FROM.');
+    error.statusCode = 503;
+    throw error;
+  }
+
+  return {
+    from,
+    transport: nodemailer.createTransport({
+      host,
+      port,
+      secure: String(process.env.SMTP_SECURE || '').toLowerCase() === 'true',
+      auth: { user, pass: password }
+    })
+  };
+}
+
+async function sendEmail({ to, subject, text, html }) {
+  const { from, transport } = createSmtpTransport();
+  try {
+    await transport.sendMail({ from, to, subject, text, html });
+  } finally {
+    transport.close();
+  }
 }
 
 async function recordAuditLog(action, details = {}) {
@@ -204,6 +284,106 @@ async function recordAuditLog(action, details = {}) {
   } catch (error) {
     // audit logging should never break the request itself
     console.error('Failed to write audit log:', error.message);
+  }
+}
+
+function getApplicationUrl(pathname) {
+  const baseUrl = String(process.env.APP_BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
+  return `${baseUrl}${pathname}`;
+}
+
+async function sendEmailVerification(user, token, inviteCode = '') {
+  const query = new URLSearchParams({ token });
+  if (inviteCode) {
+    query.set('inviteCode', inviteCode);
+  }
+  const verificationUrl = `${getApplicationUrl('/verify-email')}?${query.toString()}`;
+  await sendEmail({
+    to: user.email,
+    subject: 'Verify your NILGuard email',
+    text: `Confirm your NILGuard email address: ${verificationUrl}`,
+    html: `<p>Confirm your NILGuard email address:</p><p><a href="${verificationUrl}">Verify email</a></p>`
+  });
+}
+
+async function refreshLinkedStudentId(userId) {
+  const rosters = await rostersCollection.find({}).toArray();
+  const studentIds = new Set(
+    rosters.flatMap((roster) => (roster.players || [])
+      .filter((player) => player.linkedStudentUserId === String(userId))
+      .map((player) => String(player.studentId)))
+  );
+  await usersCollection.updateOne(
+    { _id: String(userId) },
+    { $set: { studentId: studentIds.size === 1 ? Array.from(studentIds)[0] : null, updatedAt: new Date() } }
+  );
+}
+
+async function applyRosterEmailConflictReview(rosters) {
+  const updatedRosters = markRosterEmailConflicts(rosters);
+  const affectedUserIds = new Set(updatedRosters.flatMap((roster) =>
+    (rosters.find((currentRoster) => currentRoster._id === roster._id)?.players || [])
+      .map((player) => player.linkedStudentUserId)
+      .filter(Boolean)
+  ));
+  for (const roster of updatedRosters) {
+    await rostersCollection.updateOne(
+      { _id: roster._id },
+      { $set: { players: roster.players, updatedAt: new Date() } }
+    );
+  }
+  for (const userId of affectedUserIds) {
+    await refreshLinkedStudentId(userId);
+  }
+  return updatedRosters;
+}
+
+async function linkVerifiedAthlete(user, { allowPendingVerification = false } = {}) {
+  if (!user?.emailVerifiedAt || user.role !== 'student') {
+    return;
+  }
+
+  const allRosters = await rostersCollection.find({}).toArray();
+  const updatedRosters = reconcileVerifiedRosterEmail(
+    allRosters,
+    user.email,
+    String(user._id),
+    new Date(),
+    { allowPendingVerification }
+  );
+  const affectedUserIds = new Set(updatedRosters.flatMap((updatedRoster) =>
+    (allRosters.find((roster) => roster._id === updatedRoster._id)?.players || [])
+      .map((player) => player.linkedStudentUserId)
+      .filter((linkedUserId) => linkedUserId && linkedUserId !== String(user._id))
+  ));
+  const linkedStudentIds = new Set();
+
+  for (const roster of updatedRosters) {
+    for (const player of roster.players) {
+      if (player.linkedStudentUserId === String(user._id)) {
+        linkedStudentIds.add(String(player.studentId));
+        if (user.educationSharingEnabled && !player.educationConsentAt) {
+          player.educationConsentAt = new Date();
+        }
+      }
+    }
+    await rostersCollection.updateOne(
+      { _id: roster._id },
+      { $set: { players: roster.players, updatedAt: new Date() } }
+    );
+  }
+
+  await usersCollection.updateOne(
+    { _id: user._id },
+    {
+      $set: {
+        studentId: linkedStudentIds.size === 1 ? Array.from(linkedStudentIds)[0] : null,
+        updatedAt: new Date()
+      }
+    }
+  );
+  for (const affectedUserId of affectedUserIds) {
+    await refreshLinkedStudentId(affectedUserId);
   }
 }
 
@@ -385,7 +565,7 @@ function serializeDocumentRequest(documentRequest) {
     contractFileSize: documentRequest.contractFileSize,
     studentUserId: documentRequest.studentUserId,
     studentEmail: documentRequest.studentEmail,
-    studentSchool: documentRequest.studentSchool,
+    studentName: documentRequest.studentName || null,
     studentDivision: documentRequest.studentDivision,
     assignedComplianceUserId: documentRequest.assignedComplianceUserId || null,
     assignedComplianceEmail: documentRequest.assignedComplianceEmail || null,
@@ -452,6 +632,9 @@ function serializeMessage(message, viewerUserId) {
     recipientUserIds,
     subject: message.subject,
     body: message.body,
+    type: message.type || 'user',
+    guidelines: Array.isArray(message.guidelines) ? message.guidelines : [],
+    changes: Array.isArray(message.changes) ? message.changes : null,
     isRead: isViewerRecipient
       ? readByUserIds.includes(viewerId)
       : true,
@@ -627,7 +810,7 @@ function buildRosterGroups(buffer) {
   }
 
   const headerRow = csvRows[0].map(normalizeCsvHeader);
-  const requiredColumns = ['student_id', 'first_name', 'last_name', 'school', 'sport', 'year'];
+  const requiredColumns = ['student_id', 'first_name', 'last_name', 'email', 'school', 'sport', 'year'];
   const missingColumns = requiredColumns.filter((column) => !headerRow.includes(column));
 
   if (missingColumns.length > 0) {
@@ -651,6 +834,7 @@ function buildRosterGroups(buffer) {
       studentId: String(row[columnIndexes.student_id] || '').trim(),
       firstName: String(row[columnIndexes.first_name] || '').trim(),
       lastName: String(row[columnIndexes.last_name] || '').trim(),
+      email: normalizeRosterEmail(row[columnIndexes.email]),
       school: String(row[columnIndexes.school] || '').trim(),
       sport: String(row[columnIndexes.sport] || '').trim(),
       year: String(row[columnIndexes.year] || '').trim()
@@ -659,7 +843,27 @@ function buildRosterGroups(buffer) {
     const hasMissingValue = Object.values(player).some((value) => value === '');
 
     if (hasMissingValue) {
-      const error = new Error(`Row ${rowIndex + 2} contains blank required values.`);
+      const error = new Error(`Row ${rowIndex + 2} contains blank required values, including email.`);
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (!isValidEmailAddress(player.email)) {
+      const error = new Error(`Row ${rowIndex + 2} contains an invalid email address.`);
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (
+      player.studentId.length > 100 ||
+      player.firstName.length > 100 ||
+      player.lastName.length > 100 ||
+      player.school.length > 100 ||
+      player.sport.length > 100 ||
+      player.year.length > 100 ||
+      player.email.length > 254
+    ) {
+      const error = new Error(`Row ${rowIndex + 2} contains a value that exceeds the maximum length.`);
       error.statusCode = 400;
       throw error;
     }
@@ -678,14 +882,36 @@ function buildRosterGroups(buffer) {
     groupedRosters.get(groupKey).players.push({
       studentId: player.studentId,
       firstName: player.firstName,
-      lastName: player.lastName
+      lastName: player.lastName,
+      email: player.email,
+      sport: player.sport,
+      year: player.year,
+      linkStatus: 'no_account'
+    });
+  });
+
+  groupedRosters.forEach((roster) => {
+    const emailCounts = new Map();
+    roster.players.forEach((player) => {
+      emailCounts.set(player.email, (emailCounts.get(player.email) || 0) + 1);
+    });
+    roster.players.forEach((player) => {
+      if (emailCounts.get(player.email) > 1) {
+        player.linkStatus = 'needs_review';
+        player.linkReviewReason = 'duplicate_email';
+      }
     });
   });
 
   return Array.from(groupedRosters.values());
 }
 
-function serializeRoster(roster) {
+function serializeRoster(
+  roster,
+  educationProgressByStudent = new Map(),
+  viewer = null,
+  linkedUsers = new Map()
+) {
   return {
     id: roster.rosterId,
     school: roster.school,
@@ -693,17 +919,69 @@ function serializeRoster(roster) {
     year: roster.year,
     playerCount: roster.playerCount,
     players: Array.isArray(roster.players)
-      ? roster.players.map((player) => ({
-          studentId: player.studentId,
-          firstName: player.firstName,
-          lastName: player.lastName
-        }))
+      ? roster.players.map((player) => {
+          const educationShared = Boolean(player.linkedStudentUserId && player.educationConsentAt);
+          const educationProgress = educationShared
+            ? educationProgressByStudent.get(String(player.linkedStudentUserId))
+            : null;
+
+          const canSeeEmail = viewer?.role === 'coach' &&
+            String(viewer.school || '').toLowerCase() === String(roster.school || '').toLowerCase();
+          const linkedUser = player.linkedStudentUserId
+            ? linkedUsers.get(String(player.linkedStudentUserId))
+            : null;
+          const profileVisibility = linkedUser?.profileVisibility || {};
+          const sharedProfile = linkedUser && canSeeEmail
+            ? Object.fromEntries(
+                ['preferredName', 'avatar', 'sport', 'year', 'contactEmail']
+                  .filter((field) => profileVisibility[field] === true && linkedUser[field])
+                  .map((field) => [field, linkedUser[field]])
+              )
+            : {};
+
+          return {
+            studentId: player.studentId,
+            firstName: player.firstName,
+            lastName: player.lastName,
+            sport: player.sport || roster.sport,
+            year: player.year || roster.year,
+            email: canSeeEmail ? player.email || '' : undefined,
+            linkStatus: player.linkStatus === 'needs_review'
+              ? 'needs_review'
+              : player.linkedStudentUserId
+                ? 'linked'
+                : player.inviteSentAt
+                  ? 'invited'
+                  : 'no_account',
+            sharedProfile: Object.keys(sharedProfile).length ? sharedProfile : null,
+            educationShared,
+            educationProgress: educationShared
+              ? getRosterEducationSummary(educationProgress)
+              : null
+          };
+        })
       : [],
     fileName: roster.sourceFileName,
     hasSourceFile: Boolean(roster.storedFilePath),
+    manuallyEditedAt: roster.manuallyEditedAt,
     createdAt: roster.createdAt,
     updatedAt: roster.updatedAt
   };
+}
+
+async function serializeRosters(rosters, educationProgressByStudent, viewer) {
+  const linkedUserIds = Array.from(new Set(rosters.flatMap((roster) =>
+    (roster.players || [])
+      .map((player) => player.linkedStudentUserId)
+      .filter(Boolean)
+      .map(String)
+  )));
+  const linkedUsers = linkedUserIds.length
+    ? new Map((await usersCollection.find({ _id: { $in: linkedUserIds } }).toArray())
+        .map((user) => [String(user._id), user]))
+    : new Map();
+
+  return rosters.map((roster) => serializeRoster(roster, educationProgressByStudent, viewer, linkedUsers));
 }
 
 function serializeAthlete(athlete) {
@@ -712,7 +990,244 @@ function serializeAthlete(athlete) {
     firstName: athlete.firstName,
     lastName: athlete.lastName,
     school: athlete.school,
+    linkStatus: athlete.linkStatus || 'no_account',
+    avatar: athlete.avatar || null,
     assignments: athlete.assignments || []
+  };
+}
+
+function validateRosterPlayer(input, roster) {
+  const player = {
+    studentId: String(input?.studentId || '').trim(),
+    firstName: String(input?.firstName || '').trim(),
+    lastName: String(input?.lastName || '').trim(),
+    email: normalizeRosterEmail(input?.email),
+    sport: String(input?.sport || roster?.sport || '').trim(),
+    year: String(input?.year || roster?.year || '').trim()
+  };
+
+  if (Object.values(player).some((value) => !value)) {
+    const error = new Error('Student ID, first name, last name, email, sport, and year are required.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!isValidEmailAddress(player.email)) {
+    const error = new Error('Enter a valid athlete email address.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (
+    player.studentId.length > 100 ||
+    player.firstName.length > 100 ||
+    player.lastName.length > 100 ||
+    player.sport.length > 100 ||
+    player.year.length > 100
+  ) {
+    const error = new Error('Roster player fields must be 100 characters or fewer.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return player;
+}
+
+function markDuplicateRosterEmails(players) {
+  const counts = new Map();
+  players.forEach((player) => {
+    const email = normalizeRosterEmail(player.email);
+    counts.set(email, (counts.get(email) || 0) + 1);
+  });
+
+  return players.map((player) => {
+    if (counts.get(normalizeRosterEmail(player.email)) <= 1) {
+      return player;
+    }
+
+    return {
+      ...player,
+      linkedStudentUserId: null,
+      educationConsentAt: null,
+      linkStatus: 'needs_review',
+      linkReviewReason: 'duplicate_email'
+    };
+  });
+}
+
+function getRosterEducationSummary(progress) {
+  const courses = Object.fromEntries(
+    Object.entries(EDUCATION_COURSES).map(([courseId, course]) => {
+      const savedCourse = progress?.[courseId] || {};
+      const completedLessons = Array.isArray(savedCourse.completedLessons)
+        ? savedCourse.completedLessons.length
+        : 0;
+      const quizPassed = savedCourse.quizResult?.passed === true;
+
+      return [
+        courseId,
+        {
+          completedLessons,
+          totalLessons: course.totalLessons,
+          quizAttempted: Boolean(savedCourse.quizResult),
+          quizPassed,
+          completed: completedLessons === course.totalLessons && quizPassed
+        }
+      ];
+    })
+  );
+
+  return {
+    courses,
+    completedModules: Object.values(courses).filter((course) => course.completed).length,
+    totalModules: Object.keys(EDUCATION_COURSES).length
+  };
+}
+
+function validateCourseProgress(courseId, input, existing = {}) {
+  const course = EDUCATION_COURSES[courseId];
+  if (!course || !input || typeof input !== 'object' || Array.isArray(input)) {
+    const error = new Error('Invalid education progress data.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const result = { ...existing };
+
+  if (Object.prototype.hasOwnProperty.call(input, 'completedLessons')) {
+    if (
+      !Array.isArray(input.completedLessons) ||
+      input.completedLessons.some(
+        (lesson) => !Number.isInteger(lesson) || lesson < 0 || lesson >= course.totalLessons
+      )
+    ) {
+      const error = new Error('Completed lesson values are invalid.');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    result.completedLessons = [...new Set(input.completedLessons)].sort((left, right) => left - right);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input, 'currentLesson')) {
+    if (
+      !Number.isInteger(input.currentLesson) ||
+      input.currentLesson < 0 ||
+      input.currentLesson >= course.totalLessons
+    ) {
+      const error = new Error('Current lesson value is invalid.');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    result.currentLesson = input.currentLesson;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input, 'quizResult')) {
+    if (input.quizResult === null) {
+      result.quizResult = null;
+    } else {
+      const score = Number(input.quizResult?.score);
+      const totalQuestions = Number(input.quizResult?.totalQuestions);
+
+      if (
+        !Number.isInteger(score) ||
+        !Number.isInteger(totalQuestions) ||
+        totalQuestions < 1 ||
+        totalQuestions > 100 ||
+        score < 0 ||
+        score > totalQuestions
+      ) {
+        const error = new Error('Quiz result values are invalid.');
+        error.statusCode = 400;
+        throw error;
+      }
+
+      const percentage = Math.round((score / totalQuestions) * 100);
+      result.quizResult = {
+        score,
+        totalQuestions,
+        percentage,
+        passed: percentage >= 80,
+        completedAt: new Date()
+      };
+    }
+  }
+
+  result.updatedAt = new Date();
+  return result;
+}
+
+function getEducationProgressSnapshot(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return {};
+  }
+
+  return Object.entries(EDUCATION_COURSES).reduce((progress, [courseId]) => {
+    const submittedCourse = input[courseId];
+    if (submittedCourse && typeof submittedCourse === 'object' && !Array.isArray(submittedCourse)) {
+      progress[courseId] = validateCourseProgress(courseId, submittedCourse);
+    }
+    return progress;
+  }, {});
+}
+
+function hashRosterInviteCode(code) {
+  return createHash('sha256').update(String(code || '').trim().toUpperCase()).digest('hex');
+}
+
+async function findValidRosterLinkInvite(code) {
+  const invite = await rosterLinkInvitesCollection.findOne({
+    codeHash: hashRosterInviteCode(code)
+  });
+
+  if (!invite) {
+    const error = new Error('This sharing code is invalid.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (invite.acceptedAt) {
+    const error = new Error('This sharing code has already been used.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  if (invite.revokedAt || !invite.expiresAt || new Date(invite.expiresAt) <= new Date()) {
+    const error = new Error('This sharing code has expired or been revoked.');
+    error.statusCode = 410;
+    throw error;
+  }
+
+  const roster = await rostersCollection.findOne({
+    rosterId: invite.rosterId,
+    userId: invite.rosterOwnerId
+  });
+  const players = Array.isArray(roster?.players) ? roster.players : [];
+  const matchingPlayers = players
+    .map((player, index) => ({ player, index }))
+    .filter(({ player }) => String(player.studentId) === String(invite.studentId));
+
+  if (!roster || matchingPlayers.length !== 1) {
+    const error = new Error('The roster entry for this sharing code is no longer available.');
+    error.statusCode = 410;
+    throw error;
+  }
+
+  if (
+    invite.email &&
+    normalizeRosterEmail(invite.email) !== normalizeRosterEmail(matchingPlayers[0].player.email)
+  ) {
+    const error = new Error('The email for this roster invite has changed. Request a new invite.');
+    error.statusCode = 410;
+    throw error;
+  }
+
+  return {
+    invite,
+    roster,
+    player: matchingPlayers[0].player,
+    playerIndex: matchingPlayers[0].index
   };
 }
 
@@ -744,6 +1259,165 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/contracts', requireAuth);
 app.use('/api/rosters', requireAuth);
 app.use('/api/compliance', requireAuth);
+app.use('/api/education', requireAuth);
+
+app.get('/api/education/progress', async (req, res, next) => {
+  try {
+    assertUserRole(req.user, 'student');
+    return res.json({
+      progress: req.user.educationProgress || {}
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/education/progress/:courseId', async (req, res, next) => {
+  let client;
+  let transactionOpen = false;
+
+  try {
+    const user = req.user;
+    assertUserRole(user, 'student');
+    const courseId = req.params.courseId;
+    if (!EDUCATION_COURSES[courseId]) {
+      return res.status(400).json({ message: 'Unknown education course.' });
+    }
+
+    client = await pool.connect();
+    await client.query('BEGIN');
+    transactionOpen = true;
+    await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [String(user._id)]);
+    const transactionUsers = createCollections(client).usersCollection;
+    const currentUser = await transactionUsers.findOne({ _id: String(user._id) });
+
+    if (!currentUser) {
+      await client.query('ROLLBACK');
+      transactionOpen = false;
+      return res.status(404).json({ message: 'Student account was not found.' });
+    }
+
+    const courseProgress = validateCourseProgress(
+      courseId,
+      req.body,
+      currentUser.educationProgress?.[courseId] || {}
+    );
+    const educationProgress = {
+      ...(currentUser.educationProgress || {}),
+      [courseId]: courseProgress
+    };
+
+    await transactionUsers.updateOne(
+      { _id: String(user._id) },
+      { $set: { educationProgress, updatedAt: new Date() } }
+    );
+    await client.query('COMMIT');
+    transactionOpen = false;
+
+    return res.json({ progress: courseProgress });
+  } catch (error) {
+    if (transactionOpen) {
+      await client.query('ROLLBACK');
+    }
+    next(error);
+  } finally {
+    client?.release();
+  }
+});
+
+app.get('/api/education/sharing', async (req, res, next) => {
+  try {
+    const userId = String(req.user._id);
+    assertUserRole(req.user, 'student');
+
+    const rosters = await rostersCollection.find({}).toArray();
+    const sharedRosters = rosters.flatMap((roster) =>
+      (roster.players || [])
+        .filter((player) => player.linkedStudentUserId === userId && player.educationConsentAt)
+        .map((player) => ({
+          athleteName: `${player.firstName} ${player.lastName}`,
+          school: roster.school,
+          sport: roster.sport,
+          year: roster.year,
+          consentedAt: player.educationConsentAt
+        }))
+    );
+
+    return res.json({ shares: sharedRosters });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/api/education/sharing', async (req, res, next) => {
+  try {
+    const userId = String(req.user._id);
+    assertUserRole(req.user, 'student');
+
+    const rosters = await rostersCollection.find({}).toArray();
+    const now = new Date();
+    let revokedCount = 0;
+    const revokedEntries = [];
+
+    for (const roster of rosters) {
+      const players = Array.isArray(roster.players) ? roster.players : [];
+      let rosterChanged = false;
+      const updatedPlayers = players.map((player) => {
+        if (player.linkedStudentUserId !== userId || !player.educationConsentAt) {
+          return player;
+        }
+
+        rosterChanged = true;
+        revokedCount += 1;
+        revokedEntries.push({
+          rosterId: roster.rosterId,
+          rosterOwnerId: roster.userId,
+          studentId: player.studentId
+        });
+        return {
+          ...player,
+          linkedStudentUserId: null,
+          educationConsentAt: null,
+          educationRevokedAt: now
+        };
+      });
+
+      if (rosterChanged) {
+        await rostersCollection.updateOne(
+          { rosterId: roster.rosterId, userId: roster.userId },
+          { $set: { players: updatedPlayers, updatedAt: now } }
+        );
+      }
+    }
+
+    for (const entry of revokedEntries) {
+      await rosterLinkInvitesCollection.updateMany(
+        {
+          rosterId: entry.rosterId,
+          rosterOwnerId: entry.rosterOwnerId,
+          studentId: entry.studentId,
+          acceptedAt: null,
+          revokedAt: null
+        },
+        { $set: { revokedAt: now } }
+      );
+    }
+
+    if (revokedCount > 0) {
+      await recordAuditLog('roster_education_sharing_revoked', {
+        userId,
+        email: req.user.email
+      });
+    }
+
+    return res.json({
+      message: 'Education progress sharing was revoked.',
+      revokedCount
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 app.get('/api/contracts', async (req, res, next) => {
   try {
@@ -772,14 +1446,545 @@ app.get('/api/contracts', async (req, res, next) => {
 
 app.get('/api/rosters', async (req, res, next) => {
   try {
-    const userId = String(req.user._id);
+    const user = req.user;
+    const userId = String(user._id);
     const rosters = await rostersCollection
       .find({ userId })
       .sort({ updatedAt: -1, school: 1, sport: 1, year: 1 })
       .toArray();
+    const linkedStudentIds = Array.from(new Set(
+      rosters.flatMap((roster) =>
+        (roster.players || [])
+          .filter((player) => player.linkedStudentUserId && player.educationConsentAt)
+          .map((player) => String(player.linkedStudentUserId))
+      )
+    ));
+    const linkedStudents = linkedStudentIds.length
+      ? await usersCollection.find({ _id: { $in: linkedStudentIds } }).toArray()
+      : [];
+    const educationProgressByStudent = new Map(
+      linkedStudents.map((student) => [String(student._id), student.educationProgress || {}])
+    );
 
     res.json({
-      rosters: rosters.map(serializeRoster)
+      rosters: await serializeRosters(rosters, educationProgressByStudent, user)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/rosters/:rosterId/players/:playerIndex/education-invite', async (req, res, next) => {
+  try {
+    const user = req.user;
+    assertUserRole(user, 'coach', 'school');
+
+    const userId = String(user._id);
+    const playerIndex = Number(req.params.playerIndex);
+    const roster = await rostersCollection.findOne({
+      rosterId: req.params.rosterId,
+      userId
+    });
+
+    if (!roster) {
+      return res.status(404).json({ message: 'Roster not found for the current user.' });
+    }
+
+    if (!user.school || roster.school.toLowerCase() !== user.school.toLowerCase()) {
+      return res.status(403).json({ message: 'You can only share education progress for your assigned school.' });
+    }
+
+    const players = Array.isArray(roster.players) ? roster.players : [];
+    if (!Number.isInteger(playerIndex) || playerIndex < 0 || playerIndex >= players.length) {
+      return res.status(404).json({ message: 'Athlete was not found in this roster.' });
+    }
+
+    const player = players[playerIndex];
+    if (player.linkStatus === 'needs_review') {
+      return res.status(409).json({ message: 'Resolve this athlete’s email review before sending an invite.' });
+    }
+    if (players.filter((currentPlayer) => currentPlayer.studentId === player.studentId).length !== 1) {
+      return res.status(409).json({ message: 'This roster has duplicate student IDs. Resolve them before sending an invite.' });
+    }
+    if (!isValidEmailAddress(player.email)) {
+      return res.status(400).json({ message: 'Add a valid email address to this roster row before sending an invite.' });
+    }
+
+    const now = new Date();
+    if (player.inviteSentAt && now.getTime() - new Date(player.inviteSentAt).getTime() < 60 * 1000) {
+      return res.status(429).json({ message: 'Wait one minute before sending another invite to this athlete.' });
+    }
+    const recentInvites = await rosterLinkInvitesCollection.find({ rosterOwnerId: userId }).toArray();
+    if (recentInvites.filter((invite) => new Date(invite.createdAt).getTime() > now.getTime() - 60 * 60 * 1000).length >= 20) {
+      return res.status(429).json({ message: 'You have reached the hourly invite limit. Try again later.' });
+    }
+
+    const code = randomBytes(16).toString('hex').toUpperCase();
+    const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const signUpUrl = `${getApplicationUrl('/register')}?role=student&inviteCode=${encodeURIComponent(code)}`;
+    await sendEmail({
+      to: player.email,
+      subject: 'Your NILGuard athlete sign-up link',
+      text: `Create or verify your NILGuard athlete account with this link: ${signUpUrl}\n\nIf needed, your one-time roster code is ${code}.`,
+      html: `<p>Create or verify your NILGuard athlete account:</p><p><a href="${signUpUrl}">Continue to NILGuard</a></p><p>One-time fallback code: <strong>${code}</strong></p>`
+    });
+    await rosterLinkInvitesCollection.updateMany(
+      {
+        rosterId: roster.rosterId,
+        rosterOwnerId: userId,
+        studentId: player.studentId,
+        acceptedAt: null,
+        revokedAt: null
+      },
+      { $set: { revokedAt: now } }
+    );
+    await rosterLinkInvitesCollection.insertOne({
+      inviteId: randomUUID(),
+      codeHash: hashRosterInviteCode(code),
+      rosterId: roster.rosterId,
+      rosterOwnerId: userId,
+      studentId: player.studentId,
+      email: normalizeRosterEmail(player.email),
+      createdAt: now,
+      expiresAt,
+      acceptedAt: null,
+      revokedAt: null
+    });
+    const updatedPlayers = [...players];
+    updatedPlayers[playerIndex] = { ...player, inviteSentAt: now, linkStatus: 'invited' };
+    await rostersCollection.updateOne(
+      { rosterId: roster.rosterId, userId },
+      { $set: { players: updatedPlayers, updatedAt: now } }
+    );
+    await recordAuditLog('roster_education_invite_created', {
+      userId,
+      email: user.email
+    });
+
+    return res.status(201).json({
+      message: 'Sign-up invite sent. The one-time fallback code expires in 24 hours.',
+      code,
+      expiresAt
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/rosters/link-invites/:code', async (req, res, next) => {
+  try {
+    const user = req.user;
+    assertUserRole(user, 'student');
+
+    const { invite, roster, player } = await findValidRosterLinkInvite(req.params.code);
+    if (player.linkStatus === 'needs_review') {
+      return res.status(409).json({ message: 'This roster row needs coach review before it can be linked.' });
+    }
+    if (!user.emailVerifiedAt || !canLinkRosterPlayer(user, player)) {
+      return res.status(403).json({
+        message: 'Verify the email address listed on this roster row before using the invite.'
+      });
+    }
+    if (player.linkedStudentUserId && player.linkedStudentUserId !== String(user._id)) {
+      return res.status(409).json({ message: 'This roster entry is already linked to another student account.' });
+    }
+
+    return res.json({
+      invitation: {
+        athleteName: `${player.firstName} ${player.lastName}`,
+        studentId: player.studentId,
+        school: roster.school,
+        sport: roster.sport,
+        year: roster.year,
+        expiresAt: invite.expiresAt
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/rosters/link-invites/:code/accept', async (req, res, next) => {
+  let client;
+  let transactionOpen = false;
+
+  try {
+    const user = req.user;
+    assertUserRole(user, 'student');
+
+    if (req.body?.shareEducation !== undefined && typeof req.body.shareEducation !== 'boolean') {
+      return res.status(400).json({ message: 'Education sharing must be on or off.' });
+    }
+    const shareEducation = req.body?.shareEducation === true;
+
+    const userId = String(user._id);
+    const codeHash = hashRosterInviteCode(req.params.code);
+    client = await pool.connect();
+    await client.query('BEGIN');
+    transactionOpen = true;
+
+    const transactionCollections = createCollections(client);
+    let invite = await transactionCollections.rosterLinkInvitesCollection.findOne({ codeHash });
+    if (!invite) {
+      const error = new Error('This sharing code is invalid.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    await client.query('SELECT id FROM roster_link_invites WHERE id = $1 FOR UPDATE', [invite._id]);
+    invite = await transactionCollections.rosterLinkInvitesCollection.findOne({ codeHash });
+    if (invite.acceptedAt) {
+      const error = new Error('This sharing code has already been used.');
+      error.statusCode = 409;
+      throw error;
+    }
+    if (invite.revokedAt || !invite.expiresAt || new Date(invite.expiresAt) <= new Date()) {
+      const error = new Error('This sharing code has expired or been revoked.');
+      error.statusCode = 410;
+      throw error;
+    }
+
+    let roster = await transactionCollections.rostersCollection.findOne({
+      rosterId: invite.rosterId,
+      userId: invite.rosterOwnerId
+    });
+    if (!roster) {
+      const error = new Error('The roster entry for this sharing code is no longer available.');
+      error.statusCode = 410;
+      throw error;
+    }
+    await client.query('SELECT id FROM rosters WHERE id = $1 FOR UPDATE', [roster._id]);
+    roster = await transactionCollections.rostersCollection.findOne({
+      rosterId: invite.rosterId,
+      userId: invite.rosterOwnerId
+    });
+
+    const players = Array.isArray(roster?.players) ? roster.players : [];
+    const matchingPlayers = players
+      .map((player, index) => ({ player, index }))
+      .filter(({ player }) => String(player.studentId) === String(invite.studentId));
+    if (matchingPlayers.length !== 1) {
+      const error = new Error('The roster entry for this sharing code is no longer uniquely available.');
+      error.statusCode = 410;
+      throw error;
+    }
+
+    const { player, index: playerIndex } = matchingPlayers[0];
+    if (player.linkStatus === 'needs_review') {
+      const error = new Error('This roster row needs coach review before it can be linked.');
+      error.statusCode = 409;
+      throw error;
+    }
+    if (player.linkedStudentUserId && player.linkedStudentUserId !== userId) {
+      const error = new Error('This roster entry is already linked to another student account.');
+      error.statusCode = 409;
+      throw error;
+    }
+
+    await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [userId]);
+    const currentUser = await transactionCollections.usersCollection.findOne({ _id: userId });
+    if (!currentUser) {
+      const error = new Error('The student account no longer exists.');
+      error.statusCode = 404;
+      throw error;
+    }
+    if (!currentUser.emailVerifiedAt || !canLinkRosterPlayer(currentUser, player)) {
+      const error = new Error('Verify the email address listed on this roster row before using the invite.');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const now = new Date();
+    const educationProgress = { ...(currentUser.educationProgress || {}) };
+    const submittedProgress = shareEducation
+      ? getEducationProgressSnapshot(req.body.educationProgress)
+      : {};
+    for (const [courseId, submittedCourse] of Object.entries(submittedProgress)) {
+      const currentCourse = educationProgress[courseId] || {};
+      const completedLessons = Array.from(new Set([
+        ...(Array.isArray(currentCourse.completedLessons) ? currentCourse.completedLessons : []),
+        ...(Array.isArray(submittedCourse.completedLessons) ? submittedCourse.completedLessons : [])
+      ])).sort((left, right) => left - right);
+      const currentQuizDate = Date.parse(currentCourse.quizResult?.completedAt || '');
+      const submittedQuizDate = Date.parse(submittedCourse.quizResult?.completedAt || '');
+
+      educationProgress[courseId] = {
+        ...currentCourse,
+        ...submittedCourse,
+        currentLesson: Number.isInteger(currentCourse.currentLesson)
+          ? currentCourse.currentLesson
+          : submittedCourse.currentLesson,
+        completedLessons,
+        quizResult: submittedCourse.quizResult && submittedQuizDate > currentQuizDate
+          ? submittedCourse.quizResult
+          : currentCourse.quizResult || submittedCourse.quizResult
+      };
+    }
+    const updatedPlayers = [...players];
+    const shouldShareEducation = shareEducation || currentUser.educationSharingEnabled === true;
+    updatedPlayers[playerIndex] = {
+      ...player,
+      linkedStudentUserId: userId,
+      educationConsentAt: shouldShareEducation ? player.educationConsentAt || now : null,
+      educationRevokedAt: null,
+      linkStatus: 'linked',
+      linkReviewReason: null,
+      linkRequiresInvite: false
+    };
+
+    await transactionCollections.usersCollection.updateOne(
+      { _id: userId },
+      {
+        $set: {
+          educationProgress,
+          ...(shareEducation ? { educationSharingEnabled: true } : {}),
+          studentId: player.studentId,
+          updatedAt: now
+        }
+      }
+    );
+    await transactionCollections.rostersCollection.updateOne(
+      { rosterId: roster.rosterId, userId: invite.rosterOwnerId },
+      { $set: { players: updatedPlayers, updatedAt: now } }
+    );
+    await transactionCollections.rosterLinkInvitesCollection.updateOne(
+      { _id: invite._id },
+      { $set: { acceptedAt: now, acceptedBy: userId } }
+    );
+    await transactionCollections.rosterLinkInvitesCollection.updateMany(
+      {
+        rosterId: roster.rosterId,
+        rosterOwnerId: invite.rosterOwnerId,
+        studentId: invite.studentId,
+        acceptedAt: null,
+        revokedAt: null
+      },
+      { $set: { revokedAt: now } }
+    );
+
+    await client.query('COMMIT');
+    transactionOpen = false;
+    await recordAuditLog('roster_education_sharing_consented', {
+      userId,
+      email: user.email
+    });
+
+    return res.json({
+      message: shareEducation
+        ? 'Your account is linked and you shared your NIL education completion status.'
+        : 'Your account is linked. Your education progress remains private.'
+    });
+  } catch (error) {
+    if (transactionOpen) {
+      await client.query('ROLLBACK');
+    }
+    next(error);
+  } finally {
+    client?.release();
+  }
+});
+
+app.post('/api/rosters/:rosterId/players', async (req, res, next) => {
+  try {
+    const user = req.user;
+    assertUserRole(user, 'coach', 'school');
+
+    const userId = String(user._id);
+    const roster = await rostersCollection.findOne({
+      rosterId: req.params.rosterId,
+      userId
+    });
+
+    if (!roster) {
+      return res.status(404).json({ message: 'Roster not found for the current user.' });
+    }
+
+    if (!user.school || roster.school.toLowerCase() !== user.school.toLowerCase()) {
+      return res.status(403).json({ message: 'You can only edit rosters for your assigned school.' });
+    }
+
+    const player = {
+      ...validateRosterPlayer(req.body, roster),
+      linkRequiresInvite: true,
+      linkStatus: 'no_account'
+    };
+    const players = Array.isArray(roster.players) ? roster.players : [];
+
+    if (players.some((currentPlayer) => currentPlayer.studentId === player.studentId)) {
+      return res.status(409).json({ message: 'That student ID is already in this roster.' });
+    }
+
+    const now = new Date();
+    const updatedPlayers = markDuplicateRosterEmails([...players, player]);
+    await rostersCollection.updateOne(
+      { rosterId: roster.rosterId, userId },
+      {
+        $set: {
+          players: updatedPlayers,
+          playerCount: updatedPlayers.length,
+          updatedAt: now,
+          manuallyEditedAt: now
+        }
+      }
+    );
+
+    await applyRosterEmailConflictReview(await rostersCollection.find({}).toArray());
+    const updatedRoster = await rostersCollection.findOne({ rosterId: roster.rosterId, userId });
+    return res.status(201).json({
+      message: 'Athlete added to the roster.',
+      roster: (await serializeRosters([updatedRoster], new Map(), user))[0]
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/api/rosters/:rosterId/players/:playerIndex', async (req, res, next) => {
+  try {
+    const user = req.user;
+    assertUserRole(user, 'coach', 'school');
+
+    const userId = String(user._id);
+    const playerIndex = Number(req.params.playerIndex);
+    const roster = await rostersCollection.findOne({
+      rosterId: req.params.rosterId,
+      userId
+    });
+
+    if (!roster) {
+      return res.status(404).json({ message: 'Roster not found for the current user.' });
+    }
+
+    if (!user.school || roster.school.toLowerCase() !== user.school.toLowerCase()) {
+      return res.status(403).json({ message: 'You can only edit rosters for your assigned school.' });
+    }
+
+    const players = Array.isArray(roster.players) ? [...roster.players] : [];
+
+    if (!Number.isInteger(playerIndex) || playerIndex < 0 || playerIndex >= players.length) {
+      return res.status(404).json({ message: 'Athlete was not found in this roster.' });
+    }
+
+    const submittedPlayer = validateRosterPlayer(req.body, roster);
+
+    if (players.some((currentPlayer, index) => index !== playerIndex && currentPlayer.studentId === submittedPlayer.studentId)) {
+      return res.status(409).json({ message: 'That student ID is already in this roster.' });
+    }
+
+    const previousPlayer = players[playerIndex];
+    const emailChanged = normalizeRosterEmail(previousPlayer.email) !== submittedPlayer.email;
+    if (emailChanged && isValidEmailAddress(previousPlayer.email)) {
+      createSmtpTransport();
+    }
+    players[playerIndex] = emailChanged
+      ? {
+          ...unlinkRosterPlayerForEmailChange(previousPlayer, submittedPlayer.email),
+          ...submittedPlayer,
+          linkedStudentUserId: null,
+          educationConsentAt: null,
+          educationRevokedAt: new Date(),
+          linkStatus: 'no_account',
+          linkRequiresInvite: true,
+          inviteSentAt: null
+        }
+      : {
+          ...previousPlayer,
+          ...submittedPlayer,
+          linkStatus: previousPlayer.linkStatus || (previousPlayer.linkedStudentUserId ? 'linked' : 'no_account')
+        };
+    const updatedPlayers = markDuplicateRosterEmails(players);
+    const now = new Date();
+    await rostersCollection.updateOne(
+      { rosterId: roster.rosterId, userId },
+      {
+        $set: {
+          players: updatedPlayers,
+          playerCount: updatedPlayers.length,
+          updatedAt: now,
+          manuallyEditedAt: now
+        }
+      }
+    );
+
+    if (emailChanged) {
+      await rosterLinkInvitesCollection.updateMany(
+        {
+          rosterId: roster.rosterId,
+          rosterOwnerId: userId,
+          studentId: previousPlayer.studentId,
+          acceptedAt: null,
+          revokedAt: null
+        },
+        { $set: { revokedAt: now } }
+      );
+      if (previousPlayer.linkedStudentUserId) {
+        await refreshLinkedStudentId(previousPlayer.linkedStudentUserId);
+      }
+      if (isValidEmailAddress(previousPlayer.email)) {
+        await sendEmail({
+          to: previousPlayer.email,
+          subject: 'Your NILGuard roster email was changed',
+          text: `A coach changed the email address on the roster record for ${previousPlayer.firstName} ${previousPlayer.lastName}. The old account link has been removed.`
+        });
+      }
+    }
+
+    await applyRosterEmailConflictReview(await rostersCollection.find({}).toArray());
+    const updatedRoster = await rostersCollection.findOne({ rosterId: roster.rosterId, userId });
+    return res.json({
+      message: 'Athlete details updated.',
+      roster: (await serializeRosters([updatedRoster], new Map(), user))[0]
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/api/rosters/:rosterId/players/:playerIndex', async (req, res, next) => {
+  try {
+    const user = req.user;
+    assertUserRole(user, 'coach', 'school');
+
+    const userId = String(user._id);
+    const playerIndex = Number(req.params.playerIndex);
+    const roster = await rostersCollection.findOne({
+      rosterId: req.params.rosterId,
+      userId
+    });
+
+    if (!roster) {
+      return res.status(404).json({ message: 'Roster not found for the current user.' });
+    }
+
+    if (!user.school || roster.school.toLowerCase() !== user.school.toLowerCase()) {
+      return res.status(403).json({ message: 'You can only edit rosters for your assigned school.' });
+    }
+
+    const players = Array.isArray(roster.players) ? roster.players : [];
+
+    if (!Number.isInteger(playerIndex) || playerIndex < 0 || playerIndex >= players.length) {
+      return res.status(404).json({ message: 'Athlete was not found in this roster.' });
+    }
+
+    const updatedPlayers = players.filter((_player, index) => index !== playerIndex);
+    const now = new Date();
+    await rostersCollection.updateOne(
+      { rosterId: roster.rosterId, userId },
+      {
+        $set: {
+          players: updatedPlayers,
+          playerCount: updatedPlayers.length,
+          updatedAt: now,
+          manuallyEditedAt: now
+        }
+      }
+    );
+
+    await applyRosterEmailConflictReview(await rostersCollection.find({}).toArray());
+    const updatedRoster = await rostersCollection.findOne({ rosterId: roster.rosterId, userId });
+    return res.json({
+      message: 'Athlete removed from the roster.',
+      roster: (await serializeRosters([updatedRoster], new Map(), user))[0]
     });
   } catch (error) {
     next(error);
@@ -817,23 +2022,29 @@ app.get('/api/rosters/athletes', async (req, res, next) => {
             firstName: String(player.firstName || '').trim(),
             lastName: String(player.lastName || '').trim(),
             school: roster.school,
+            linkStatus: player.linkStatus || (player.linkedStudentUserId ? 'linked' : player.inviteSentAt ? 'invited' : 'no_account'),
             assignments: []
           });
         }
 
         const athlete = athleteMap.get(studentId);
+        const statusPriority = { no_account: 0, invited: 1, linked: 2, needs_review: 3 };
+        const playerStatus = player.linkStatus || (player.linkedStudentUserId ? 'linked' : player.inviteSentAt ? 'invited' : 'no_account');
+        if ((statusPriority[playerStatus] || 0) > (statusPriority[athlete.linkStatus] || 0)) {
+          athlete.linkStatus = playerStatus;
+        }
 
         const alreadyAssigned = athlete.assignments.some(
           (assignment) =>
-            assignment.sport === roster.sport &&
-            assignment.year === roster.year
+            assignment.sport === (player.sport || roster.sport) &&
+            assignment.year === (player.year || roster.year)
         );
 
         if (!alreadyAssigned) {
           athlete.assignments.push({
             rosterId: roster.rosterId,
-            sport: roster.sport,
-            year: roster.year
+            sport: player.sport || roster.sport,
+            year: player.year || roster.year
           });
         }
       });
@@ -904,21 +2115,24 @@ app.get('/api/rosters/athletes/:studentId', async (req, res, next) => {
           firstName: String(matchingPlayer.firstName || '').trim(),
           lastName: String(matchingPlayer.lastName || '').trim(),
           school: roster.school,
+          linkedStudentUserId: matchingPlayer.linkedStudentUserId
+            ? String(matchingPlayer.linkedStudentUserId)
+            : null,
           assignments: []
         };
       }
 
       const alreadyAssigned = athlete.assignments.some(
         (assignment) =>
-          assignment.sport === roster.sport &&
-          assignment.year === roster.year
+          assignment.sport === (matchingPlayer.sport || roster.sport) &&
+          assignment.year === (matchingPlayer.year || roster.year)
       );
 
       if (!alreadyAssigned) {
         athlete.assignments.push({
           rosterId: roster.rosterId,
-          sport: roster.sport,
-          year: roster.year
+          sport: matchingPlayer.sport || roster.sport,
+          year: matchingPlayer.year || roster.year
         });
       }
     });
@@ -927,6 +2141,13 @@ app.get('/api/rosters/athletes/:studentId', async (req, res, next) => {
       return res.status(404).json({
         message: 'Athlete was not found in your assigned rosters.'
       });
+    }
+
+    if (athlete.linkedStudentUserId && String(user.school || '').toLowerCase() === String(athlete.school || '').toLowerCase()) {
+      const linkedUser = await usersCollection.findOne({ _id: athlete.linkedStudentUserId });
+      if (linkedUser?.profileVisibility?.avatar === true && linkedUser.avatar) {
+        athlete.avatar = linkedUser.avatar;
+      }
     }
 
     return res.json({
@@ -968,6 +2189,34 @@ app.post('/api/rosters', rosterUpload.single('file'), async (req, res, next) => 
       });
     }
 
+    const emailChanges = [];
+    for (const rosterGroup of rosterGroups) {
+      const existingRoster = await rostersCollection.findOne({
+        userId,
+        school: rosterGroup.school,
+        sport: rosterGroup.sport,
+        year: rosterGroup.year
+      });
+      const existingPlayersByStudentId = new Map(
+        (existingRoster?.players || []).map((player) => [String(player.studentId), player])
+      );
+      rosterGroup.players.forEach((player) => {
+        const existingPlayer = existingPlayersByStudentId.get(String(player.studentId));
+        if (existingPlayer && normalizeRosterEmail(existingPlayer.email) !== player.email) {
+          emailChanges.push({
+            rosterId: existingRoster.rosterId,
+            studentId: existingPlayer.studentId,
+            oldEmail: existingPlayer.email,
+            firstName: existingPlayer.firstName,
+            lastName: existingPlayer.lastName,
+            linkedStudentUserId: existingPlayer.linkedStudentUserId
+          });
+        }
+      });
+    }
+    if (emailChanges.some((change) => isValidEmailAddress(change.oldEmail))) {
+      createSmtpTransport();
+    }
 
     const now = new Date();
     const savedRosters = [];
@@ -991,6 +2240,37 @@ app.post('/api/rosters', rosterUpload.single('file'), async (req, res, next) => 
         sport: rosterGroup.sport,
         year: rosterGroup.year
       });
+      const existingPlayersByStudentId = new Map(
+        (existingRoster?.players || []).map((player) => [String(player.studentId), player])
+      );
+      const rosterPlayers = markDuplicateRosterEmails(rosterGroup.players.map((player) => {
+        const existingPlayer = existingPlayersByStudentId.get(String(player.studentId));
+        if (!existingPlayer) {
+          return player;
+        }
+
+        if (normalizeRosterEmail(existingPlayer.email) !== player.email) {
+          return {
+            ...player,
+            linkRequiresInvite: true,
+            linkStatus: 'no_account'
+          };
+        }
+
+        if (player.linkStatus === 'needs_review') {
+          return player;
+        }
+
+        return {
+          ...player,
+          linkedStudentUserId: existingPlayer.linkedStudentUserId,
+          educationConsentAt: existingPlayer.educationConsentAt,
+          educationRevokedAt: existingPlayer.educationRevokedAt,
+          inviteSentAt: existingPlayer.inviteSentAt,
+          linkStatus: existingPlayer.linkStatus || (existingPlayer.linkedStudentUserId ? 'linked' : 'no_account'),
+          linkRequiresInvite: existingPlayer.linkRequiresInvite
+        };
+      }));
 
       if (existingRoster?.storedFilePath && existingRoster.storedFilePath !== storedFilePath) {
         staleFilePaths.add(existingRoster.storedFilePath);
@@ -1009,11 +2289,12 @@ app.post('/api/rosters', rosterUpload.single('file'), async (req, res, next) => 
             school: rosterGroup.school,
             sport: rosterGroup.sport,
             year: rosterGroup.year,
-            players: rosterGroup.players,
-            playerCount: rosterGroup.players.length,
+            players: rosterPlayers,
+            playerCount: rosterPlayers.length,
             sourceFileName: file.originalname,
             storedFileName,
             storedFilePath,
+            manuallyEditedAt: null,
             updatedAt: now
           },
           $setOnInsert: {
@@ -1041,9 +2322,51 @@ app.post('/api/rosters', rosterUpload.single('file'), async (req, res, next) => 
       await deleteRosterFileIfUnused(staleFilePath);
     }
 
+    for (const change of emailChanges) {
+      await rosterLinkInvitesCollection.updateMany(
+        {
+          rosterId: change.rosterId,
+          rosterOwnerId: userId,
+          studentId: change.studentId,
+          acceptedAt: null,
+          revokedAt: null
+        },
+        { $set: { revokedAt: now } }
+      );
+      if (change.linkedStudentUserId) {
+        await refreshLinkedStudentId(change.linkedStudentUserId);
+      }
+      if (isValidEmailAddress(change.oldEmail)) {
+        await sendEmail({
+          to: change.oldEmail,
+          subject: 'Your NILGuard roster email was changed',
+          text: `A coach changed the email address on the roster record for ${change.firstName} ${change.lastName}. The old account link has been removed.`
+        });
+      }
+    }
+
+    await applyRosterEmailConflictReview(await rostersCollection.find({}).toArray());
+    const rosterEmails = new Set(rosterGroups.flatMap((group) => group.players.map((player) => player.email)));
+    for (const email of rosterEmails) {
+      const account = await usersCollection.findOne({ email });
+      if (account?.emailVerifiedAt && account.role === 'student') {
+        await linkVerifiedAthlete(account);
+      }
+    }
+
+    const domainWarnings = [];
+    if (user.schoolEmailDomain) {
+      for (const email of rosterEmails) {
+        if (!isEmailOnSchoolDomain(email, user.schoolEmailDomain)) {
+          domainWarnings.push(`Email ${email} is not on ${user.schoolEmailDomain}.`);
+        }
+      }
+    }
+
     return res.status(201).json({
       message: `Processed ${savedRosters.length} roster ${savedRosters.length === 1 ? 'group' : 'groups'} from CSV upload.`,
-      rosters: savedRosters.map(serializeRoster)
+      warnings: domainWarnings,
+      rosters: await serializeRosters(savedRosters, new Map(), user)
     });
   } catch (error) {
     next(error);
@@ -1058,6 +2381,13 @@ app.get('/api/rosters/:rosterId/file', async (req, res, next) => {
 
     if (!roster) {
       return res.status(404).json({ message: 'Roster not found for the current user.' });
+    }
+
+    if (
+      req.user.role !== 'coach' ||
+      String(req.user.school || '').toLowerCase() !== String(roster.school || '').toLowerCase()
+    ) {
+      return res.status(403).json({ message: 'Roster exports are available only to coaches at the roster school.' });
     }
 
     if (!roster.storedFilePath) {
@@ -1371,6 +2701,12 @@ app.get('/api/contracts/:contractId/file', async (req, res, next) => {
       return res.status(404).json({ message: 'Contract not found for the current user.' });
     }
 
+    if (!contract.storedFilePath || !(await storedFileExists(contract.storedFilePath))) {
+      return res.status(404).json({
+        message: 'The stored PDF is unavailable. Re-upload this contract; configure persistent upload storage to prevent this after deployments.'
+      });
+    }
+
     const now = new Date();
     await contractsCollection.updateOne(
       { contractId, userId },
@@ -1619,7 +2955,7 @@ app.post('/api/compliance/requests', async (req, res, next) => {
           mimeType: contract.mimeType || 'application/pdf',
           studentUserId: userId,
           studentEmail: user.email,
-          studentSchool: user.school || null,
+          studentName: [user.firstName, user.lastName].filter(Boolean).join(' ') || null,
           studentDivision: user.ncaaDivision || null,
           assignedComplianceUserId: complianceOfficer._id.toString(),
           assignedComplianceEmail: complianceOfficer.email,
@@ -1950,12 +3286,6 @@ app.patch('/api/compliance/requests/:requestId/guidelines', async (req, res, nex
       });
     }
 
-    const guidelineSummary = guidelines.map((guideline) => {
-      const dueDate = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(guideline.dueAt);
-      const feedbackLine = guideline.feedback ? ` Feedback: ${guideline.feedback}` : '';
-      return `• ${guideline.title} — ${guideline.decision === 'needs_changes' ? 'Needs changes' : guideline.decision}; due ${dueDate}.${feedbackLine}`;
-    }).join('\n');
-
     const client = await pool.connect();
     let transactionOpen = false;
     let updatedRequest;
@@ -1983,6 +3313,23 @@ app.patch('/api/compliance/requests/:requestId/guidelines', async (req, res, nex
       const currentGuidelines = currentRequest.guidelines?.length
         ? currentRequest.guidelines
         : buildGuidelineReviews([], null);
+      const previousDecisions = new Map(currentGuidelines.map((guideline) => [
+        String(guideline.id || guideline.title),
+        guideline.decision || 'pending'
+      ]));
+      const clauseStatusChanges = guidelines.flatMap((guideline) => {
+        const key = String(guideline.id || guideline.title);
+        const previousStatus = previousDecisions.get(key);
+        const status = guideline.decision || 'pending';
+        return previousStatus === undefined || previousStatus === status
+          ? []
+          : [{
+              clauseId: key,
+              title: guideline.title,
+              previousStatus,
+              status
+            }];
+      });
       const clauseContentChanged = currentGuidelines.length !== guidelines.length ||
         currentGuidelines.some((guideline, index) => {
           const nextGuideline = guidelines[index];
@@ -2039,7 +3386,10 @@ app.patch('/api/compliance/requests/:requestId/guidelines', async (req, res, nex
         recipientEmail: documentRequest.studentEmail,
         recipientUserId: documentRequest.studentUserId,
         subject: 'NIL guideline review updated',
-        body: `The NIL guideline conditions for ${documentRequest.contractFileName} have been updated:\n\n${guidelineSummary}`,
+        body: 'The compliance officer updated the guideline review.',
+        type: 'compliance_update',
+        guidelines,
+        changes: clauseStatusChanges,
         isRead: false,
         createdAt: now
       });
@@ -2101,6 +3451,12 @@ app.get('/api/compliance/requests/:requestId/file', async (req, res, next) => {
 
     if (!documentRequest.storedFilePath) {
       return res.status(404).json({ message: 'No document file is stored for this request.' });
+    }
+
+    if (!(await storedFileExists(documentRequest.storedFilePath))) {
+      return res.status(404).json({
+        message: 'The stored PDF is unavailable. Re-upload this contract; configure persistent upload storage to prevent this after deployments.'
+      });
     }
 
     await documentRequestsCollection.updateOne(
@@ -2446,6 +3802,7 @@ function buildUnsupportedSchoolEmailMessage() {
 
 app.post('/api/auth/register', async (req, res) => {
   const { email, password, role } = req.body || {};
+  const inviteCode = String(req.body?.inviteCode || '').trim().toUpperCase();
 
   if (!email || !password) {
     return res.status(400).json({ message: 'Email and password are required.' });
@@ -2462,6 +3819,19 @@ app.post('/api/auth/register', async (req, res) => {
   const normalizedEmail = String(email).toLowerCase().trim();
   const normalizedRole = normalizeRole(role);
   const resolvedSchool = resolveSchoolFromEmail(normalizedEmail);
+  const verificationToken = normalizedRole === 'student' && requireStudentEmailVerification
+    ? randomBytes(32).toString('hex')
+    : null;
+
+  if (inviteCode && !/^[A-F0-9]{32}$/.test(inviteCode)) {
+    return res.status(400).json({ message: 'The roster invite code is invalid.' });
+  }
+
+  if (normalizedRole === 'student' && !inviteCode) {
+    return res.status(403).json({
+      message: 'A coach invitation is required before an athlete can register. Ask your coach to send you an invite.'
+    });
+  }
 
   if (!resolvedSchool) {
     return res.status(400).json({
@@ -2474,7 +3844,39 @@ app.post('/api/auth/register', async (req, res) => {
     return res.status(409).json({ message: 'An account with this email already exists.' });
   }
 
+  if (normalizedRole === 'student') {
+    let invitation;
+    try {
+      invitation = await findValidRosterLinkInvite(inviteCode);
+    } catch (error) {
+      return res.status(error.statusCode || 400).json({
+        message: 'This coach invitation is invalid, expired, or revoked. Ask your coach to send another invite.'
+      });
+    }
+
+    if (invitation.player.linkStatus === 'needs_review') {
+      return res.status(409).json({
+        message: 'This roster row needs coach review before you can register.'
+      });
+    }
+    if (invitation.player.linkedStudentUserId) {
+      return res.status(409).json({
+        message: 'This roster row is already linked to a student account.'
+      });
+    }
+    if (!canRegisterWithCoachInvite(normalizedEmail, invitation.invite, invitation.player)) {
+      return res.status(403).json({
+        message: 'Use the email address listed on your coach’s roster invitation.'
+      });
+    }
+  }
+
+  if (verificationToken) {
+    createSmtpTransport();
+  }
+
   const passwordHash = await bcrypt.hash(String(password), 10);
+  const now = new Date();
 
   const insertResult = await usersCollection.insertOne({
     email: normalizedEmail,
@@ -2483,18 +3885,38 @@ app.post('/api/auth/register', async (req, res) => {
     school: resolvedSchool ? resolvedSchool.school : null,
     ncaaDivision: resolvedSchool ? resolvedSchool.division : null,
     schoolEmailDomain: resolvedSchool ? resolvedSchool.primaryDomain : null,
-    createdAt: new Date(),
-    updatedAt: new Date()
+    emailVerifiedAt: verificationToken ? null : now,
+    emailVerificationTokenHash: verificationToken ? createHash('sha256').update(verificationToken).digest('hex') : null,
+    emailVerificationExpiresAt: verificationToken ? new Date(now.getTime() + 24 * 60 * 60 * 1000) : null,
+    emailVerificationSentAt: verificationToken ? now : null,
+    profileVisibility: {},
+    educationSharingEnabled: false,
+    createdAt: now,
+    updatedAt: now
   });
 
+  if (verificationToken) {
+    await sendEmailVerification({ email: normalizedEmail }, verificationToken, inviteCode);
+  } else {
+    if (normalizedRole === 'student') {
+      await linkVerifiedAthlete({
+        _id: insertResult.insertedId,
+        email: normalizedEmail,
+        role: normalizedRole,
+        emailVerifiedAt: now
+      }, { allowPendingVerification: true });
+    }
+    const token = signToken({ _id: insertResult.insertedId, role: normalizedRole });
+    setAuthCookie(res, token);
+  }
   await recordAuditLog('register', { userId: String(insertResult.insertedId), email: normalizedEmail, ip: req.ip });
 
-  const token = signToken({ _id: insertResult.insertedId, role: normalizedRole });
-  setAuthCookie(res, token);
-
   return res.status(201).json({
-    message: 'Registration successful.',
-    user: serializeUser(
+    message: verificationToken
+      ? 'Check your email to verify your account before signing in.'
+      : 'Registration successful.',
+    emailVerificationRequired: Boolean(verificationToken),
+    user: verificationToken ? undefined : serializeUser(
       {
         _id: insertResult.insertedId,
         email: normalizedEmail,
@@ -2505,6 +3927,91 @@ app.post('/api/auth/register', async (req, res) => {
       resolvedSchool
     )
   });
+});
+
+app.post('/api/auth/verify-email', async (req, res, next) => {
+  try {
+    const token = String(req.body?.token || '').trim();
+    if (!/^[a-f0-9]{64}$/i.test(token)) {
+      return res.status(400).json({ message: 'This email verification link is invalid or expired.' });
+    }
+
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    const user = await usersCollection.findOne({ emailVerificationTokenHash: tokenHash });
+    if (
+      !user ||
+      !user.emailVerificationExpiresAt ||
+      new Date(user.emailVerificationExpiresAt) <= new Date()
+    ) {
+      return res.status(400).json({ message: 'This email verification link is invalid or expired.' });
+    }
+
+    const now = new Date();
+    await usersCollection.updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          emailVerifiedAt: now,
+          emailVerificationTokenHash: null,
+          emailVerificationExpiresAt: null,
+          updatedAt: now
+        }
+      }
+    );
+    const verifiedUser = { ...user, emailVerifiedAt: now };
+    await linkVerifiedAthlete(verifiedUser, { allowPendingVerification: true });
+    const savedUser = await usersCollection.findOne({ _id: user._id });
+    const authToken = signToken(savedUser);
+    setAuthCookie(res, authToken);
+    await recordAuditLog('email_verified', {
+      userId: String(user._id),
+      email: user.email,
+      ip: req.ip
+    });
+
+    return res.json({
+      message: 'Email verified successfully.',
+      user: serializeUser(savedUser)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/auth/resend-verification', async (req, res, next) => {
+  try {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!isValidEmailAddress(email)) {
+      return res.status(400).json({ message: 'Enter a valid email address.' });
+    }
+
+    const user = await usersCollection.findOne({ email });
+    if (user?.role === 'student' && !user.emailVerifiedAt) {
+      const lastSentAt = Date.parse(user.emailVerificationSentAt || '');
+      if (Number.isFinite(lastSentAt) && Date.now() - lastSentAt < 60 * 1000) {
+        return res.status(429).json({ message: 'Wait one minute before requesting another verification email.' });
+      }
+
+      const token = randomBytes(32).toString('hex');
+      const now = new Date();
+      await usersCollection.updateOne(
+        { _id: user._id },
+        {
+          $set: {
+            emailVerificationTokenHash: createHash('sha256').update(token).digest('hex'),
+            emailVerificationExpiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+            emailVerificationSentAt: now,
+            updatedAt: now
+          }
+        }
+      );
+      await sendEmailVerification(user, token);
+    }
+
+    return res.json({ message: 'If an unverified athlete account exists for that address, a verification email has been sent.' });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -2568,6 +4075,28 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(403).json({ message: `This account is registered as ${user.role}, not ${expectedRole}.` });
   }
 
+  if (user.role === 'student' && !user.emailVerifiedAt && requireStudentEmailVerification) {
+    return res.status(403).json({
+      message: 'Verify your email address before signing in. You can request a new confirmation link.'
+    });
+  }
+
+  if (user.role === 'student' && !user.emailVerifiedAt) {
+    user.emailVerifiedAt = now;
+    await usersCollection.updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          emailVerifiedAt: now,
+          emailVerificationTokenHash: null,
+          emailVerificationExpiresAt: null,
+          updatedAt: now
+        }
+      }
+    );
+    await linkVerifiedAthlete(user, { allowPendingVerification: true });
+  }
+
   // keep the school fields up to date when the directory recognizes the domain
   if (
     resolvedSchool &&
@@ -2620,6 +4149,138 @@ app.get('/api/auth/me', requireAuth, (req, res) => {
   return res.json({ user: serializeUser(req.user) });
 });
 
+app.get('/api/profile', requireAuth, (req, res) => {
+  if (!['coach', 'school', 'student'].includes(req.user.role)) {
+    return res.status(403).json({ message: 'Profiles are available to coach and athlete accounts.' });
+  }
+  return res.json({ profile: serializeUser(req.user) });
+});
+
+app.patch('/api/profile', requireAuth, async (req, res, next) => {
+  try {
+    const user = req.user;
+    if (!['coach', 'school', 'student'].includes(user.role)) {
+      return res.status(403).json({ message: 'Profiles are available to coach and athlete accounts.' });
+    }
+
+    const isAthlete = user.role === 'student';
+    const editableFields = isAthlete
+      ? new Set([
+          'firstName', 'lastName', 'preferredName', 'avatar', 'sport', 'year',
+          'contactEmail', 'profileVisibility', 'educationSharingEnabled'
+        ])
+      : new Set(['firstName', 'lastName', 'title', 'phone', 'avatar']);
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const unexpectedFields = Object.keys(body).filter((field) => !editableFields.has(field));
+    if (unexpectedFields.length) {
+      return res.status(400).json({
+        message: 'Only editable profile fields may be changed. Email, school, role, and student ID are read-only.'
+      });
+    }
+
+    const update = {};
+    const stringFields = isAthlete
+      ? ['firstName', 'lastName', 'preferredName', 'sport', 'year', 'contactEmail']
+      : ['firstName', 'lastName', 'title', 'phone'];
+    for (const field of stringFields) {
+      if (typeof body[field] !== 'string') {
+        return res.status(400).json({ message: `${field} must be text.` });
+      }
+      update[field] = body[field].trim();
+    }
+
+    const requiredFields = isAthlete
+      ? ['firstName', 'lastName', 'sport', 'year']
+      : ['firstName', 'lastName', 'title'];
+    if (requiredFields.some((field) => !update[field])) {
+      return res.status(400).json({ message: 'Complete all required profile fields.' });
+    }
+    if (Object.entries(update).some(([field, value]) => value.length > (field === 'contactEmail' ? 254 : field === 'phone' ? 25 : 100))) {
+      return res.status(400).json({ message: 'Profile fields exceed their maximum length.' });
+    }
+    if (update.phone && !/^[0-9+().\-\s]{7,25}$/.test(update.phone)) {
+      return res.status(400).json({ message: 'Enter a valid phone number.' });
+    }
+    if (update.contactEmail && !isValidEmailAddress(update.contactEmail)) {
+      return res.status(400).json({ message: 'Enter a valid contact email address.' });
+    }
+    if (Object.prototype.hasOwnProperty.call(body, 'avatar')) {
+      try {
+        update.avatar = validateAvatar(body.avatar);
+      } catch (error) {
+        return res.status(400).json({ message: error.message });
+      }
+    }
+
+    if (isAthlete && Object.prototype.hasOwnProperty.call(body, 'profileVisibility')) {
+      const visibility = body.profileVisibility;
+      const allowedVisibilityFields = ['preferredName', 'avatar', 'sport', 'year', 'contactEmail'];
+      if (!visibility || typeof visibility !== 'object' || Array.isArray(visibility)) {
+        return res.status(400).json({ message: 'Profile visibility settings are invalid.' });
+      }
+      if (Object.keys(visibility).some((field) => !allowedVisibilityFields.includes(field))) {
+        return res.status(400).json({ message: 'Profile visibility contains an unsupported field.' });
+      }
+      if (Object.values(visibility).some((value) => typeof value !== 'boolean')) {
+        return res.status(400).json({ message: 'Profile visibility settings must be on or off.' });
+      }
+      update.profileVisibility = {
+        ...(user.profileVisibility || {}),
+        ...Object.fromEntries(allowedVisibilityFields.map((field) => [
+          field,
+          visibility[field] === true || (visibility[field] === undefined && user.profileVisibility?.[field] === true)
+        ]))
+      };
+    }
+
+    if (isAthlete && Object.prototype.hasOwnProperty.call(body, 'educationSharingEnabled')) {
+      if (typeof body.educationSharingEnabled !== 'boolean') {
+        return res.status(400).json({ message: 'Education sharing must be on or off.' });
+      }
+      update.educationSharingEnabled = body.educationSharingEnabled;
+    }
+
+    const now = new Date();
+    update.updatedAt = now;
+    await usersCollection.updateOne({ _id: user._id }, { $set: update });
+
+    if (isAthlete && Object.prototype.hasOwnProperty.call(update, 'educationSharingEnabled')) {
+      const rosters = await rostersCollection.find({}).toArray();
+      for (const roster of rosters) {
+        const players = Array.isArray(roster.players) ? [...roster.players] : [];
+        let changed = false;
+        players.forEach((player, index) => {
+          if (player.linkedStudentUserId !== String(user._id)) {
+            return;
+          }
+          players[index] = {
+            ...player,
+            educationConsentAt: update.educationSharingEnabled ? now : null,
+            educationRevokedAt: update.educationSharingEnabled ? null : now
+          };
+          changed = true;
+        });
+        if (changed) {
+          await rostersCollection.updateOne(
+            { _id: roster._id },
+            { $set: { players, updatedAt: now } }
+          );
+        }
+      }
+    }
+
+    await recordAuditLog('profile_updated', {
+      userId: String(user._id),
+      email: user.email,
+      ip: req.ip
+    });
+    const updatedUser = await usersCollection.findOne({ _id: user._id });
+    return res.json({ message: 'Profile updated.', profile: serializeUser(updatedUser) });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Delete a contract (student-owned)
 app.delete('/api/contracts/:contractId', async (req, res, next) => {
   try {
@@ -2660,7 +4321,8 @@ async function start() {
     documentRequestsCollection,
     auditLogsCollection,
     messagesCollection,
-    notificationsCollection
+    notificationsCollection,
+    rosterLinkInvitesCollection
   } = createCollections(pool));
 
   // Contract analysis endpoint (must be after collections are initialized)
@@ -2684,6 +4346,11 @@ async function start() {
       if (!contract.storedFilePath) {
         console.log('Contract file not found for analysis:', { contractId, userId });
         return res.status(404).json({ message: 'Contract file not found.' });
+      }
+      if (!(await storedFileExists(contract.storedFilePath))) {
+        return res.status(404).json({
+          message: 'The stored PDF is unavailable. Re-upload this contract; configure persistent upload storage to prevent this after deployments.'
+        });
       }
       const fileBuffer = await fs.readFile(contract.storedFilePath);
 
@@ -2819,4 +4486,3 @@ start().catch((error) => {
   console.error('Failed to start server:', error);
   process.exit(1);
 });
-

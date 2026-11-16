@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import '../styles/pages/StudentProfile.css';
 import logo from '../assets/NILGUARD.png';
@@ -61,10 +62,12 @@ function StudentProfilePage() {
 
             <button
               type="button"
-              className="student-profile-button student-profile-button-primary"
+              className="student-profile-button logout-icon-button"
               onClick={handleLogout}
+              aria-label="Log out"
+              title="Log out"
             >
-              Logout
+              <LogOut size={14} className="logout-action-icon" aria-hidden="true" />
             </button>
           </div>
         </section>
