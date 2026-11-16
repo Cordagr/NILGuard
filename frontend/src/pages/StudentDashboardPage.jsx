@@ -3,6 +3,7 @@ import { CheckCircle2, Clock, FileText, LogOut } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
+import { useToast } from '../components/ui/toast';
 
 import '../styles/pages/StudentDashboard.css';
 import '../styles/pages/CoachRosters.css';
@@ -335,6 +336,7 @@ function buildTimeline(
 function StudentDashboardPage() {
   const navigate = useNavigate();
   const { user: currentUser, logout } = useAuth();
+  const { showToast } = useToast();
 
   const sortMenuRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -678,10 +680,18 @@ function StudentDashboardPage() {
       await fetchContracts(sortMode);
       await fetchComplianceRequests();
     } catch (error) {
-      setErrorMessage(
-        error.message ||
-          'Unable to upload the contract.'
-      );
+      if (error.code === 'NOT_A_CONTRACT') {
+        showToast({
+          variant: 'error',
+          title: 'Contract upload rejected',
+          detail: error.message
+        });
+      } else {
+        setErrorMessage(
+          error.message ||
+            'Unable to upload the contract.'
+        );
+      }
     } finally {
       setIsUploading(false);
     }

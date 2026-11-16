@@ -2,7 +2,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { ToastMessage } from '../components/ui/toast';
 
 import logo from '../assets/NILGUARD.png';
 import moneyIcon from '../assets/moneyModule.png';
@@ -31,45 +30,40 @@ function EducationDashboardPage() {
   const [nilDealsQuizResult, setNilDealsQuizResult] = useState(null);
   const [contracts101Progress, setContracts101Progress] = useState(null);
   const [contracts101QuizResult, setContracts101QuizResult] = useState(null);
-  const [educationError, setEducationError] = useState('');
 
   const loadEducationData = async () => {
     if (!user?.id) {
       return;
     }
 
-    setEducationError('');
+    const localProgress = readLocalEducationProgress(user.id);
+    let serverProgress = {};
 
     try {
       const progressResponse = await getStudentEducationProgress();
-      const localProgress = readLocalEducationProgress(user.id);
-      const savedProgress = {};
-
-      for (const course of educationCourses) {
-        const mergedProgress = mergeEducationCourseProgress(
-          localProgress[course.id],
-          progressResponse.progress?.[course.id]
-        );
-        const hasSavedProgress = Boolean(
-          localProgress[course.id] || progressResponse.progress?.[course.id]
-        );
-
-        if (hasSavedProgress) {
-          await saveStudentEducationProgress(course.id, mergedProgress);
-          writeLocalEducationCourse(user.id, course.id, mergedProgress);
-          savedProgress[course.id] = mergedProgress;
-        }
-      }
-
-      setMoneyBasicsProgress(savedProgress.moneyBasics || { currentLesson: 0, completedLessons: [] });
-      setMoneyBasicsQuizResult(savedProgress.moneyBasics?.quizResult || null);
-      setNilDealsProgress(savedProgress.nilDeals || null);
-      setNilDealsQuizResult(savedProgress.nilDeals?.quizResult || null);
-      setContracts101Progress(savedProgress.contracts101 || null);
-      setContracts101QuizResult(savedProgress.contracts101?.quizResult || null);
+      serverProgress = progressResponse.progress || {};
     } catch (error) {
-      setEducationError(error.message || 'Unable to load education progress.');
+      console.error('Unable to load education progress from the server; using locally saved progress:', error);
     }
+
+    const savedProgress = {};
+    for (const course of educationCourses) {
+      const mergedProgress = mergeEducationCourseProgress(
+        localProgress[course.id],
+        serverProgress[course.id]
+      );
+      if (localProgress[course.id] || serverProgress[course.id]) {
+        writeLocalEducationCourse(user.id, course.id, mergedProgress);
+        savedProgress[course.id] = mergedProgress;
+      }
+    }
+
+    setMoneyBasicsProgress(savedProgress.moneyBasics || { currentLesson: 0, completedLessons: [] });
+    setMoneyBasicsQuizResult(savedProgress.moneyBasics?.quizResult || null);
+    setNilDealsProgress(savedProgress.nilDeals || null);
+    setNilDealsQuizResult(savedProgress.nilDeals?.quizResult || null);
+    setContracts101Progress(savedProgress.contracts101 || null);
+    setContracts101QuizResult(savedProgress.contracts101?.quizResult || null);
   };
 
   useEffect(() => {
@@ -215,8 +209,6 @@ return (
             lessons followed by a quick assessment.
           </p>
         </section>
-
-        <ToastMessage message={educationError} variant="error" title="Education progress failed" />
 
         <section className="education-module-grid">
 
