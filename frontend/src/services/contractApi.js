@@ -18,11 +18,13 @@ async function parseJsonResponse(response) {
   }
 
   if (!response.ok) {
-    throw new Error(
+    const error = new Error(
       payload.error ||
         payload.message ||
         'Request failed.'
     );
+    error.code = payload.code;
+    throw error;
   }
 
   return payload;
