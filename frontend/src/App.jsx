@@ -21,6 +21,7 @@ import NILDealsQuizPage from './pages/NILDealsQuizPage.jsx';
 import Contracts101Page from './pages/Contracts101Page.jsx';
 import Contracts101QuizPage from './pages/Contracts101QuizPage.jsx';
 import ComplianceDashboardPage from './pages/ComplianceDashboardPage.jsx';
+import AllAthletes from './pages/AllAthletes.jsx';
 import AthletesProfilePage from './pages/AthletesProfilePage.jsx';
 import './styles/global.css';
 import './App.css';
@@ -142,6 +143,7 @@ function App() {
   }
 />
 
+
             <Route
               path="/dashboard/coach"
               element={
@@ -150,14 +152,32 @@ function App() {
                 </ProtectedRoute>
               }
             />
+
             <Route
-              path="/coach/athletes/:id"
+              path="/all-athletes"
+              element={
+                <ProtectedRoute allowedRole="coach">
+                  <AllAthletes />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/athlete/:id"
               element={
                 <ProtectedRoute allowedRole="coach">
                   <AthletesProfilePage />
                 </ProtectedRoute>
               }
             />
+
+
+            <Route
+              path="/coach/athletes/:id"
+              element={
+                <ProtectedRoute allowedRole="coach">
+                  <AthletesProfilePage />
+                </ProtectedRoute>
               }
             />
             <Route
@@ -168,6 +188,8 @@ function App() {
                 </ProtectedRoute>
               }
             />
+
+
             <Route
               path="/dashboard/compliance"
               element={
