@@ -1167,7 +1167,7 @@ main.student-dashboard-content,
 }
 
 /* ── Empty state ── */
-.contracts-list .contract-card:only-child {
+.contracts-list .contract-card:not(.contract-card-detailed):only-child {
   border: none;
   border-top: 1px solid #d8c8b5;
   background: transparent;

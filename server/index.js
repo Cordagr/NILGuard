@@ -3058,10 +3058,6 @@ app.patch('/api/compliance/requests/:requestId', async (req, res, next) => {
         guidelineValidationMessage = `A decision is required for ${guideline.title}.`;
       }
 
-      if (decision === 'needs_changes' && !feedback) {
-        guidelineValidationMessage = `Feedback is required for ${guideline.title}.`;
-      }
-
       if (!submittedDueAt) {
         guidelineValidationMessage = `A student deadline is required for ${guideline.title}.`;
       }
@@ -3241,9 +3237,6 @@ app.patch('/api/compliance/requests/:requestId/guidelines', async (req, res, nex
       }
       if (!['pending', 'pass', 'needs_changes'].includes(decision)) {
         return res.status(400).json({ message: `Choose a valid review status for "${title}".` });
-      }
-      if (decision === 'needs_changes' && !feedback) {
-        return res.status(400).json({ message: `Feedback is required when "${title}" needs changes.` });
       }
       if (feedback.length > 2000) {
         return res.status(400).json({ message: `Feedback for "${title}" must be 2000 characters or fewer.` });
@@ -3824,12 +3817,6 @@ app.post('/api/auth/register', async (req, res) => {
     return res.status(400).json({ message: 'The roster invite code is invalid.' });
   }
 
-  if (normalizedRole === 'student' && !inviteCode) {
-    return res.status(403).json({
-      message: 'A coach invitation is required before an athlete can register. Ask your coach to send you an invite.'
-    });
-  }
-
   if (!resolvedSchool) {
     return res.status(400).json({
       message: buildUnsupportedSchoolEmailMessage()
@@ -3841,7 +3828,7 @@ app.post('/api/auth/register', async (req, res) => {
     return res.status(409).json({ message: 'An account with this email already exists.' });
   }
 
-  if (normalizedRole === 'student') {
+  if (normalizedRole === 'student' && inviteCode) {
     let invitation;
     try {
       invitation = await findValidRosterLinkInvite(inviteCode);

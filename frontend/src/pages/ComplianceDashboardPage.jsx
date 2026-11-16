@@ -155,10 +155,6 @@ function ComplianceDashboardPage() {
         setErrorMessage(`Choose a student deadline for condition ${index + 1}.`);
         return;
       }
-      if (guideline.decision === 'needs_changes' && !guideline.feedback.trim()) {
-        setErrorMessage(`Add officer feedback for condition ${index + 1} marked “Needs changes”.`);
-        return;
-      }
     }
 
     setSavingGuidelinesId(requestId);
@@ -256,10 +252,6 @@ function ComplianceDashboardPage() {
         return;
       }
 
-      if (guideline.decision === 'needs_changes' && !(guideline.feedback || '').trim()) {
-        setValidationPopup(`Please provide feedback for "${guideline.title}".`);
-        return;
-      }
     }
 
     if (status === 'accepted' && guidelines.some((item) => item.decision !== 'pass')) {
@@ -460,8 +452,7 @@ function ComplianceDashboardPage() {
                 );
                 const canReject = allConditionsReviewed &&
                   allConditionsHaveDeadlines &&
-                  needsChangesConditions.length > 0 &&
-                  needsChangesConditions.every((guideline) => Boolean(guideline.feedback?.trim()));
+                  needsChangesConditions.length > 0;
                 const isLeadReviewer =
                   String(request.assignedComplianceUserId) === String(currentUser?.id);
                 const isEditing = editingRequestId === request.id;
@@ -474,13 +465,11 @@ function ComplianceDashboardPage() {
                       ? 'Set a result for each condition, then save.'
                       : !allConditionsHaveDeadlines
                         ? 'Set a student deadline for every condition, then save before making a decision.'
-                        : needsChangesConditions.some((guideline) => !guideline.feedback?.trim())
-                          ? 'Add officer feedback to every condition marked “Needs changes,” then save.'
-                          : canApprove
-                            ? 'All conditions meet requirements. You can accept the contract.'
-                            : canReject
-                              ? 'At least one condition needs changes. You can reject the contract.'
-                              : 'Review and save the condition results before making a final decision.';
+                        : canApprove
+                          ? 'All conditions meet requirements. You can accept the contract.'
+                          : canReject
+                            ? 'At least one condition needs changes. You can reject the contract.'
+                            : 'Review and save the condition results before making a final decision.';
 
                 return (
                 <article key={request.id} className="contract-card contract-card-detailed">
@@ -627,10 +616,7 @@ function ComplianceDashboardPage() {
                               maxLength={2000}
                               value={guideline.feedback || ''}
                               onChange={(event) => updateGuideline(request.id, index, 'feedback', event.target.value)}
-                              placeholder={guideline.decision === 'needs_changes'
-                                ? 'Explain the change the student must make.'
-                                : 'Optional note for the student.'}
-                              required={guideline.decision === 'needs_changes'}
+                              placeholder="Optional note for the student."
                             />
                           </label>
                         </div>

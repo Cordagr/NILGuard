@@ -16,7 +16,7 @@ function RegisterPage() {
     password: '',
     confirmPassword: ''
   });
-  const [inviteCode, setInviteCode] = useState(() => searchParams.get('inviteCode') || '');
+  const inviteCode = searchParams.get('inviteCode') || '';
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [verificationPending, setVerificationPending] = useState(false);
@@ -128,26 +128,6 @@ function RegisterPage() {
           <p className="register-hint">
             Use your official university .edu email. NILGuard assigns your school and NCAA division from the email domain.
           </p>
-
-          {selectedRole === 'student' ? (
-            <>
-              <p className="register-hint">
-                Athlete registration requires an invitation sent by your coach. Use the email address and one-time code from that invitation.
-              </p>
-              <div className="form-group">
-                <label className="form-label" htmlFor="register-invite-code">Coach invite code</label>
-                <input
-                  id="register-invite-code"
-                  className="form-input"
-                  value={inviteCode}
-                  onChange={(event) => setInviteCode(event.target.value.toUpperCase())}
-                  maxLength={32}
-                  autoComplete="one-time-code"
-                  required
-                />
-              </div>
-            </>
-          ) : null}
 
           <div className="form-group">
             <label className="form-label">Email</label>
